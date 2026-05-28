@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Perfil{% endblock %}
+{% block page_title %}Mi Perfil Corporativo{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- TARJETA AVATAR E IDENTIDAD (Ancho 1/3) -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm text-center space-y-6 h-full flex flex-col items-center justify-center">
+        <div>
+            <h4 class="text-xs font-bold text-grey-main uppercase tracking-wider mb-2">Foto de Perfil</h4>
+            <p class="text-[10px] text-grey-main">Arrastre o seleccione una imagen PNG o JPG</p>
+        </div>
+        
+        <!-- Contenedor Avatar con Hover Interactiva -->
+        <div class="relative group cursor-pointer w-32 h-32" onclick="triggerAvatarUpload()">
+            <img id="profile-avatar-img" src="{{ user.avatar_url or '/static/images/default-avatar.png' }}" class="w-32 h-32 rounded-3xl object-cover border border-[#8C8C8C]/30 shadow-md group-hover:border-[#79F2E6] group-hover:scale-105 transition-all duration-300">
+            <div class="absolute inset-0 bg-[#262523]/60 rounded-3xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <i class="fa-solid fa-camera text-xl mb-1 text-[#79F2E6]"></i>
+                <span class="text-[9px] font-bold uppercase tracking-wider">Subir Nueva</span>
+            </div>
+            <input type="file" id="avatar-input" class="hidden" onchange="uploadAvatarFile(event)">
+        </div>
+
+        <div class="space-y-1">
+            <h3 class="text-sm font-bold text-black-dark">{{ user.full_name }}</h3>
+            <span class="text-[10px] bg-blue-corp/15 text-blue-corp font-bold px-3 py-0.5 rounded-full uppercase tracking-wider">{{ user.role.name }}</span>
+            <p class="text-xs text-grey-main pt-1.5 font-semibold font-mono">{{ user.email }}</p>
+        </div>
+
+        <!-- Protección ciberseguridad info -->
+        <div class="p-3.5 bg-gray-50 border border-gray-100 rounded-2xl w-full text-left text-[10px] text-grey-main leading-relaxed space-y-1.5">
+            <div class="flex items-center space-x-1.5 text-blue-corp font-bold uppercase tracking-wider">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Nivel de Seguridad</span>
+            </div>
+            <p>Su rol <span class="font-bold text-black-dark">"{{ user.role.name }}"</span> posee acceso condicional encriptado en el gestor de credenciales corporativas.</p>
+        </div>
+    </div>
+    
+    <!-- DETALLES DE CUENTA Y CAMBIO DE CONTRASEÑA (Ancho 2/3) -->
+    <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Formulario Cambiar Contraseña -->
+        <div class="glass-card p-6 md:p-8 rounded-3xl shadow-sm space-y-5">
+            <h4 class="text-xs font-bold text-black-dark uppercase tracking-wider flex items-center space-x-2">
+                <i class="fa-solid fa-lock text-blue-corp"></i>
+                <span>Seguridad de Acceso (Cambio de Contraseña)</span>
+            </h4>
+            
+            <form id="change-pw-form" onsubmit="changePassword(event)" class="space-y-4">
+                
+                <div>
+                    <label for="old-password" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Contraseña Actual</label>
+                    <input type="password" id="old-password" required placeholder="••••••••" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="new-password" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nueva Contraseña (mínimo 6 chars)</label>
+                        <input type="password" id="new-password" required placeholder="••••••••" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                    <div>
+                        <label for="confirm-password" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Confirmar Nueva Contraseña</label>
+                        <input type="password" id="confirm-password" required placeholder="••••••••" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 px-5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all flex items-center space-x-2">
+                        <i class="fa-solid fa-key"></i>
+                        <span>Actualizar Contraseña</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Auditoría de accesos propios -->
+        <div class="glass-card p-6 md:p-8 rounded-3xl shadow-sm space-y-4">
+            <h4 class="text-xs font-bold text-black-dark uppercase tracking-wider flex items-center space-x-2">
+                <i class="fa-solid fa-clock-rotate-left text-blue-corp"></i>
+                <span>Tus Últimos Accesos de Auditoría</span>
+            </h4>
+            <p class="text-[10px] text-grey-main -mt-2">Registro de tus actividades recientes en este servidor intranet</p>
+            
+            <div id="own-audit-logs" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                <!-- Se llena dinámicamente -->
+                <p class="text-xs text-grey-main italic">Cargando bitácora de seguridad...</p>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        loadOwnAuditLogs();
+    });
+
+    async function loadOwnAuditLogs() {
+        const list = document.getElementById("own-audit-logs");
+        list.innerHTML = `<p class="text-xs text-grey-main italic py-4">Leyendo registros de auditoría...</p>`;
+
+        try {
+            // Buscamos logs del usuario filtrando en el dashboard stats o a través de auditoría del usuario
+            const response = await fetchAPI('/api/dashboard');
+            if (response && response.ok) {
+                const data = await response.json();
+                list.innerHTML = "";
+                
+                if (data.recent_activity.length === 0) {
+                    list.innerHTML = `<p class="text-xs text-grey-main italic py-4">No se registran eventos.</p>`;
+                    return;
+                }
+
+                data.recent_activity.forEach(log => {
+                    let dotColor = "bg-blue-corp";
+                    if (log.action.includes("failed")) dotColor = "bg-red-500";
+                    else if (log.action.includes("decrypt")) dotColor = "bg-[#79F2E6]";
+
+                    const div = document.createElement("div");
+                    div.className = "flex items-start space-x-3 p-2 bg-white/60 rounded-xl border border-gray-100 text-[11px]";
+                    div.innerHTML = `
+                        <span class="w-2 h-2 rounded-full ${dotColor} mt-1.5 flex-shrink-0"></span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-black-dark leading-relaxed">${log.details}</p>
+                            <p class="text-[9px] text-grey-main mt-0.5">${log.time}</p>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            }
+        } catch (e) {
+            list.innerHTML = `<p class="text-xs text-red-500 italic py-4">Error al cargar bitácora.</p>`;
+        }
+    }
+
+    // Subir Avatar
+    function triggerAvatarUpload() {
+        document.getElementById("avatar-input").click();
+    }
+
+    async function uploadAvatarFile(e) {
+        if (e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        
+        // Validar tamaño y extensión localmente
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+            showToast("Formato inválido. Solo PNG, JPG, JPEG o WEBP.", "error");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        showToast("Actualizando foto de perfil...", "info");
+
+        try {
+            const response = await fetchAPI('/api/users/me/avatar', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response && response.ok) {
+                const data = await response.json();
+                // Actualizar imagen en vivo en el layout y sidebar
+                document.getElementById("profile-avatar-img").src = data.avatar_url;
+                // Intentar actualizar en el sidebar también
+                const sidebarImg = document.querySelector("aside img");
+                if (sidebarImg) sidebarImg.src = data.avatar_url;
+
+                showToast("Foto de perfil actualizada con éxito.", "success");
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al cargar avatar.", "error");
+            }
+        } catch (err) {
+            showToast("Error de red al subir la imagen.", "error");
+        }
+    }
+
+    // Cambio de contraseña
+    async function changePassword(e) {
+        e.preventDefault();
+        const old_password = document.getElementById("old-password").value;
+        const new_password = document.getElementById("new-password").value;
+        const confirm_password = document.getElementById("confirm-password").value;
+
+        if (new_password !== confirm_password) {
+            showToast("La confirmación de la contraseña no coincide.", "error");
+            return;
+        }
+
+        try {
+            const response = await fetchAPI('/api/auth/change-password', {
+                method: 'POST',
+                body: { old_password, new_password }
+            });
+
+            if (response && response.ok) {
+                showToast("Contraseña modificada exitosamente en el servidor.", "success");
+                document.getElementById("change-pw-form").reset();
+                loadOwnAuditLogs();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al modificar contraseña.", "error");
+            }
+        } catch (err) {
+            showToast("Error al procesar la actualización.", "error");
+        }
+    }
+</script>
+{% endblock %}

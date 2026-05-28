@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: intranet-web:latest
+    container_name: intranet_fastapi_web
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=Intranet Corporativa Premium
+      - ENVIRONMENT=production
+      - PORT=8000
+      - DATABASE_URL=postgresql://postgres:postgres_secure_pass@db:5432/intranet_db
+      - SECRET_KEY=production_secret_key_change_me_immediately_in_env_file
+      - AES_SECRET_KEY=wG5kM9sB4uD1xF7tP2zH8vC3qR0jA6eN1yI4mK7sQ9o=
+      - REDIS_URL=redis://redis:6379/0
+      - INITIAL_ADMIN_EMAIL=admin@intranet.local
+      - INITIAL_ADMIN_PASSWORD=AdminPass123!
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - uploads_volume:/app/static/uploads
+    restart: always
+
+  db:
+    image: postgres:16-alpine
+    container_name: intranet_postgres_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_secure_pass
+      - POSTGRES_DB=intranet_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: intranet_redis_cache
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads_volume:
+    driver: local

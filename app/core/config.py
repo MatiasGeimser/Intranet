@@ -1,0 +1,41 @@
+import os
+from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "Intranet Corporativa Premium"
+    ENVIRONMENT: str = "development"
+    PORT: int = 8000
+    
+    # Base de datos
+    DATABASE_URL: str = "sqlite:///intranet.db"
+    
+    # JWT
+    SECRET_KEY: str = "supersecret_jwt_key_default"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    # AES key for credentials
+    AES_SECRET_KEY: str = "wG5kM9sB4uD1xF7tP2zH8vC3qR0jA6eN1yI4mK7sQ9o="
+    
+    # Redis & Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Admin Inicial
+    INITIAL_ADMIN_EMAIL: str = "admin@intranet.local"
+    INITIAL_ADMIN_PASSWORD: str = "Admin12345!"
+
+    # Carpetas para subida de archivos
+    UPLOAD_DIR: str = os.path.join("static", "uploads")
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+settings = Settings()
+
+# Asegurar que el directorio de subidas exista
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

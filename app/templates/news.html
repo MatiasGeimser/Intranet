@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Noticias Corporativas{% endblock %}
+{% block page_title %}Noticias y Comunicados Internos{% endblock %}
+
+{% block content %}
+
+<!-- CONTROLES Y CREACIÓN (SUPERVISOR / ADMINISTRADOR) -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <!-- Filtros de categorías -->
+    <div class="flex flex-wrap gap-2" id="news-categories-bar">
+        <button onclick="loadNews()" class="px-4 py-2 bg-blue-corp text-white rounded-2xl text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all" id="news-cat-all">Todas</button>
+        <button onclick="loadNews('Comunicado')" class="px-4 py-2 bg-white text-black-dark hover:bg-gray-100 rounded-2xl text-xs font-semibold border border-gray-200 transition-all" id="news-cat-Comunicado">Comunicados Oficiales</button>
+        <button onclick="loadNews('RRHH')" class="px-4 py-2 bg-white text-black-dark hover:bg-gray-100 rounded-2xl text-xs font-semibold border border-gray-200 transition-all" id="news-cat-RRHH">Recursos Humanos</button>
+        <button onclick="loadNews('IT')" class="px-4 py-2 bg-white text-black-dark hover:bg-gray-100 rounded-2xl text-xs font-semibold border border-gray-200 transition-all" id="news-cat-IT">TI & Ciberseguridad</button>
+    </div>
+    
+    <!-- Validamos si posee permisos para redactar noticias -->
+    {% set user_perms = [] %}
+    {% for perm in user.role.permissions %}
+        {% set _ = user_perms.append(perm.code) %}
+    {% endfor %}
+    
+    {% if user.role.name == 'Administrador' or 'news:manage' in user_perms %}
+    <button onclick="openPublishModal()" class="bg-[#049DD9] text-white rounded-2xl py-2.5 px-4 text-xs font-semibold hover:bg-blue-corp/90 shadow-md shadow-blue-corp/25 transition-all flex items-center space-x-2">
+        <i class="fa-solid fa-bullhorn text-xs"></i>
+        <span>Redactar Artículo</span>
+    </button>
+    {% endif %}
+</div>
+
+<!-- COMUNICADO DESTACADO (SLIDER BANNER) -->
+<div id="featured-news-banner" class="hidden">
+    <!-- Se inyecta por JS si hay noticia destacada -->
+</div>
+
+<!-- LISTA DE NOTICIAS Y PUBLICACIONES -->
+<div class="grid grid-cols-1 gap-6" id="news-feed-container">
+    <p class="text-xs text-grey-main italic text-center py-10">Consultando boletín de noticias corporativas...</p>
+</div>
+
+<!-- MODAL PUBLICAR ARTÍCULO -->
+<div id="publish-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl relative">
+        <div class="h-2 w-full bg-[#049DD9]"></div>
+        
+        <div class="p-6 md:p-8">
+            <h3 class="text-base font-bold text-black-dark mb-4 flex items-center space-x-2">
+                <i class="fa-solid fa-newspaper text-blue-corp"></i>
+                <span>Redactar Artículo de Comunicación</span>
+            </h3>
+            
+            <form id="publish-form" onsubmit="saveArticle(event)" class="space-y-4">
+                <div>
+                    <label for="news-title" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Título del Artículo</label>
+                    <input type="text" id="news-title" required placeholder="ej. Nueva Alianza Estratégica Internacional 2026" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="news-category" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Categoría</label>
+                        <select id="news-category" class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="Comunicado">Comunicado Oficial</option>
+                            <option value="RRHH">Recursos Humanos</option>
+                            <option value="IT">TI & Ciberseguridad</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2.5 pt-6">
+                        <input type="checkbox" id="news-featured" class="w-4.5 h-4.5 text-blue-corp bg-gray-50 border-gray-300 rounded focus:ring-blue-corp">
+                        <label for="news-featured" class="text-xs font-semibold text-black-dark cursor-pointer select-none">Fijar como Destacado</label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="news-content" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Contenido (Admite etiquetas básicas P, B, I, H1, H2)</label>
+                    <textarea id="news-content" required rows="5" placeholder="Escriba el cuerpo del boletín corporativo aquí..." class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all resize-none"></textarea>
+                </div>
+                
+                <div class="flex items-center space-x-3 pt-3">
+                    <button type="button" onclick="closePublishModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all">Publicar Artículo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let activeNewsCategory = '';
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadNews();
+    });
+
+    async function loadNews(category = '') {
+        activeNewsCategory = category;
+        
+        // Estilos activos
+        const cats = ['all', 'Comunicado', 'RRHH', 'IT'];
+        cats.forEach(c => {
+            const btn = document.getElementById(`news-cat-${c}`);
+            if (btn) {
+                if ((c === 'all' && !category) || (category && btn.id.includes(category))) {
+                    btn.className = "px-4 py-2 bg-blue-corp text-white rounded-2xl text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all";
+                } else {
+                    btn.className = "px-4 py-2 bg-white text-black-dark hover:bg-gray-100 rounded-2xl text-xs font-semibold border border-gray-200 transition-all";
+                }
+            }
+        });
+
+        const feed = document.getElementById("news-feed-container");
+        feed.innerHTML = `<p class="text-xs text-grey-main italic text-center py-10">Leyendo boletín...</p>`;
+
+        try {
+            let url = "/api/news";
+            if (category) url += `?category=${encodeURIComponent(category)}`;
+            
+            const response = await fetchAPI(url);
+            if (!response) return;
+            const articles = await response.json();
+            
+            // Separar destacadas de comunes
+            const featured = articles.filter(a => a.is_featured);
+            const commons = articles.filter(a => !a.is_featured);
+            
+            // Renderizar Banner Destacado
+            const banner = document.getElementById("featured-news-banner");
+            if (featured.length > 0 && !category) {
+                const feat = featured[0];
+                const featDate = new Date(feat.created_at).toLocaleDateString('es-ES', {day: 'numeric', month: 'long', year: 'numeric'});
+                
+                banner.className = "glass-card p-6 md:p-8 rounded-3xl shadow-sm border border-blue-corp/25 relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-6 bg-gradient-to-r from-white via-white to-blue-corp/5";
+                banner.innerHTML = `
+                    <div class="space-y-3 flex-1 min-w-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[9px] bg-red-500/10 text-red-500 font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                <i class="fa-solid fa-thumbtack mr-1"></i>Fijado / Destacado
+                            </span>
+                            <span class="text-[9px] bg-[#049DD9]/10 text-[#049DD9] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">${feat.category}</span>
+                        </div>
+                        <h2 class="text-lg md:text-xl font-bold text-black-dark leading-tight">${feat.title}</h2>
+                        <div class="text-xs text-gray-700 leading-relaxed max-w-2xl">${feat.content}</div>
+                        <div class="flex items-center space-x-2.5 text-[10px] text-grey-main font-semibold pt-1">
+                            <img src="${feat.author.avatar_url or '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
+                            <span>Redactado por ${feat.author.full_name} • ${featDate}</span>
+                        </div>
+                    </div>
+                    <button onclick="toggleComments(${feat.id})" class="bg-[#262523] text-white hover:bg-black-dark/95 text-xs font-semibold px-4 py-2.5 rounded-2xl flex items-center justify-center space-x-2 self-start md:self-center transition-all flex-shrink-0">
+                        <i class="fa-solid fa-comments"></i>
+                        <span>Ver comentarios (${feat.comments.length})</span>
+                    </button>
+                `;
+                
+                // Añadir el panel de comentarios del banner destacado justo debajo
+                const commDiv = document.createElement("div");
+                commDiv.id = `comments-panel-${feat.id}`;
+                commDiv.className = "glass-card p-6 rounded-3xl shadow-inner border border-t-0 border-gray-100 -mt-6 hidden space-y-4 bg-white/40";
+                renderCommentsHTML(commDiv, feat);
+                
+                banner.after(commDiv);
+                banner.classList.remove("hidden");
+            } else {
+                banner.classList.add("hidden");
+                banner.innerHTML = "";
+            }
+
+            // Renderizar noticias comunes
+            feed.innerHTML = "";
+            if (commons.length === 0 && featured.length === 0) {
+                feed.innerHTML = `<p class="text-xs text-grey-main italic text-center py-10">No hay noticias publicadas en esta categoría.</p>`;
+                return;
+            }
+
+            commons.forEach(n => {
+                const nDate = new Date(n.created_at).toLocaleDateString('es-ES', {day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+                const artDiv = document.createElement("div");
+                artDiv.className = "glass-card p-6 rounded-3xl shadow-sm space-y-4 hover:shadow-md transition-all";
+                artDiv.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">${n.category}</span>
+                        </div>
+                        
+                        <!-- Si es creador o administrador puede borrarla -->
+                        ${ (n.author_id === {{ user.id }} || "{{ user.role.name }}" === "Administrador") ? `
+                            <button onclick="deleteArticle(${n.id})" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        ` : '' }
+                    </div>
+                    
+                    <h3 class="text-base font-bold text-black-dark">${n.title}</h3>
+                    <div class="text-xs text-gray-700 leading-relaxed">${n.content}</div>
+                    
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-gray-100">
+                        <div class="flex items-center space-x-2 text-[10px] text-grey-main font-semibold">
+                            <img src="${n.author.avatar_url or '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
+                            <span>Escrito por ${n.author.full_name} • ${nDate}</span>
+                        </div>
+                        
+                        <button onclick="toggleComments(${n.id})" class="text-xs text-[#049DD9] hover:text-blue-corp font-bold flex items-center space-x-1.5 self-start sm:self-auto">
+                            <i class="fa-regular fa-comments text-base"></i>
+                            <span>Hilo de Comentarios (${n.comments.length})</span>
+                        </button>
+                    </div>
+                `;
+                
+                // Panel de comentarios oculto por defecto
+                const commPanel = document.createElement("div");
+                commPanel.id = `comments-panel-${n.id}`;
+                commPanel.className = "glass-card p-5 rounded-3xl border border-[#8C8C8C]/15 hidden space-y-4 bg-white/40 -mt-4";
+                renderCommentsHTML(commPanel, n);
+                
+                feed.appendChild(artDiv);
+                feed.appendChild(commPanel);
+            });
+
+        } catch (e) {
+            console.error("Error al leer noticias:", e);
+            feed.innerHTML = `<p class="text-xs text-red-500 italic text-center py-10">Falla de comunicación al cargar el feed.</p>`;
+        }
+    }
+
+    // Toggle para desplegar comentarios
+    function toggleComments(id) {
+        const panel = document.getElementById(`comments-panel-${id}`);
+        panel.classList.toggle("hidden");
+    }
+
+    // Inyectar HTML en hilos de comentarios
+    function renderCommentsHTML(panel, n) {
+        panel.innerHTML = "";
+        
+        const listDiv = document.createElement("div");
+        listDiv.className = "space-y-3 max-h-[250px] overflow-y-auto pr-1";
+        
+        if (n.comments.length === 0) {
+            listDiv.innerHTML = `<p class="text-[11px] text-grey-main italic">Sin comentarios. ¡Sé el primero en opinar!</p>`;
+        } else {
+            n.comments.forEach(c => {
+                const cDate = new Date(c.created_at).toLocaleDateString('es-ES', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+                const div = document.createElement("div");
+                div.className = "flex items-start space-x-2.5 p-2 bg-white/70 rounded-2xl border border-gray-50 text-xs";
+                div.innerHTML = `
+                    <img src="${c.author.avatar_url or '/static/images/default-avatar.png'}" class="w-6 h-6 rounded-full object-cover">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-black-dark text-[11px]">${c.author.full_name}</span>
+                            <div class="flex items-center space-x-1.5 text-[9px] text-[#8C8C8C]">
+                                <span>${cDate}</span>
+                                ${ (c.author_id === {{ user.id }} || "{{ user.role.name }}" === "Administrador" || n.author_id === {{ user.id }}) ? `
+                                    <button onclick="deleteComment(${c.id}, ${n.id})" class="text-gray-400 hover:text-red-500 transition-colors">
+                                        <i class="fa-regular fa-trash-can text-[10px]"></i>
+                                    </button>
+                                ` : '' }
+                            </div>
+                        </div>
+                        <p class="text-gray-700 leading-relaxed mt-0.5">${c.content}</p>
+                    </div>
+                `;
+                listDiv.appendChild(div);
+            });
+        }
+
+        // Formulario para añadir comentario
+        const form = document.createElement("form");
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            submitComment(n.id, form.querySelector("input").value);
+        };
+        form.className = "flex items-center space-x-2 mt-4 pt-3 border-t border-gray-100";
+        form.innerHTML = `
+            <input type="text" placeholder="Escriba un comentario constructivo..." required class="flex-1 text-xs bg-white rounded-xl px-3 py-2 border border-gray-200 focus:outline-none focus:border-[#049DD9]">
+            <button type="submit" class="bg-blue-corp text-white px-3 py-2 rounded-xl text-xs hover:bg-[#049DD9]/90 font-bold transition-all"><i class="fa-solid fa-paper-plane"></i></button>
+        `;
+
+        panel.appendChild(listDiv);
+        panel.appendChild(form);
+    }
+
+    // Enviar comentario
+    async function submitComment(newsId, text) {
+        try {
+            const response = await fetchAPI(`/api/news/${newsId}/comments`, {
+                method: 'POST',
+                body: { content: text }
+            });
+
+            if (response && response.ok) {
+                showToast("Comentario publicado correctamente.", "success");
+                loadNews(activeNewsCategory);
+            }
+        } catch (e) {
+            showToast("Falla al enviar comentario.", "error");
+        }
+    }
+
+    // Eliminar comentario
+    async function deleteComment(commentId, newsId) {
+        if (!confirm("¿Está seguro de eliminar su comentario?")) return;
+        
+        try {
+            const response = await fetchAPI(`/api/news/comments/${commentId}`, { method: 'DELETE' });
+            if (response && response.ok) {
+                showToast("Comentario suprimido.", "success");
+                loadNews(activeNewsCategory);
+            }
+        } catch (e) {
+            showToast("Error al suprimir comentario.", "error");
+        }
+    }
+
+    // Modales y CRUD Noticias
+    function openPublishModal() {
+        document.getElementById('publish-form').reset();
+        document.getElementById('publish-modal').classList.remove('hidden');
+    }
+
+    function closePublishModal() {
+        document.getElementById('publish-modal').classList.add('hidden');
+    }
+
+    async function saveArticle(e) {
+        e.preventDefault();
+        const title = document.getElementById('news-title').value;
+        const category = document.getElementById('news-category').value;
+        const is_featured = document.getElementById('news-featured').checked;
+        const content = document.getElementById('news-content').value;
+
+        try {
+            const response = await fetchAPI('/api/news', {
+                method: 'POST',
+                body: { title, category, is_featured, content }
+            });
+
+            if (response && response.ok) {
+                showToast("Comunicado oficial publicado en la Intranet.", "success");
+                closePublishModal();
+                loadNews(activeNewsCategory);
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al publicar.", "error");
+            }
+        } catch (err) {
+            showToast("Error de comunicación.", "error");
+        }
+    }
+
+    async function deleteArticle(id) {
+        if (!confirm("¿Está seguro de eliminar esta publicación de noticias permanentemente? Esta acción se auditará.")) return;
+
+        try {
+            const response = await fetchAPI(`/api/news/${id}`, { method: 'DELETE' });
+            if (response && response.ok) {
+                showToast("Publicación suprimida con éxito.", "success");
+                loadNews(activeNewsCategory);
+            }
+        } catch (e) {
+            showToast("Falla de conectividad.", "error");
+        }
+    }
+</script>
+{% endblock %}

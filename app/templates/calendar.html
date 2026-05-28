@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}Calendario Corporativo{% endblock %}
+{% block page_title %}Calendario Corporativo{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    
+    <!-- ÁREA DEL CALENDARIO PRINCIPAL (Ancho 3/4) -->
+    <div class="lg:col-span-3 space-y-6">
+        
+        <!-- Controles de Cabecera del Calendario -->
+        <div class="glass-card p-4 rounded-3xl flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-4">
+                <button onclick="navigateMonth(-1)" class="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 text-black-dark flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <h3 id="calendar-month-year" class="text-sm font-bold text-black-dark min-w-[120px] text-center">Mayo 2026</h3>
+                <button onclick="navigateMonth(1)" class="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 text-black-dark flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <select id="event-type-filter" onchange="renderCalendar()" class="text-xs bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-200 focus:outline-none focus:border-[#049DD9]">
+                    <option value="all">Todos los Eventos</option>
+                    <option value="internal">Eventos Internos</option>
+                    <option value="birthday">Cumpleaños</option>
+                    <option value="reminder">Recordatorios</option>
+                </select>
+                
+                <button onclick="openAddEventModal()" class="bg-[#049DD9] text-white rounded-xl py-2 px-3 text-xs font-semibold hover:bg-blue-corp/90 transition-all flex items-center space-x-1.5">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                    <span>Agendar</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Cuadrícula del Calendario (Días de la semana y casillas) -->
+        <div class="glass-card p-6 rounded-3xl shadow-sm">
+            <!-- Cabecera de días -->
+            <div class="grid grid-cols-7 gap-2 text-center text-[10px] font-bold text-grey-main uppercase tracking-wider mb-4">
+                <div>Dom</div>
+                <div>Lun</div>
+                <div>Mar</div>
+                <div>Mié</div>
+                <div>Jue</div>
+                <div>Vie</div>
+                <div>Sáb</div>
+            </div>
+            
+            <!-- Casillas del mes (JS dinámico) -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-2 min-h-[350px]">
+                <!-- Días inyectados dinámicamente -->
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- ACCESOS DE CUMPLEAÑOS Y PRÓXIMAS REUNIONES (Ancho 1/4) -->
+    <div class="space-y-6">
+        
+        <!-- Card: Cumpleaños del Mes -->
+        <div class="glass-card p-6 rounded-3xl shadow-sm space-y-4">
+            <h4 class="text-xs font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-cake-candles text-pink-500"></i>
+                <span>Cumpleaños del Mes</span>
+            </h4>
+            
+            <div id="birthdays-sidebar-list" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                <p class="text-xs text-grey-main italic">Consultando cumpleaños...</p>
+            </div>
+        </div>
+        
+        <!-- Card: Mis Eventos Agendados -->
+        <div class="glass-card p-6 rounded-3xl shadow-sm space-y-4">
+            <h4 class="text-xs font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-hourglass-half text-amber-500"></i>
+                <span>Próximos Compromisos</span>
+            </h4>
+            
+            <div id="upcoming-sidebar-list" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                <p class="text-xs text-grey-main italic">Cargando próximos eventos...</p>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- MODAL CREAR EVENTO -->
+<div id="event-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative">
+        <div class="h-2 w-full bg-[#049DD9]"></div>
+        
+        <div class="p-6 md:p-8">
+            <h3 class="text-base font-bold text-black-dark mb-4 flex items-center space-x-2">
+                <i class="fa-solid fa-calendar-plus text-blue-corp"></i>
+                <span>Agendar Evento Corporativo</span>
+            </h3>
+            
+            <form id="event-form" onsubmit="saveEvent(event)" class="space-y-4">
+                <div>
+                    <label for="event-title" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Título del Evento</label>
+                    <input type="text" id="event-title" required placeholder="ej. Reunión de Planificación Q3" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+                
+                <div>
+                    <label for="event-description" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Descripción / Enlace de Videollamada</label>
+                    <textarea id="event-description" rows="2" placeholder="ej. Revisión de metas e hitos clave. Enlace: https://meet.google.com/xyz" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all resize-none"></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="event-start" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fecha y Hora de Inicio</label>
+                        <input type="datetime-local" id="event-start" required class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                    <div>
+                        <label for="event-end" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fecha y Hora de Cierre</label>
+                        <input type="datetime-local" id="event-end" required class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="event-type" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Tipo de Evento</label>
+                    <select id="event-type" class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                        <option value="internal">Evento Interno (Reunión / Capacitación)</option>
+                        <option value="reminder">Alerta / Recordatorio Importante</option>
+                    </select>
+                </div>
+                
+                <div class="flex items-center space-x-3 pt-3">
+                    <button type="button" onclick="closeEventModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all">Agendar Evento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentDate = new Date();
+    let eventsData = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadEvents();
+    });
+
+    async function loadEvents() {
+        try {
+            const response = await fetchAPI("/api/events");
+            if (response && response.ok) {
+                eventsData = await response.json();
+                renderCalendar();
+                renderSidebars();
+            }
+        } catch (e) {
+            console.error("Error al cargar eventos:", e);
+            showToast("Falla de red al obtener eventos corporativos.", "error");
+        }
+    }
+
+    // Navegación de meses
+    function navigateMonth(direction) {
+        currentDate.setMonth(currentDate.getMonth() + direction);
+        renderCalendar();
+        renderSidebars();
+    }
+
+    // Renderizar la cuadrícula del calendario
+    function renderCalendar() {
+        const grid = document.getElementById("calendar-grid");
+        grid.innerHTML = "";
+        
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        // Colocar mes y año en cabecera
+        const monthsNames = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ];
+        document.getElementById("calendar-month-year").innerText = `${monthsNames[month]} ${year}`;
+
+        // Obtener el primer día del mes y total de días
+        const firstDayIndex = new Date(year, month, 1).getDay();
+        const totalDays = new Date(year, month + 1, 0).getDate();
+        const totalDaysPrev = new Date(year, month, 0).getDate();
+
+        // Filtro seleccionado
+        const filterType = document.getElementById("event-type-filter").value;
+
+        // Inyectar días del mes anterior (para rellenar la primera fila)
+        for (let i = firstDayIndex - 1; i >= 0; i--) {
+            const dayDiv = document.createElement("div");
+            dayDiv.className = "p-2 bg-gray-50 border border-gray-100 rounded-2xl min-h-[75px] opacity-40 select-none text-right text-[10px] font-bold text-gray-400";
+            dayDiv.innerText = totalDaysPrev - i;
+            grid.appendChild(dayDiv);
+        }
+
+        // Inyectar días del mes activo
+        const today = new Date();
+        for (let day = 1; day <= totalDays; day++) {
+            const dayDiv = document.createElement("div");
+            
+            // Comprobar si es "hoy" para destacarlo
+            const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+            dayDiv.className = `p-2 bg-white border rounded-2xl min-h-[75px] transition-all flex flex-col justify-between ${
+                isToday ? 'border-[#049DD9] shadow-md ring-1 ring-[#049DD9]/30' : 'border-gray-100 hover:border-gray-300'
+            }`;
+            
+            dayDiv.innerHTML = `<span class="text-right text-[10px] font-bold ${isToday ? 'text-blue-corp' : 'text-black-dark'}">${day}</span>`;
+            
+            // Buscar eventos que caigan en este día específico
+            const dayEventsContainer = document.createElement("div");
+            dayEventsContainer.className = "space-y-1 mt-1 overflow-y-auto max-h-[55px] pr-0.5";
+            
+            const cellDate = new Date(year, month, day);
+            cellDate.setHours(0,0,0,0);
+            
+            const dayEvents = eventsData.filter(e => {
+                const eventStart = new Date(e.start_date);
+                eventStart.setHours(0,0,0,0);
+                
+                // Si hay filtro activo
+                if (filterType !== 'all' && e.event_type !== filterType) return false;
+                
+                return eventStart.getTime() === cellDate.getTime();
+            });
+
+            dayEvents.forEach(e => {
+                const evDiv = document.createElement("button");
+                evDiv.onclick = (event) => {
+                    event.stopPropagation();
+                    showEventDetail(e);
+                };
+                
+                let colorClass = "bg-blue-corp text-white hover:bg-blue-corp/90";
+                if (e.event_type === 'birthday') colorClass = "bg-pink-500 text-white hover:bg-pink-500/90";
+                else if (e.event_type === 'reminder') colorClass = "bg-amber-500 text-white hover:bg-amber-500/90";
+                
+                evDiv.className = `w-full text-left text-[8px] font-extrabold px-1.5 py-0.5 rounded-md truncate transition-colors ${colorClass}`;
+                evDiv.innerText = e.title;
+                evDiv.title = e.title;
+                dayEventsContainer.appendChild(evDiv);
+            });
+
+            dayDiv.appendChild(dayEventsContainer);
+            grid.appendChild(dayDiv);
+        }
+    }
+
+    // Detalles del Evento en Alerta/Toast
+    function showEventDetail(e) {
+        const dateStr = new Date(e.start_date).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+        const dateEndStr = new Date(e.end_date).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+        
+        let detailsText = `${e.title}\n\nHora: ${dateStr} a ${dateEndStr}\n\n`;
+        if (e.description) detailsText += `Descripción: ${e.description}\n\n`;
+        detailsText += `Agendado por: ${e.creator.full_name}`;
+        
+        alert(detailsText);
+    }
+
+    // Renderizar las barras laterales de información rápida
+    function renderSidebars() {
+        const month = currentDate.getMonth() + 1; // 1-indexed
+
+        // 1. Renderizar cumpleaños del mes
+        const bList = document.getElementById("birthdays-sidebar-list");
+        bList.innerHTML = "";
+        
+        const birthdays = eventsData.filter(e => e.event_type === 'birthday' && new Date(e.start_date).getMonth() === currentDate.getMonth());
+        
+        if (birthdays.length === 0) {
+            bList.innerHTML = `<p class="text-xs text-grey-main italic py-2">Sin cumpleaños este mes.</p>`;
+        } else {
+            birthdays.forEach(b => {
+                const bDate = new Date(b.start_date).getDate();
+                const div = document.createElement("div");
+                div.className = "flex items-center space-x-3 p-2.5 bg-pink-500/5 hover:bg-pink-500/10 border border-pink-500/10 rounded-2xl transition-all";
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-xl bg-pink-500/15 flex items-center justify-center text-pink-500 font-extrabold text-xs">
+                        ${bDate}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h5 class="text-xs font-bold text-black-dark truncate">${b.title.replace('🎂 ', '')}</h5>
+                        <p class="text-[9px] text-[#8C8C8C] font-semibold uppercase">Felicidades en su día</p>
+                    </div>
+                `;
+                bList.appendChild(div);
+            });
+        }
+
+        // 2. Compromisos futuros
+        const uList = document.getElementById("upcoming-sidebar-list");
+        uList.innerHTML = "";
+        
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        const upcoming = eventsData
+            .filter(e => e.event_type !== 'birthday' && new Date(e.start_date) >= today)
+            .sort((a,b) => new Date(a.start_date) - new Date(b.start_date))
+            .slice(0, 4);
+
+        if (upcoming.length === 0) {
+            uList.innerHTML = `<p class="text-xs text-grey-main italic py-2">Sin compromisos agendados.</p>`;
+        } else {
+            upcoming.forEach(u => {
+                const evDate = new Date(u.start_date);
+                const dayStr = evDate.toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
+                const timeStr = evDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+                
+                const div = document.createElement("div");
+                div.className = "flex items-start space-x-3 p-2.5 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white transition-all";
+                div.innerHTML = `
+                    <div class="w-10 h-10 rounded-xl bg-blue-corp/10 flex flex-col items-center justify-center text-blue-corp flex-shrink-0">
+                        <span class="text-[9px] font-bold uppercase -mb-0.5">${evDate.toLocaleDateString('es-ES', {month: 'short'}).replace('.', '')}</span>
+                        <span class="text-xs font-extrabold">${evDate.getDate()}</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h5 class="text-xs font-bold text-black-dark truncate">${u.title}</h5>
+                        <p class="text-[9px] text-[#8C8C8C] font-semibold">${timeStr} • ${u.creator.full_name}</p>
+                    </div>
+                `;
+                uList.appendChild(div);
+            });
+        }
+    }
+
+    // Modales y CRUD
+    function openAddEventModal() {
+        document.getElementById('event-form').reset();
+        document.getElementById('event-modal').classList.remove('hidden');
+    }
+
+    function closeEventModal() {
+        document.getElementById('event-modal').classList.add('hidden');
+    }
+
+    async function saveEvent(e) {
+        e.preventDefault();
+        const title = document.getElementById('event-title').value;
+        const description = document.getElementById('event-description').value;
+        const start_date = document.getElementById('event-start').value;
+        const end_date = document.getElementById('event-end').value;
+        const event_type = document.getElementById('event-type').value;
+
+        if (new Date(start_date) > new Date(end_date)) {
+            showToast("La fecha de cierre debe ser posterior a la de inicio.", "error");
+            return;
+        }
+
+        try {
+            const response = await fetchAPI('/api/events', {
+                method: 'POST',
+                body: { title, description: description || null, start_date, end_date, event_type }
+            });
+
+            if (response && response.ok) {
+                showToast("Evento agendado con éxito.", "success");
+                closeEventModal();
+                loadEvents();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al agendar evento.", "error");
+            }
+        } catch (err) {
+            showToast("Error de conexión al guardar el evento.", "error");
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-[#F2F2F2]">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }} - Acceso Seguro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        grey: { main: '#8C8C8C', light: '#F2F2F2' },
+                        blue: { corp: '#049DD9' },
+                        aqua: { accent: '#79F2E6' },
+                        black: { dark: '#262523' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #F2F2F2 0%, #E2E2E2 100%);
+        }
+
+        .glass-login {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 20px 40px -15px rgba(38, 37, 35, 0.1);
+        }
+    </style>
+</head>
+
+<body class="h-full flex items-center justify-center p-4">
+
+    <!-- Tarjeta de Login Glassmorphic Premium -->
+    <div class="w-full max-w-md glass-login rounded-3xl overflow-hidden relative">
+        <!-- Barra de acento gradiente superior -->
+        <div class="h-2 w-full bg-gradient-to-r from-[#049DD9] via-[#79F2E6] to-[#262523]"></div>
+
+        <div class="p-8 md:p-10">
+            <!-- Logo e Identidad -->
+            <div class="text-center mb-8">
+                <div
+                    class="inline-flex w-12 h-12 rounded-2xl bg-[#049DD9] items-center justify-center text-[#79F2E6] font-bold text-xl shadow-lg shadow-[#049DD9]/30 mb-3">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-[#262523] tracking-tight">Acceso Corporativo</h1>
+                <p class="text-xs text-[#8C8C8C] mt-1 font-medium">Intranet Corporativa de Alta Seguridad</p>
+            </div>
+
+            <!-- Formulario de Acceso -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5">
+
+                <div>
+                    <label for="email"
+                        class="block text-xs font-semibold text-[#262523] uppercase tracking-wider mb-2">Correo
+                        Electrónico</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <i class="fa-solid fa-envelope text-xs"></i>
+                        </span>
+                        <input type="email" id="email" required placeholder="nombre@compania.com"
+                            class="w-full text-sm bg-white rounded-xl pl-9 pr-4 py-3 border border-gray-200 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9] transition-all duration-200">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="password"
+                            class="block text-xs font-semibold text-[#262523] uppercase tracking-wider">Contraseña</label>
+                        <button type="button" onclick="openRecoveryModal()"
+                            class="text-xs text-[#049DD9] hover:underline font-semibold transition-colors duration-200">¿La
+                            olvidó?</button>
+                    </div>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <i class="fa-solid fa-lock text-xs"></i>
+                        </span>
+                        <input type="password" id="password" required placeholder="••••••••"
+                            class="w-full text-sm bg-white rounded-xl pl-9 pr-10 py-3 border border-gray-200 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9] transition-all duration-200">
+                        <button type="button" onclick="togglePasswordVisibility()"
+                            class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-[#049DD9] transition-colors">
+                            <i id="eye-icon" class="fa-solid fa-eye text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Términos de uso e indicador seguro -->
+                <div class="flex items-center space-x-2.5 py-1 text-xs text-[#8C8C8C] font-medium">
+                    <i class="fa-solid fa-user-lock text-sm text-[#049DD9]"></i>
+                    <span>Tus datos se encriptan de extremo a extremo.</span>
+                </div>
+
+                <!-- Botón de Entrada -->
+                <button type="submit" id="submit-btn"
+                    class="w-full bg-[#049DD9] text-white rounded-xl py-3 px-4 text-sm font-semibold hover:bg-[#049DD9]/90 focus:outline-none focus:ring-2 focus:ring-[#79F2E6] shadow-lg shadow-[#049DD9]/25 hover:shadow-xl hover:shadow-[#049DD9]/30 transition-all duration-200 flex items-center justify-center space-x-2">
+                    <span id="btn-text">Iniciar Sesión</span>
+                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                </button>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE RECUPERACIÓN DE CONTRASEÑA -->
+    <div id="recovery-modal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative">
+            <div class="h-1.5 w-full bg-[#049DD9]"></div>
+            <div class="p-6 md:p-8">
+                <h3 class="text-lg font-bold text-[#262523] mb-2 flex items-center space-x-2">
+                    <i class="fa-solid fa-key text-[#049DD9]"></i>
+                    <span>Recuperación de Contraseña</span>
+                </h3>
+                <p class="text-xs text-[#8C8C8C] mb-6 leading-relaxed">
+                    Ingrese el correo electrónico de su cuenta corporativa. El sistema le enviará un enlace de
+                    restablecimiento seguro.
+                </p>
+
+                <form id="recovery-form" onsubmit="handleRecovery(event)" class="space-y-4">
+                    <div>
+                        <label for="recovery-email"
+                            class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Correo
+                            Corporativo</label>
+                        <input type="email" id="recovery-email" required placeholder="usuario@compania.com"
+                            class="w-full text-sm bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+
+                    <div class="flex items-center space-x-3 pt-2">
+                        <button type="button" onclick="closeRecoveryModal()"
+                            class="flex-1 bg-gray-100 text-gray-600 rounded-xl py-3 text-xs font-semibold hover:bg-gray-200 transition-all">Cerrar</button>
+                        <button type="submit"
+                            class="flex-1 bg-[#049DD9] text-white rounded-xl py-3 text-xs font-semibold hover:bg-[#049DD9]/90 shadow-md shadow-[#049DD9]/25 transition-all">Enviar
+                            Enlace</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR TOAST PARA PÁGINA DE LOGIN -->
+    <div id="login-toast-container"
+        class="fixed bottom-6 right-6 z-50 flex flex-col space-y-3 max-w-sm w-full pointer-events-none"></div>
+
+    <script>
+        // Sistema de notificaciones toast locales
+        function showLocalToast(message, type = 'success') {
+            const container = document.getElementById('login-toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-4 bg-white rounded-2xl flex items-start space-x-3 shadow-xl max-w-sm pointer-events-auto border-l-4 border-l-[#049DD9] transition-all duration-300 transform translate-y-4 opacity-0`;
+
+            let iconClass = 'fa-circle-check text-[#049DD9]';
+            if (type === 'error') {
+                toast.style.borderLeftColor = 'rgb(239, 68, 68)';
+                iconClass = 'fa-circle-exclamation text-red-500';
+            }
+
+            toast.innerHTML = `
+                <i class="fa-solid ${iconClass} text-lg mt-0.5"></i>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-[#262523] leading-relaxed">${message}</p>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            // Animación manual simple
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Toggler de ocultar/mostrar contraseña
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        // Procesar inicio de sesión
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+
+            submitBtn.disabled = true;
+            btnText.innerText = "Verificando...";
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCookie('csrf_access_token') },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showLocalToast("Autenticación correcta. Iniciando sesión...", "success");
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                } else {
+                    showLocalToast(data.detail || "Error al iniciar sesión.", "error");
+                    submitBtn.disabled = false;
+                    btnText.innerText = "Iniciar Sesión";
+                }
+            } catch (err) {
+                showLocalToast("Falla de comunicación con el servidor.", "error");
+                submitBtn.disabled = false;
+                btnText.innerText = "Iniciar Sesión";
+            }
+        }
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        // Modales de Recuperación
+        function openRecoveryModal() {
+            document.getElementById('recovery-modal').classList.remove('hidden');
+        }
+        function closeRecoveryModal() {
+            document.getElementById('recovery-modal').classList.add('hidden');
+        }
+
+        async function handleRecovery(e) {
+            e.preventDefault();
+            const email = document.getElementById('recovery-email').value;
+            try {
+                const response = await fetch('/api/auth/recover-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                showLocalToast(data.detail, "success");
+                closeRecoveryModal();
+            } catch (err) {
+                showLocalToast("Error al tramitar la recuperación.", "error");
+            }
+        }
+    </script>
+</body>
+
+</html>

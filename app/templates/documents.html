@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión Documental{% endblock %}
+{% block page_title %}Gestión Documental (Virtualizada y Auditada){% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    
+    <!-- BARRA LATERAL DE CARPETAS VIRTUALES (Ancho 1/4) -->
+    <div class="space-y-4">
+        <div class="glass-card p-5 rounded-3xl shadow-sm space-y-4">
+            <h4 class="text-xs font-bold text-black-dark uppercase tracking-wider">Carpetas Corporativas</h4>
+            
+            <div class="flex flex-col space-y-1.5" id="folders-menu">
+                <button onclick="selectFolder('General')" id="fold-General" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-corp text-white shadow-md shadow-blue-corp/15 text-left w-full transition-all">
+                    <i class="fa-solid fa-folder text-base"></i>
+                    <span>General</span>
+                </button>
+                <button onclick="selectFolder('IT')" id="fold-IT" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
+                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
+                    <span>Tecnología (IT)</span>
+                </button>
+                <button onclick="selectFolder('RRHH')" id="fold-RRHH" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
+                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
+                    <span>Recursos Humanos</span>
+                </button>
+                <button onclick="selectFolder('Finanzas')" id="fold-Finanzas" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
+                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
+                    <span>Finanzas & Legal</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- CONTENIDO DE ARCHIVOS (Ancho 3/4) -->
+    <div class="lg:col-span-3 space-y-6">
+        
+        <!-- Zona Dropzone de Arrastre y Carga de Archivos -->
+        <div id="dropzone" class="border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none">
+            <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
+            <div class="w-12 h-12 rounded-2xl bg-blue-corp/10 flex items-center justify-center text-blue-corp mb-3 transition-transform group-hover:scale-110">
+                <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+            </div>
+            <h4 class="text-xs font-bold text-black-dark">Arrastra tus archivos aquí o haz clic para subir</h4>
+            <p class="text-[10px] text-grey-main mt-1 leading-relaxed">Formatos aceptados: PDF, DOCX, XLSX, imágenes. Límite de 50MB.<br><span class="text-blue-corp font-bold">Nota: Si el archivo ya existe, se creará una versión incremental automáticamente.</span></p>
+        </div>
+        
+        <!-- Barra de Búsqueda y Resultados -->
+        <div class="glass-card p-4 rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+            <h3 class="text-sm font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-folder-open text-blue-corp"></i>
+                <span>Directorio: </span>
+                <span id="active-folder-title" class="bg-gray-100 px-3 py-1 rounded-xl text-xs text-black-dark font-bold ml-1">General</span>
+            </h3>
+            
+            <div class="relative max-w-xs">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
+                </span>
+                <input type="text" id="doc-search" oninput="filterDocuments()" placeholder="Filtrar archivos..." class="w-48 bg-[#F2F2F2] text-xs rounded-xl pl-8 pr-3 py-2 border border-[#8C8C8C]/20 focus:outline-none focus:border-[#049DD9] transition-all">
+            </div>
+        </div>
+        
+        <!-- Tabla de Documentos -->
+        <div class="glass-card rounded-3xl overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-[#8C8C8C]/15 bg-white/50 text-[10px] font-bold text-grey-main uppercase tracking-wider">
+                            <th class="px-6 py-4">Nombre del Archivo</th>
+                            <th class="px-6 py-4">Tamaño</th>
+                            <th class="px-6 py-4">Versión</th>
+                            <th class="px-6 py-4">Fecha de Carga</th>
+                            <th class="px-6 py-4 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="documents-table-body" class="divide-y divide-[#8C8C8C]/10 text-xs">
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Explorando directorio corporativo...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let activeFolder = 'General';
+    let rawDocumentsList = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Inicializar Dropzone
+        const dropzone = document.getElementById("dropzone");
+        
+        dropzone.addEventListener("click", () => document.getElementById("file-uploader").click());
+        
+        dropzone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropzone.className = "border-2 border-dashed border-blue-corp rounded-3xl p-8 bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
+        });
+        
+        dropzone.addEventListener("dragleave", () => {
+            dropzone.className = "border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
+        });
+        
+        dropzone.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            dropzone.className = "border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
+            
+            if (e.dataTransfer.files.length > 0) {
+                await uploadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        loadDocuments();
+    });
+
+    // Cambiar de carpeta virtual
+    function selectFolder(folder) {
+        activeFolder = folder;
+        document.getElementById("active-folder-title").innerText = folder;
+
+        // Estilos del menú
+        const folders = ['General', 'IT', 'RRHH', 'Finanzas'];
+        folders.forEach(f => {
+            const btn = document.getElementById(`fold-${f}`);
+            if (btn) {
+                if (f === folder) {
+                    btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-corp text-white shadow-md shadow-blue-corp/15 text-left w-full transition-all";
+                    btn.querySelector("i").className = "fa-solid fa-folder text-base";
+                } else {
+                    btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all";
+                    btn.querySelector("i").className = "fa-solid fa-folder-closed text-base text-[#8C8C8C]";
+                }
+            }
+        });
+
+        loadDocuments();
+    }
+
+    // Consultar API
+    async function loadDocuments() {
+        const tbody = document.getElementById("documents-table-body");
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Leyendo archivos en la carpeta virtual...</td></tr>`;
+
+        try {
+            const response = await fetchAPI(`/api/documents?folder=${encodeURIComponent(activeFolder)}`);
+            if (response && response.ok) {
+                rawDocumentsList = await response.json();
+                renderDocuments(rawDocumentsList);
+            }
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500 italic">Error de conexión al leer el servidor.</td></tr>`;
+        }
+    }
+
+    // Renderizar tabla
+    function renderDocuments(list) {
+        const tbody = document.getElementById("documents-table-body");
+        tbody.innerHTML = "";
+        
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Esta carpeta está vacía. Arrastre archivos para empezar a compartir.</td></tr>`;
+            return;
+        }
+
+        list.forEach(doc => {
+            let iconClass = "fa-file text-gray-400";
+            let iconColor = "bg-gray-100 text-gray-500";
+            
+            if (doc.file_type === 'pdf') {
+                iconClass = "fa-file-pdf";
+                iconColor = "bg-red-500/10 text-red-500";
+            } else if (doc.file_type === 'docx' || doc.file_type === 'doc') {
+                iconClass = "fa-file-word";
+                iconColor = "bg-blue-500/10 text-blue-500";
+            } else if (doc.file_type === 'xlsx' || doc.file_type === 'xls' || doc.file_type === 'csv') {
+                iconClass = "fa-file-excel";
+                iconColor = "bg-emerald-500/10 text-emerald-500";
+            } else if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(doc.file_type)) {
+                iconClass = "fa-file-image";
+                iconColor = "bg-purple-500/10 text-purple-500";
+            }
+
+            const sizeFormatted = formatBytes(doc.size_bytes);
+            const dateFormatted = new Date(doc.created_at).toLocaleDateString('es-ES', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+
+            const tr = document.createElement("tr");
+            tr.className = "hover:bg-white/40 transition-colors";
+            tr.innerHTML = `
+                <td class="px-6 py-4 font-bold text-black-dark">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-xl ${iconColor} flex items-center justify-center">
+                            <i class="fa-solid ${iconClass} text-sm"></i>
+                        </div>
+                        <span class="truncate max-w-xs md:max-w-md block" title="${doc.name}">${doc.name}</span>
+                    </div>
+                </td>
+                <td class="px-6 py-4 text-gray-500 font-semibold">${sizeFormatted}</td>
+                <td class="px-6 py-4">
+                    <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">${doc.version}</span>
+                </td>
+                <td class="px-6 py-4 text-gray-500">${dateFormatted}</td>
+                <td class="px-6 py-4 text-right">
+                    <div class="flex items-center justify-end space-x-1">
+                        <a href="/api/documents/${doc.id}/download" class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-blue-corp transition-all" title="Descargar de forma auditada">
+                            <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
+                        </a>
+                        <button onclick="deleteDocument(${doc.id})" class="p-2 rounded-xl text-gray-500 hover:bg-red-500/10 hover:text-red-500 transition-all" title="Eliminar permanentemente">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Buscador local
+    function filterDocuments() {
+        const query = document.getElementById("doc-search").value.toLowerCase();
+        const filtered = rawDocumentsList.filter(d => d.name.toLowerCase().includes(query));
+        renderDocuments(filtered);
+    }
+
+    // Formateador de bytes a unidades
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Eventos de Uploader
+    async function handleFileSelect(e) {
+        if (e.target.files.length > 0) {
+            await uploadFile(e.target.files[0]);
+        }
+    }
+
+    // Subir archivo al API
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", activeFolder);
+
+        showToast(`Subiendo archivo: ${file.name}...`, "info");
+
+        try {
+            const response = await fetchAPI('/api/documents', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response && response.ok) {
+                showToast("Archivo cargado y sincronizado con éxito. Acción auditada.", "success");
+                loadDocuments();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al subir documento.", "error");
+            }
+        } catch (err) {
+            showToast("Error de conexión al cargar archivo.", "error");
+        }
+    }
+
+    // Suprimir archivo de disco y base de datos
+    async function deleteDocument(id) {
+        if (!confirm("¿Está seguro de eliminar de forma permanente e irreversible este archivo corporativo? Esta acción se auditará.")) return;
+
+        try {
+            const response = await fetchAPI(`/api/documents/${id}`, { method: 'DELETE' });
+            if (response && response.ok) {
+                showToast("Archivo eliminado físicamente y purgado del servidor.", "success");
+                loadDocuments();
+            }
+        } catch (e) {
+            showToast("Falla de red al eliminar el archivo.", "error");
+        }
+    }
+</script>
+{% endblock %}
