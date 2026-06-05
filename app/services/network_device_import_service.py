@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 from app.models.network_devices import SwitchDevice, SwitchInterface
 from app.models.vlan import VLAN
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import re
 
 
