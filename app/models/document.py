@@ -15,6 +15,7 @@ class Document(Base):
     uploader_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     version = Column(String(20), default="v1.0", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=True)
 
     # Relaciones
     uploader = relationship("User", back_populates="documents")

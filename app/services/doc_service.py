@@ -1,3 +1,6 @@
+import csv
+import io
+import json
 import os
 import re
 from sqlalchemy.orm import Session
@@ -5,6 +8,11 @@ from typing import Optional, List
 from fastapi import UploadFile
 from app.models.document import Document
 from app.core.config import settings
+
+try:
+    import openpyxl
+except ImportError:
+    openpyxl = None
 
 class DocService:
     @staticmethod
@@ -80,6 +88,99 @@ class DocService:
         db.refresh(db_doc)
         
         return db_doc
+
+    @staticmethod
+    def read_document_preview(doc: Document) -> dict:
+        """Genera los datos necesarios para visualizar o editar un documento."""
+        file_path = os.path.normpath(doc.file_path)
+        if not os.path.exists(file_path):
+            raise FileNotFoundError("El archivo físico no existe en el servidor.")
+
+        text_types = {"txt", "md", "json", "key", "pem", "pfx", "crt", "cer", "csv"}
+        binary_preview = {"pdf", "png", "jpg", "jpeg", "gif", "webp"}
+
+        if doc.file_type in text_types:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            return {
+                "mode": "text",
+                "file_type": doc.file_type,
+                "content": content
+            }
+
+        if doc.file_type == "xlsx":
+            if openpyxl is None:
+                raise RuntimeError("La vista previa de archivos XLSX requiere la dependencia openpyxl.")
+
+            workbook = openpyxl.load_workbook(file_path, data_only=True)
+            sheets = []
+            for worksheet in workbook.worksheets:
+                rows = []
+                for row in worksheet.iter_rows(values_only=True):
+                    rows.append(["" if cell is None else str(cell) for cell in row])
+                sheets.append({
+                    "name": worksheet.title,
+                    "rows": rows
+                })
+            return {
+                "mode": "table",
+                "file_type": doc.file_type,
+                "sheets": sheets
+            }
+
+        if doc.file_type in binary_preview:
+            return {
+                "mode": "binary",
+                "file_type": doc.file_type,
+                "preview_url": "/" + doc.file_path.replace('\\\\', '/')
+            }
+
+        return {
+            "mode": "binary",
+            "file_type": doc.file_type,
+            "preview_url": "/" + doc.file_path.replace('\\\\', '/')
+        }
+
+    @staticmethod
+    def save_document_content(db: Session, doc: Document, content: Optional[str] = None, rows: Optional[List[List[str]]] = None, sheet_name: Optional[str] = None) -> Document:
+        """Guarda cambios directos sobre el documento editado por el administrador."""
+        file_path = os.path.normpath(doc.file_path)
+        if not os.path.exists(file_path):
+            raise FileNotFoundError("El archivo físico no existe en el servidor.")
+
+        if doc.file_type in {"txt", "md", "json", "key", "pem", "pfx", "crt", "cer", "csv"}:
+            if content is None:
+                raise ValueError("No se recibió contenido para guardar.")
+            with open(file_path, "w", encoding="utf-8", newline="") as f:
+                f.write(content)
+        elif doc.file_type == "xlsx":
+            if openpyxl is None:
+                raise RuntimeError("La edición de archivos XLSX requiere la dependencia openpyxl.")
+            if rows is None:
+                raise ValueError("No se recibieron filas para guardar el XLSX.")
+
+            workbook = openpyxl.load_workbook(file_path)
+            target_sheet = None
+            if sheet_name and sheet_name in workbook.sheetnames:
+                target_sheet = workbook[sheet_name]
+            elif sheet_name:
+                target_sheet = workbook.create_sheet(sheet_name)
+            else:
+                target_sheet = workbook.active
+
+            if target_sheet.max_row > 0:
+                target_sheet.delete_rows(1, target_sheet.max_row)
+
+            for row in rows:
+                target_sheet.append(row)
+            workbook.save(file_path)
+        else:
+            raise ValueError("No es posible editar este tipo de archivo directamente desde la vista.")
+
+        doc.size_bytes = os.path.getsize(file_path)
+        db.commit()
+        db.refresh(doc)
+        return doc
 
     @staticmethod
     def get_documents_by_folder(db: Session, folder: str) -> List[Document]:

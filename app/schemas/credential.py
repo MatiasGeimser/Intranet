@@ -27,3 +27,17 @@ class CredentialResponse(CredentialBase):
 
     class Config:
         from_attributes = True
+
+
+class ExecutiveCredentialCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    correo_user: Optional[str] = None
+    correo_pass: Optional[str] = None
+    crm_user: Optional[str] = None
+    crm_pass: Optional[str] = None
+    vocalcom_user: Optional[str] = None
+    vocalcom_pass: Optional[str] = None
+    vocalcom_estacion: Optional[str] = None
+    pc_user: Optional[str] = None
+    pc_pass: Optional[str] = None
+

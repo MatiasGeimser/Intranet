@@ -24,3 +24,4 @@ class User(Base):
     comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="creator", cascade="all, delete-orphan")
+    tasks = relationship("Task", foreign_keys="[Task.assigned_to_user_id]", back_populates="assigned_user")

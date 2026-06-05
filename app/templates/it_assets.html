@@ -1,0 +1,694 @@
+{% extends "base.html" %}
+{% block title %}Inventario IT{% endblock %}
+{% block page_title %}Inventario de Activos IT{% endblock %}
+
+{% block extra_css %}
+<style>
+    .it-stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .it-stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(4, 157, 217, 0.12);
+    }
+
+    .asset-row {
+        transition: background 0.15s ease;
+    }
+
+    .asset-row:hover {
+        background: rgba(255, 255, 255, 0.55);
+    }
+
+    .tab-btn.active {
+        background: #049DD9;
+        color: white;
+        box-shadow: 0 4px 14px rgba(4, 157, 217, 0.30);
+    }
+
+    .status-badge {
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        padding: 2px 9px;
+        border-radius: 999px;
+    }
+
+    .status-activo {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+
+    .status-inactivo {
+        background: #FEE2E2;
+        color: #991B1B;
+    }
+
+    .status-mant {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .type-hw {
+        background: rgba(4, 157, 217, 0.10);
+        color: #0369A1;
+    }
+
+    .type-sw {
+        background: rgba(121, 242, 230, 0.15);
+        color: #0F766E;
+    }
+
+    .type-net {
+        background: rgba(139, 92, 246, 0.12);
+        color: #6D28D9;
+    }
+
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .asset-fade {
+        animation: fadeUp 0.3s ease forwards;
+        opacity: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── KPI CARDS ── -->
+<div id="stats-row" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+    <!-- Skeletons mientras carga -->
+    {% for _ in range(6) %}
+    <div class="it-stat-card glass-card rounded-2xl p-4 flex flex-col gap-1">
+        <div class="skeleton h-3 w-20 mb-2 rounded-lg"></div>
+        <div class="skeleton h-7 w-12 rounded-lg"></div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ── BARRA SUPERIOR: filtros + botón ── -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+    <!-- Pestañas de tipo -->
+    <div class="flex flex-wrap gap-2" id="type-tabs">
+        <button onclick="filterBy('')"
+            class="tab-btn active px-4 py-2 rounded-2xl text-xs font-semibold border border-transparent transition-all bg-[#049DD9] text-white"
+            data-type="">Todo</button>
+        <button onclick="filterBy('HARDWARE')"
+            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
+            data-type="HARDWARE">
+            <i class="fa-solid fa-desktop mr-1"></i> Hardware
+        </button>
+        <button onclick="filterBy('SOFTWARE')"
+            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
+            data-type="SOFTWARE">
+            <i class="fa-solid fa-code mr-1"></i> Software
+        </button>
+        <button onclick="filterBy('RED')"
+            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
+            data-type="RED">
+            <i class="fa-solid fa-network-wired mr-1"></i> Redes
+        </button>
+    </div>
+
+    <button onclick="openCreateModal()"
+        class="bg-[#049DD9] text-white rounded-2xl py-2.5 px-4 text-xs font-semibold hover:bg-blue-corp/90 shadow-md shadow-blue-corp/25 transition-all flex items-center gap-2">
+        <i class="fa-solid fa-plus text-xs"></i>
+        <span>Registrar Activo</span>
+    </button>
+
+    <button onclick="openImportModal()"
+        class="bg-emerald-600 text-white rounded-2xl py-2.5 px-4 text-xs font-semibold hover:bg-emerald-700 shadow-md transition-all flex items-center gap-2">
+        <i class="fa-solid fa-file-excel text-xs"></i>
+        <span>Importar Excel</span>
+    </button>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- ── TABLA DE ACTIVOS ── -->
+<div class="glass-card rounded-3xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr
+                    class="border-b border-[#8C8C8C]/12 bg-white/60 text-[9px] font-extrabold text-grey-main uppercase tracking-widest">
+                    <th class="px-5 py-3.5 pl-6">Activo</th>
+                    <th class="px-5 py-3.5">Tipo</th>
+                    <th class="px-5 py-3.5">Categoría</th>
+                    <th class="px-5 py-3.5">IP / MAC</th>
+                    <th class="px-5 py-3.5">Versión / Licencia</th>
+                    <th class="px-5 py-3.5">Asignado a</th>
+                    <th class="px-5 py-3.5">Ubicación</th>
+                    <th class="px-5 py-3.5">Estado</th>
+                    <th class="px-5 py-3.5 text-right pr-6">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="assets-tbody" class="divide-y divide-[#8C8C8C]/8 text-xs">
+                <tr>
+                    <td colspan="9" class="px-6 py-12 text-center">
+                        <div class="flex flex-col items-center gap-3 text-grey-main">
+                            <i class="fa-solid fa-spinner fa-spin text-2xl text-blue-corp/40"></i>
+                            <p class="text-xs text-gray-400">Cargando inventario IT...</p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══════════ MODAL CREAR / EDITAR ACTIVO ══════════ -->
+<div id="asset-modal"
+    class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl">
+        <div class="h-1.5 w-full bg-gradient-to-r from-[#049DD9] via-[#79F2E6] to-[#049DD9]"></div>
+
+        <div class="p-7 overflow-y-auto max-h-[88vh]">
+            <h3 id="modal-title" class="text-base font-bold text-black-dark mb-5 flex items-center gap-2">
+                <i class="fa-solid fa-server text-blue-corp"></i>
+                <span>Registrar Activo IT</span>
+            </h3>
+
+            <form id="asset-form" onsubmit="saveAsset(event)" class="space-y-4">
+                <input type="hidden" id="asset-id">
+
+                <!-- Nombre + Tipo -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nombre
+                            del Activo *</label>
+                        <input type="text" id="a-name" required placeholder="ej. PC-Recepcion-01"
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Tipo
+                            *</label>
+                        <select id="a-type" required onchange="updateCategoryOptions()"
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="">-- Seleccionar --</option>
+                            <option value="HARDWARE">Hardware</option>
+                            <option value="SOFTWARE">Software</option>
+                            <option value="RED">Red</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Categoría + Estado -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label
+                            class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Categoría</label>
+                        <select id="a-category"
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="">General</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Estado</label>
+                        <select id="a-status"
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="Activo">Activo</option>
+                            <option value="Inactivo">Inactivo</option>
+                            <option value="Mantenimiento">Mantenimiento</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Descripción -->
+                <div>
+                    <label
+                        class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Descripción</label>
+                    <textarea id="a-description" rows="2" placeholder="Detalles adicionales del activo..."
+                        class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all resize-none"></textarea>
+                </div>
+
+                <!-- Separador campos técnicos -->
+                <div class="border-t border-gray-100 pt-3">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Datos Técnicos</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label
+                                class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dirección
+                                IP</label>
+                            <input type="text" id="a-ip" placeholder="192.168.1.10"
+                                class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all font-mono">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dirección
+                                MAC</label>
+                            <input type="text" id="a-mac" placeholder="AA:BB:CC:DD:EE:FF"
+                                class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all font-mono">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Versión
+                                / Build</label>
+                            <input type="text" id="a-version" placeholder="v1.0 / Windows 11 23H2"
+                                class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fabricante
+                                / Vendor</label>
+                            <input type="text" id="a-vendor" placeholder="Dell, Cisco, Microsoft..."
+                                class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clave de licencia (full width) -->
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Clave de
+                        Licencia / Serial</label>
+                    <input type="text" id="a-license" placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+                        class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all font-mono">
+                </div>
+
+                <!-- Asignación -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label
+                            class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Asignado
+                            a</label>
+                        <input type="text" id="a-assigned" placeholder="Nombre del usuario o depto."
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Ubicación
+                            / Sala</label>
+                        <input type="text" id="a-location" placeholder="Oficina 3, Piso 2, Sala de servidores..."
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
+                </div>
+
+                <!-- Fecha adquisición -->
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fecha de
+                        Adquisición</label>
+                    <input type="date" id="a-acquired"
+                        class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+
+                <!-- Acciones -->
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="button" onclick="closeAssetModal()"
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all">
+                        Guardar Activo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div id="import-modal"
+    class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600"></div>
+
+        <div class="p-7">
+            <h3 class="text-base font-bold text-black-dark mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-file-excel text-emerald-600"></i>
+                <span>Importar Software, Variantes y VLANs</span>
+            </h3>
+            <p class="text-[11px] text-gray-400 mb-4">Sube un archivo Excel (.xlsx, .xls) con dos hojas:
+                <br><strong>• SOFTWARE:</strong> Nombre, Variantes, Versión, Vendor, Estado
+                <br><strong>• VLAN:</strong> ID VLAN, Nombre, Descripción, Red, Gateway, Estado
+            </p>
+
+            <form id="import-form" onsubmit="processExcel(event)" class="space-y-4">
+                <div
+                    class="border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-6 transition-all text-center relative bg-gray-50">
+                    <input type="file" id="excel-file" accept=".xlsx, .xls" required
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="flex flex-col items-center gap-2 pointer-events-none">
+                        <i class="fa-solid fa-cloud-arrow-up text-3xl text-emerald-500/70"></i>
+                        <p class="text-xs font-semibold text-gray-500" id="file-label">Arrastra tu archivo aquí o haz
+                            clic</p>
+                        <p class="text-[10px] text-gray-400 font-mono">Excel de hasta 10MB</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="button" onclick="closeImportModal()"
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md transition-all">
+                        Procesar y Cargar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /* ─── MODAL IMPORTAR EXCEL ─── */
+    function openImportModal() {
+        document.getElementById('import-form').reset();
+        document.getElementById('file-label').innerText = 'Arrastra tu archivo aquí o haz clic';
+        document.getElementById('import-modal').classList.remove('hidden');
+    }
+
+    function closeImportModal() {
+        document.getElementById('import-modal').classList.add('hidden');
+    }
+
+    function getAuthHeaders() {
+        const token = localStorage.getItem('token');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    // Listener visual para cambiar el texto cuando se selecciona un archivo
+    document.getElementById('excel-file').addEventListener('change', (e) => {
+        const name = e.target.files[0]?.name || 'Archivo seleccionado';
+        document.getElementById('file-label').innerHTML = `<span class="text-emerald-600 font-bold">${name}</span>`;
+    });
+
+    /* ─── PROCESAMIENTO DEL EXCEL ─── */
+    async function processExcel(e) {
+        e.preventDefault();
+        const fileInput = document.getElementById('excel-file');
+        const file = fileInput.files[0];
+
+        if (!file) return;
+
+        // Crear FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetchAPI('/api/it-assets/import-excel', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: formData
+            });
+
+            if (!response) return;
+            const result = await response.json();
+
+            if (!response.ok) {
+                showToast(`Error: ${result.detail || 'Error al procesar el Excel'}`, 'error');
+                return;
+            }
+
+            // Mostrar resumen de la importación
+            const summary = result.summary;
+            let message = '';
+
+            if (summary.software_imported > 0) {
+                message += `✓ ${summary.software_imported} software importado(s)`;
+            }
+            if (summary.vlan_imported > 0) {
+                message += (message ? ' | ' : '') + `✓ ${summary.vlan_imported} VLAN(s) importada(s)`;
+            }
+
+            if (summary.software_errors > 0 || summary.vlan_errors > 0) {
+                const errors = [];
+                if (summary.software_errors > 0) errors.push(`${summary.software_errors} error(es) en software`);
+                if (summary.vlan_errors > 0) errors.push(`${summary.vlan_errors} error(es) en VLANs`);
+                message += ` | ⚠ ${errors.join(', ')}`;
+            }
+
+            if (result.messages && result.messages.length > 0) {
+                console.log('Detalles:', result.messages);
+            }
+
+            showToast(message || 'Importación completada', 'success');
+            closeImportModal();
+            loadStats();
+            loadAssets(activeFilter);
+        } catch (err) {
+            console.error('Error:', err);
+            showToast(`Error al procesar el archivo: ${err.message}`, 'error');
+        }
+    }
+    /* ─── META ─── */
+    const CATEGORY_MAP = {
+        HARDWARE: ['Computador de Escritorio', 'Laptop', 'Servidor', 'Impresora', 'Monitor', 'Tablet', 'Teléfono IP', 'Periférico', 'Otro'],
+        SOFTWARE: ['Sistema Operativo', 'Ofimática', 'ERP / CRM', 'Antivirus / Seguridad', 'Base de Datos', 'Herramienta de Desarrollo', 'Licencia Cloud', 'Otro'],
+        RED: ['Router', 'Switch', 'Access Point', 'Firewall', 'NAS / Storage', 'UPS', 'Cable Estructurado', 'VLAN', 'Otro'],
+    };
+
+    const TYPE_META = {
+        HARDWARE: { icon: 'fa-desktop', cls: 'type-hw', label: 'Hardware' },
+        SOFTWARE: { icon: 'fa-code', cls: 'type-sw', label: 'Software' },
+        RED: { icon: 'fa-network-wired', cls: 'type-net', label: 'Red' },
+    };
+
+    let activeFilter = '';
+
+    /* ─── INIT ─── */
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStats();
+        loadAssets();
+    });
+
+    /* ─── STATS ─── */
+    async function loadStats() {
+        const res = await fetchAPI('/api/it-assets/stats');
+        if (!res || !res.ok) return;
+        const s = await res.json();
+
+        document.getElementById('stats-row').innerHTML = `
+            ${statCard('fa-layer-group', 'Total Activos', s.total, 'from-[#049DD9] to-[#79F2E6]')}
+            ${statCard('fa-desktop', 'PCs Activos', s.hardware_active, 'from-[#049DD9] to-[#0369A1]')}
+            ${statCard('fa-code', 'Software', s.software_total, 'from-[#79F2E6] to-[#0F766E]')}
+            ${statCard('fa-network-wired', 'Redes', s.network_total, 'from-[#8B5CF6] to-[#6D28D9]')}
+            ${statCard('fa-wrench', 'En Mantenimiento', s.maintenance, 'from-[#F59E0B] to-[#D97706]')}
+            ${statCard('fa-power-off', 'Inactivos', s.inactive, 'from-[#EF4444] to-[#B91C1C]')}
+        `;
+    }
+
+    function statCard(icon, label, value, gradient) {
+        return `
+        <div class="it-stat-card glass-card rounded-2xl p-4 flex flex-col gap-1">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center mb-1">
+                <i class="fa-solid ${icon} text-white text-xs"></i>
+            </div>
+            <p class="text-[10px] text-grey-main font-semibold uppercase tracking-wider">${label}</p>
+            <p class="text-2xl font-black text-black-dark">${value}</p>
+        </div>`;
+    }
+
+    /* ─── CARGA DE TABLA ─── */
+    async function loadAssets(type = activeFilter) {
+        const tbody = document.getElementById('assets-tbody');
+        tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-10 text-center text-grey-main text-xs italic">Cargando...</td></tr>`;
+
+        let url = '/api/it-assets';
+        if (type) url += `?asset_type=${encodeURIComponent(type)}`;
+
+        const res = await fetchAPI(url);
+        if (!res || !res.ok) {
+            tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-10 text-center text-red-400 text-xs">Error al cargar el inventario.</td></tr>`;
+            return;
+        }
+        const assets = await res.json();
+        renderTable(assets);
+    }
+
+    function renderTable(assets) {
+        const tbody = document.getElementById('assets-tbody');
+        if (assets.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="9" class="px-6 py-14 text-center">
+                    <div class="flex flex-col items-center gap-3 text-grey-main">
+                        <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
+                            <i class="fa-solid fa-server text-2xl text-gray-200"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-400">Sin activos registrados</p>
+                        <p class="text-[11px] text-gray-300">Presiona "Registrar Activo" para agregar el primero.</p>
+                    </div>
+                </td></tr>`;
+            return;
+        }
+        tbody.innerHTML = '';
+        assets.forEach((a, i) => {
+            const m = TYPE_META[a.asset_type] || { icon: 'fa-cube', cls: 'type-hw', label: a.asset_type };
+            const statusCls = a.status === 'Activo' ? 'status-activo' : a.status === 'Inactivo' ? 'status-inactivo' : 'status-mant';
+            const ipMac = [a.ip_address, a.mac_address].filter(Boolean).join(' / ') || '—';
+            const verLic = [a.version, a.license_key ? `<span class="font-mono">${escapeHtml(a.license_key.substring(0, 16))}…</span>` : ''].filter(Boolean).join(' · ') || '—';
+
+            const tr = document.createElement('tr');
+            tr.className = 'asset-row asset-fade';
+            tr.style.animationDelay = `${i * 25}ms`;
+            tr.innerHTML = `
+                <td class="px-5 py-3.5 pl-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-xl ${m.cls} flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid ${m.icon} text-sm"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-black-dark text-xs truncate max-w-[160px]" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</p>
+                            ${a.description ? `<p class="text-[10px] text-grey-main truncate max-w-[160px]">${escapeHtml(a.description)}</p>` : ''}
+                        </div>
+                    </div>
+                </td>
+                <td class="px-5 py-3.5">
+                    <span class="status-badge ${m.cls}">${m.label}</span>
+                </td>
+                <td class="px-5 py-3.5 text-[11px] text-grey-main">${escapeHtml(a.category || '—')}</td>
+                <td class="px-5 py-3.5 text-[10px] font-mono text-grey-main">${escapeHtml(ipMac)}</td>
+                <td class="px-5 py-3.5 text-[10px] text-grey-main">${a.version ? `<span class="text-[9px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 font-mono">${escapeHtml(a.version)}</span>` : '—'}</td>
+                <td class="px-5 py-3.5 text-[11px] text-grey-main">${escapeHtml(a.assigned_to || '—')}</td>
+                <td class="px-5 py-3.5 text-[11px] text-grey-main">${escapeHtml(a.location || '—')}</td>
+                <td class="px-5 py-3.5">
+                    <span class="status-badge ${statusCls}">${escapeHtml(a.status)}</span>
+                </td>
+                <td class="px-5 py-3.5 pr-6 text-right">
+                    <div class="flex items-center justify-end gap-1">
+                        <button onclick='openEditModal(${JSON.stringify(a).replace(/'/g, "&#39;")})'
+                            class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Editar">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="deleteAsset(${a.id})"
+                            class="p-2 rounded-xl text-gray-400 hover:bg-red-500/8 hover:text-red-500 transition-all" title="Eliminar">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    /* ─── FILTROS ─── */
+    function filterBy(type) {
+        activeFilter = type;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            if (b.dataset.type === type) {
+                b.classList.add('active');
+                b.classList.remove('bg-white', 'text-black-dark', 'border-gray-200', 'hover:bg-gray-50');
+            } else {
+                b.classList.remove('active');
+                b.classList.add('bg-white', 'text-black-dark', 'border-gray-200', 'hover:bg-gray-50');
+            }
+        });
+        loadAssets(type);
+    }
+
+    /* ─── CATEGORÍAS DINÁMICAS ─── */
+    function updateCategoryOptions(selected = '') {
+        const type = document.getElementById('a-type').value;
+        const sel = document.getElementById('a-category');
+        const opts = CATEGORY_MAP[type] || ['General'];
+        sel.innerHTML = `<option value="">General</option>` +
+            opts.map(c => `<option value="${escapeHtml(c)}" ${c === selected ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+    }
+
+    /* ─── MODAL CREAR ─── */
+    function openCreateModal() {
+        document.getElementById('asset-form').reset();
+        document.getElementById('asset-id').value = '';
+        document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-plus text-blue-corp"></i><span>Registrar Activo IT</span>';
+        updateCategoryOptions();
+        document.getElementById('asset-modal').classList.remove('hidden');
+    }
+
+    /* ─── MODAL EDITAR ─── */
+    function openEditModal(a) {
+        document.getElementById('asset-id').value = a.id;
+        document.getElementById('a-name').value = a.name || '';
+        document.getElementById('a-type').value = a.asset_type || '';
+        updateCategoryOptions(a.category || '');
+        document.getElementById('a-status').value = a.status || 'Activo';
+        document.getElementById('a-description').value = a.description || '';
+        document.getElementById('a-ip').value = a.ip_address || '';
+        document.getElementById('a-mac').value = a.mac_address || '';
+        document.getElementById('a-version').value = a.version || '';
+        document.getElementById('a-vendor').value = a.vendor || '';
+        document.getElementById('a-license').value = a.license_key || '';
+        document.getElementById('a-assigned').value = a.assigned_to || '';
+        document.getElementById('a-location').value = a.location || '';
+        if (a.acquired_at) {
+            document.getElementById('a-acquired').value = a.acquired_at.substring(0, 10);
+        }
+        document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-pen text-blue-corp"></i><span>Editar Activo IT</span>';
+        document.getElementById('asset-modal').classList.remove('hidden');
+    }
+
+    function closeAssetModal() {
+        document.getElementById('asset-modal').classList.add('hidden');
+    }
+
+    /* ─── GUARDAR ─── */
+    async function saveAsset(e) {
+        e.preventDefault();
+        const id = document.getElementById('asset-id').value;
+
+        const payload = {
+            name: document.getElementById('a-name').value.trim(),
+            asset_type: document.getElementById('a-type').value,
+            category: document.getElementById('a-category').value || null,
+            description: document.getElementById('a-description').value.trim() || null,
+            ip_address: document.getElementById('a-ip').value.trim() || null,
+            mac_address: document.getElementById('a-mac').value.trim() || null,
+            version: document.getElementById('a-version').value.trim() || null,
+            vendor: document.getElementById('a-vendor').value.trim() || null,
+            license_key: document.getElementById('a-license').value.trim() || null,
+            assigned_to: document.getElementById('a-assigned').value.trim() || null,
+            location: document.getElementById('a-location').value.trim() || null,
+            status: document.getElementById('a-status').value,
+            acquired_at: document.getElementById('a-acquired').value || null,
+        };
+
+        try {
+            const res = await fetchAPI(
+                id ? `/api/it-assets/${id}` : '/api/it-assets',
+                { method: id ? 'PUT' : 'POST', body: payload }
+            );
+            if (res && res.ok) {
+                showToast(id ? 'Activo actualizado correctamente.' : 'Activo registrado en el inventario.', 'success');
+                closeAssetModal();
+                loadStats();
+                loadAssets(activeFilter);
+            } else {
+                const d = await res.json();
+                showToast(d.detail || 'Error al guardar el activo.', 'error');
+            }
+        } catch {
+            showToast('Error de conexión.', 'error');
+        }
+    }
+
+    /* ─── ELIMINAR ─── */
+    async function deleteAsset(id) {
+        if (!confirm('¿Deseas eliminar este activo del inventario? La acción quedará registrada en la auditoría.')) return;
+        try {
+            const res = await fetchAPI(`/api/it-assets/${id}`, { method: 'DELETE' });
+            if (res && res.ok) {
+                showToast('Activo eliminado del inventario.', 'success');
+                loadStats();
+                loadAssets(activeFilter);
+            }
+        } catch {
+            showToast('Error al eliminar el activo.', 'error');
+        }
+    }
+
+    /* ─── UTILIDAD ─── */
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+</script>
+{% endblock %}

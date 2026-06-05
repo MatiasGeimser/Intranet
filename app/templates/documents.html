@@ -1,290 +1,1223 @@
 {% extends "base.html" %}
 
 {% block title %}Gestión Documental{% endblock %}
-{% block page_title %}Gestión Documental (Virtualizada y Auditada){% endblock %}
+{% block page_title %}Gestión Documental{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Animaciones de entrada ── */
+    @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scaleFadeIn {
+        from { opacity: 0; transform: scale(0.96); }
+        to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes shimmer {
+        0%   { background-position: -600px 0; }
+        100% { background-position: 600px 0; }
+    }
+
+    .doc-fade-in { animation: fadeSlideUp 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+
+    /* ── Skeleton Loader ── */
+    .skeleton {
+        background: linear-gradient(90deg, #e8e8e8 25%, #f5f5f5 50%, #e8e8e8 75%);
+        background-size: 600px 100%;
+        animation: shimmer 1.4s infinite;
+        border-radius: 8px;
+    }
+
+    /* ── Dropzone activo ── */
+    .dropzone-active {
+        border-color: #049DD9 !important;
+        background-color: rgba(4,157,217,0.06) !important;
+        transform: scale(1.01);
+    }
+
+    /* ── Tarjetas de documento ── */
+    .doc-card {
+        transition: transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s ease;
+    }
+    .doc-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(4,157,217,0.10);
+    }
+
+    /* ── Filas de tabla ── */
+    .doc-row {
+        transition: background 0.15s ease;
+    }
+    .doc-row:hover { background: rgba(4,157,217,0.035); }
+
+    /* ── Toggle de vista ── */
+    .view-btn-active {
+        background: #049DD9;
+        color: white;
+        box-shadow: 0 2px 8px rgba(4,157,217,0.30);
+    }
+
+    /* ── Carpeta activa ── */
+    .folder-btn-active {
+        background: linear-gradient(135deg, #049DD9, #0381B6);
+        color: white;
+        box-shadow: 0 4px 14px rgba(4,157,217,0.25);
+    }
+
+    /* ── Badge de tipo de archivo ── */
+    .type-badge {
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        padding: 2px 7px;
+        border-radius: 999px;
+        text-transform: uppercase;
+    }
+
+    /* ── Modal mejorado ── */
+    #doc-preview-modal {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(0,0,0,0.50);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+    #doc-preview-modal.modal-hidden {
+        display: none !important;
+    }
+
+    .modal-enter { animation: scaleFadeIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+
+    /* ── Barra de herramientas del modal ── */
+    .modal-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 10px;
+        transition: all 0.15s ease;
+        cursor: pointer;
+    }
+
+    /* ── Preview de imagen ── */
+    #doc-preview-body img {
+        max-height: 65vh;
+        object-fit: contain;
+        display: block;
+        margin: 0 auto;
+    }
+
+    /* ── iFrame de PDF ── */
+    #doc-preview-body iframe {
+        border-radius: 12px;
+    }
+
+    /* ── Textarea mono editor ── */
+    #doc-preview-text {
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        tab-size: 2;
+    }
+
+    /* ── Tabla editable ── */
+    #doc-preview-table-container table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    #doc-preview-table-container table thead th {
+        position: sticky;
+        top: 0;
+        background: #EFF6FF;
+        z-index: 1;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #049DD9;
+        padding: 8px 12px;
+        border-bottom: 2px solid #BFDBFE;
+        border-right: 1px solid #DBEAFE;
+        text-align: center;
+    }
+    #doc-preview-table-container table thead th:last-child {
+        border-right: none;
+    }
+    #doc-preview-table-container td {
+        border-right: 1px solid #E5E7EB;
+        border-bottom: 1px solid #E5E7EB;
+        padding: 6px 12px;
+        font-size: 11px;
+        color: #1F2937;
+        min-width: 110px;
+        max-width: 260px;
+    }
+    #doc-preview-table-container td:last-child {
+        border-right: none;
+    }
+    #doc-preview-table-container td:focus {
+        outline: 2px solid #049DD9;
+        outline-offset: -2px;
+        background: #EFF6FF !important;
+    }
+    #doc-preview-table-container td:hover {
+        background: #F9FAFB;
+    }
+    #doc-preview-table-container tr:nth-child(even) td {
+        background: #FAFCFE;
+    }
+    #doc-preview-table-container tr:nth-child(even) td:hover {
+        background: #F0F9FF;
+    }
+    /* Row number column */
+    #doc-preview-table-container td.row-num {
+        background: #EFF6FF !important;
+        border-right: 2px solid #BFDBFE;
+        color: #8C8C8C;
+        font-weight: 700;
+        font-size: 10px;
+        text-align: center;
+        min-width: 40px;
+        max-width: 40px;
+        user-select: none;
+        cursor: default;
+    }
+
+    /* ── Contadores de carpeta ── */
+    .folder-count-badge {
+        font-size: 9px;
+        font-weight: 700;
+        min-width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0 5px;
+        background: rgba(4,157,217,0.15);
+        color: #049DD9;
+        margin-left: auto;
+        transition: all 0.2s;
+    }
+    .folder-btn-active .folder-count-badge {
+        background: rgba(255,255,255,0.25);
+        color: white;
+    }
+
+    /* ── Progreso de carga ── */
+    #upload-progress-bar {
+        height: 3px;
+        background: linear-gradient(90deg, #049DD9, #79F2E6);
+        border-radius: 999px;
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-    
-    <!-- BARRA LATERAL DE CARPETAS VIRTUALES (Ancho 1/4) -->
+
+    <!-- ═══════════════════════════════════════════════════
+         BARRA LATERAL DE CARPETAS VIRTUALES
+         ═══════════════════════════════════════════════════ -->
     <div class="space-y-4">
-        <div class="glass-card p-5 rounded-3xl shadow-sm space-y-4">
-            <h4 class="text-xs font-bold text-black-dark uppercase tracking-wider">Carpetas Corporativas</h4>
-            
+
+        <!-- Carpetas -->
+        <div class="glass-card p-5 rounded-3xl shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-[10px] font-bold text-grey-main uppercase tracking-widest">Carpetas</h4>
+                <span class="text-[10px] text-grey-main font-medium" id="sidebar-total-count">—</span>
+            </div>
+
             <div class="flex flex-col space-y-1.5" id="folders-menu">
-                <button onclick="selectFolder('General')" id="fold-General" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-corp text-white shadow-md shadow-blue-corp/15 text-left w-full transition-all">
-                    <i class="fa-solid fa-folder text-base"></i>
-                    <span>General</span>
+                <!-- General -->
+                <button onclick="selectFolder('General')" id="fold-General"
+                    class="folder-btn folder-btn-active flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-folder-open text-sm"></i>
+                    </span>
+                    <span class="flex-1 truncate">General</span>
+                    <span class="folder-count-badge" id="count-General">—</span>
                 </button>
-                <button onclick="selectFolder('IT')" id="fold-IT" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
-                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
-                    <span>Tecnología (IT)</span>
+
+                <!-- IT -->
+                <button onclick="selectFolder('IT')" id="fold-IT"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-blue-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-microchip text-sm text-blue-500"></i>
+                    </span>
+                    <span class="flex-1 truncate">Tecnología (IT)</span>
+                    <span class="folder-count-badge" id="count-IT">—</span>
                 </button>
-                <button onclick="selectFolder('RRHH')" id="fold-RRHH" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
-                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
-                    <span>Recursos Humanos</span>
+
+                <!-- RRHH -->
+                <button onclick="selectFolder('RRHH')" id="fold-RRHH"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-violet-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-people-group text-sm text-violet-500"></i>
+                    </span>
+                    <span class="flex-1 truncate">Recursos Humanos</span>
+                    <span class="folder-count-badge" id="count-RRHH">—</span>
                 </button>
-                <button onclick="selectFolder('Finanzas')" id="fold-Finanzas" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all">
-                    <i class="fa-solid fa-folder-closed text-base text-[#8C8C8C]"></i>
-                    <span>Finanzas & Legal</span>
+
+                <!-- Finanzas -->
+                <button onclick="selectFolder('Finanzas')" id="fold-Finanzas"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-emerald-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-chart-pie text-sm text-emerald-500"></i>
+                    </span>
+                    <span class="flex-1 truncate">Finanzas &amp; Legal</span>
+                    <span class="folder-count-badge" id="count-Finanzas">—</span>
                 </button>
+
+                <!-- Claves -->
+                <button onclick="selectFolder('Claves')" id="fold-Claves"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-amber-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-key text-sm text-amber-500"></i>
+                    </span>
+                    <span class="flex-1 truncate">Repositorio de Claves</span>
+                    <span class="folder-count-badge" id="count-Claves">—</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Estadísticas de la carpeta actual -->
+        <div class="glass-card p-4 rounded-3xl shadow-sm space-y-3" id="folder-stats-card">
+            <h4 class="text-[10px] font-bold text-grey-main uppercase tracking-widest mb-1">Estadísticas</h4>
+            <div class="space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] text-grey-main">Archivos</span>
+                    <span class="text-xs font-bold text-black-dark" id="stat-count">—</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] text-grey-main">Tamaño total</span>
+                    <span class="text-xs font-bold text-black-dark" id="stat-size">—</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] text-grey-main">Último archivo</span>
+                    <span class="text-[10px] font-semibold text-blue-corp truncate max-w-[120px]" id="stat-last">—</span>
+                </div>
+            </div>
+            <!-- Mini gráfico de tipos -->
+            <div class="pt-2 border-t border-gray-100">
+                <p class="text-[10px] text-grey-main mb-2">Tipos de archivo</p>
+                <div class="flex flex-wrap gap-1.5" id="stat-types"></div>
             </div>
         </div>
     </div>
-    
-    <!-- CONTENIDO DE ARCHIVOS (Ancho 3/4) -->
-    <div class="lg:col-span-3 space-y-6">
-        
-        <!-- Zona Dropzone de Arrastre y Carga de Archivos -->
-        <div id="dropzone" class="border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none">
+
+    <!-- ═══════════════════════════════════════════════════
+         ÁREA PRINCIPAL DE DOCUMENTOS
+         ═══════════════════════════════════════════════════ -->
+    <div class="lg:col-span-3 space-y-4">
+
+        <!-- Dropzone mejorado -->
+        <div id="dropzone"
+            class="border-2 border-dashed border-[#8C8C8C]/30 hover:border-blue-corp rounded-3xl p-7 bg-white/50 hover:bg-blue-corp/4 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none group">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
-            <div class="w-12 h-12 rounded-2xl bg-blue-corp/10 flex items-center justify-center text-blue-corp mb-3 transition-transform group-hover:scale-110">
+
+            <div class="w-11 h-11 rounded-2xl bg-blue-corp/10 group-hover:bg-blue-corp/18 flex items-center justify-center text-blue-corp mb-3 transition-all duration-300 group-hover:scale-110">
                 <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
             </div>
             <h4 class="text-xs font-bold text-black-dark">Arrastra tus archivos aquí o haz clic para subir</h4>
-            <p class="text-[10px] text-grey-main mt-1 leading-relaxed">Formatos aceptados: PDF, DOCX, XLSX, imágenes. Límite de 50MB.<br><span class="text-blue-corp font-bold">Nota: Si el archivo ya existe, se creará una versión incremental automáticamente.</span></p>
-        </div>
-        
-        <!-- Barra de Búsqueda y Resultados -->
-        <div class="glass-card p-4 rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
-            <h3 class="text-sm font-bold text-black-dark flex items-center space-x-2">
-                <i class="fa-solid fa-folder-open text-blue-corp"></i>
-                <span>Directorio: </span>
-                <span id="active-folder-title" class="bg-gray-100 px-3 py-1 rounded-xl text-xs text-black-dark font-bold ml-1">General</span>
-            </h3>
-            
-            <div class="relative max-w-xs">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                    <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
-                </span>
-                <input type="text" id="doc-search" oninput="filterDocuments()" placeholder="Filtrar archivos..." class="w-48 bg-[#F2F2F2] text-xs rounded-xl pl-8 pr-3 py-2 border border-[#8C8C8C]/20 focus:outline-none focus:border-[#049DD9] transition-all">
+            <p class="text-[10px] text-grey-main mt-1 leading-relaxed max-w-sm">
+                PDF, DOCX, XLSX, XLS, CSV, KEY, PEM, PFX, JSON e imágenes · Límite <strong>50 MB</strong><br>
+                <span class="text-blue-corp font-semibold">Si el archivo ya existe, se creará una versión incremental.</span>
+            </p>
+
+            <!-- Barra de progreso de carga -->
+            <div id="upload-progress-wrap" class="hidden w-full max-w-xs mt-4">
+                <div class="w-full bg-gray-100 rounded-full h-[3px]">
+                    <div id="upload-progress-bar" style="width:0%"></div>
+                </div>
+                <p class="text-[10px] text-blue-corp font-semibold mt-1.5" id="upload-progress-label">Subiendo...</p>
             </div>
         </div>
-        
-        <!-- Tabla de Documentos -->
-        <div class="glass-card rounded-3xl overflow-hidden shadow-sm">
+
+        <!-- Barra de herramientas: carpeta activa, búsqueda, toggle de vista -->
+        <div class="glass-card px-4 py-3 rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+
+            <!-- Título de carpeta -->
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-blue-corp/10 flex items-center justify-center">
+                    <i class="fa-solid fa-folder-open text-blue-corp text-xs"></i>
+                </div>
+                <div>
+                    <p class="text-[9px] text-grey-main uppercase font-bold tracking-wider">Directorio activo</p>
+                    <h3 class="text-sm font-bold text-black-dark leading-none" id="active-folder-title">General</h3>
+                </div>
+                <span class="ml-1 text-[10px] bg-blue-corp/10 text-blue-corp font-bold px-2.5 py-0.5 rounded-full" id="toolbar-count">—</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Buscador -->
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                        <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
+                    </span>
+                    <input type="text" id="doc-search" oninput="filterDocuments()"
+                        placeholder="Filtrar archivos..."
+                        class="w-44 bg-[#F2F2F2] text-xs rounded-xl pl-8 pr-3 py-2 border border-[#8C8C8C]/20 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9]/30 transition-all">
+                </div>
+
+                <!-- Toggle de vista -->
+                <div class="flex items-center bg-gray-100 rounded-xl p-0.5 gap-0.5">
+                    <button id="btn-view-table" onclick="setView('table')"
+                        class="view-btn view-btn-active p-2 rounded-[10px] transition-all duration-200" title="Vista de tabla">
+                        <i class="fa-solid fa-table-list text-xs"></i>
+                    </button>
+                    <button id="btn-view-grid" onclick="setView('grid')"
+                        class="view-btn p-2 rounded-[10px] text-gray-400 hover:text-gray-600 transition-all duration-200" title="Vista de tarjetas">
+                        <i class="fa-solid fa-grip text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── VISTA TABLA ─── -->
+        <div id="view-table" class="glass-card rounded-3xl overflow-hidden shadow-sm">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="border-b border-[#8C8C8C]/15 bg-white/50 text-[10px] font-bold text-grey-main uppercase tracking-wider">
-                            <th class="px-6 py-4">Nombre del Archivo</th>
-                            <th class="px-6 py-4">Tamaño</th>
-                            <th class="px-6 py-4">Versión</th>
-                            <th class="px-6 py-4">Fecha de Carga</th>
-                            <th class="px-6 py-4 text-right">Acciones</th>
+                        <tr class="border-b border-[#8C8C8C]/12 bg-white/60 text-[9px] font-extrabold text-grey-main uppercase tracking-widest">
+                            <th class="px-5 py-3.5 pl-6">Archivo</th>
+                            <th class="px-5 py-3.5">Tipo</th>
+                            <th class="px-5 py-3.5">Tamaño</th>
+                            <th class="px-5 py-3.5">Versión</th>
+                            <th class="px-5 py-3.5">Fecha de carga</th>
+                            <th class="px-5 py-3.5">Fecha de act.</th>
+                            <th class="px-5 py-3.5 text-right pr-6">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="documents-table-body" class="divide-y divide-[#8C8C8C]/10 text-xs">
-                        <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Explorando directorio corporativo...</td>
-                        </tr>
+                    <tbody id="documents-table-body" class="divide-y divide-[#8C8C8C]/8 text-xs">
+                        <tr><td colspan="7" class="px-6 py-10 text-center">
+                            <div class="flex flex-col items-center gap-2 text-grey-main">
+                                <div class="skeleton w-32 h-3 mb-1"></div>
+                                <div class="skeleton w-48 h-3"></div>
+                                <div class="skeleton w-40 h-3"></div>
+                            </div>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-    </div>
+        <!-- ─── VISTA GRID (tarjetas) ─── -->
+        <div id="view-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
 
+    </div>
 </div>
+
+<!-- Modal se inyecta en document.body vía JS para evitar problemas con overflow parents -->
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    let activeFolder = 'General';
+    /* ──────────────────────────────────────────────────────
+       ESTADO GLOBAL
+       ────────────────────────────────────────────────────── */
+    let activeFolder    = 'General';
     let rawDocumentsList = [];
+    let currentView     = 'table';   // 'table' | 'grid'
+    let currentPreviewDocument = null;
+    const isAdmin = "{{ user.role.name }}" === "Administrador";
+    const folderCounts = {};   // { folder: count }
 
-    document.addEventListener("DOMContentLoaded", () => {
-        // Inicializar Dropzone
-        const dropzone = document.getElementById("dropzone");
-        
-        dropzone.addEventListener("click", () => document.getElementById("file-uploader").click());
-        
-        dropzone.addEventListener("dragover", (e) => {
-            e.preventDefault();
-            dropzone.className = "border-2 border-dashed border-blue-corp rounded-3xl p-8 bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
-        });
-        
-        dropzone.addEventListener("dragleave", () => {
-            dropzone.className = "border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
-        });
-        
-        dropzone.addEventListener("drop", async (e) => {
-            e.preventDefault();
-            dropzone.className = "border-2 border-dashed border-[#8C8C8C]/35 hover:border-blue-corp rounded-3xl p-8 bg-white/50 hover:bg-blue-corp/5 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none";
-            
-            if (e.dataTransfer.files.length > 0) {
-                await uploadFile(e.dataTransfer.files[0]);
-            }
-        });
+    /* ──────────────────────────────────────────────────────
+       ICONOGRAFÍA POR TIPO DE ARCHIVO
+       ────────────────────────────────────────────────────── */
+    const FILE_META = {
+        pdf:  { icon: 'fa-file-pdf',   color: 'bg-red-500/10 text-red-500',      badge: 'bg-red-100 text-red-600',     label: 'PDF'  },
+        docx: { icon: 'fa-file-word',  color: 'bg-blue-500/10 text-blue-500',    badge: 'bg-blue-100 text-blue-600',   label: 'Word' },
+        doc:  { icon: 'fa-file-word',  color: 'bg-blue-500/10 text-blue-500',    badge: 'bg-blue-100 text-blue-600',   label: 'Word' },
+        xlsx: { icon: 'fa-file-excel', color: 'bg-emerald-500/10 text-emerald-500', badge: 'bg-emerald-100 text-emerald-700', label: 'Excel' },
+        xls:  { icon: 'fa-file-excel', color: 'bg-emerald-500/10 text-emerald-500', badge: 'bg-emerald-100 text-emerald-700', label: 'Excel' },
+        csv:  { icon: 'fa-file-csv',   color: 'bg-teal-500/10 text-teal-500',    badge: 'bg-teal-100 text-teal-700',   label: 'CSV'  },
+        key:  { icon: 'fa-key',        color: 'bg-amber-500/10 text-amber-500',  badge: 'bg-amber-100 text-amber-700', label: 'KEY'  },
+        pem:  { icon: 'fa-certificate',color: 'bg-amber-500/10 text-amber-500',  badge: 'bg-amber-100 text-amber-700', label: 'PEM'  },
+        pfx:  { icon: 'fa-shield-halved', color: 'bg-amber-500/10 text-amber-500', badge: 'bg-amber-100 text-amber-700', label: 'PFX' },
+        json: { icon: 'fa-code',       color: 'bg-violet-500/10 text-violet-500',badge: 'bg-violet-100 text-violet-700',label: 'JSON' },
+        jpg:  { icon: 'fa-file-image', color: 'bg-pink-500/10 text-pink-500',    badge: 'bg-pink-100 text-pink-700',   label: 'IMG'  },
+        jpeg: { icon: 'fa-file-image', color: 'bg-pink-500/10 text-pink-500',    badge: 'bg-pink-100 text-pink-700',   label: 'IMG'  },
+        png:  { icon: 'fa-file-image', color: 'bg-pink-500/10 text-pink-500',    badge: 'bg-pink-100 text-pink-700',   label: 'IMG'  },
+        webp: { icon: 'fa-file-image', color: 'bg-pink-500/10 text-pink-500',    badge: 'bg-pink-100 text-pink-700',   label: 'IMG'  },
+        gif:  { icon: 'fa-file-image', color: 'bg-pink-500/10 text-pink-500',    badge: 'bg-pink-100 text-pink-700',   label: 'GIF'  },
+    };
 
+    function getFileMeta(type) {
+        return FILE_META[type] || { icon: 'fa-file', color: 'bg-gray-100 text-gray-500', badge: 'bg-gray-100 text-gray-600', label: (type || 'FILE').toUpperCase() };
+    }
+
+    /* ──────────────────────────────────────────────────────
+       INICIALIZACIÓN
+       ────────────────────────────────────────────────────── */
+    document.addEventListener('DOMContentLoaded', () => {
+        createModalInBody();
+        initDropzone();
         loadDocuments();
+        loadAllFolderCounts();
     });
 
-    // Cambiar de carpeta virtual
+    /* ──────────────────────────────────────────────────────
+       CREAR MODAL DIRECTAMENTE EN BODY (evita overflow clipping)
+       ────────────────────────────────────────────────────── */
+    function createModalInBody() {
+        const modalHTML = `
+        <div id="doc-preview-modal" class="modal-hidden">
+            <div class="modal-enter bg-white rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col" style="max-height: 90vh;">
+                <!-- Cabecera del modal -->
+                <div class="flex items-center gap-4 px-6 py-4 border-b border-gray-100 bg-white" style="flex-shrink:0">
+                    <div class="flex items-center justify-center" style="width:40px;height:40px;border-radius:16px;flex-shrink:0" id="modal-icon-wrap">
+                        <i class="fa-solid fa-file" style="font-size:20px;color:#9ca3af" id="modal-icon"></i>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                        <h3 id="doc-preview-title" style="font-size:14px;font-weight:700;color:#262523;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Vista previa</h3>
+                        <p id="doc-preview-subtitle" style="font-size:10px;color:#8C8C8C;margin-top:2px">Solo administradores pueden editar.</p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                        <a id="modal-download-btn" href="#" class="modal-toolbar-btn" style="background:#f9fafb;border:1px solid #e5e7eb;color:#4b5563;text-decoration:none">
+                            <i class="fa-solid fa-cloud-arrow-down" style="font-size:12px"></i>
+                            <span>Descargar</span>
+                        </a>
+                        <button onclick="closeDocumentPreview()" style="padding:10px;border-radius:12px;border:none;background:none;cursor:pointer;color:#9ca3af" title="Cerrar">
+                            <i class="fa-solid fa-xmark" style="font-size:14px"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Cuerpo del modal -->
+                <div id="doc-preview-body" style="flex:1;overflow:auto;padding:24px;min-height:280px;background:#FAFCFE"></div>
+                <!-- Footer -->
+                <div id="doc-preview-footer" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 24px;border-top:1px solid #f3f4f6;background:white;flex-shrink:0">
+                    <div id="doc-preview-info" style="font-size:10px;color:#8C8C8C"></div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <button onclick="closeDocumentPreview()" type="button" class="modal-toolbar-btn" style="background:#f3f4f6;color:#4b5563">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Click on backdrop to close
+        document.getElementById('doc-preview-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeDocumentPreview();
+        });
+    }
+
+    /* ──────────────────────────────────────────────────────
+       DROPZONE
+       ────────────────────────────────────────────────────── */
+    function initDropzone() {
+        const dz = document.getElementById('dropzone');
+        dz.addEventListener('click', () => document.getElementById('file-uploader').click());
+
+        dz.addEventListener('dragover', e => {
+            e.preventDefault();
+            dz.classList.add('dropzone-active');
+        });
+        ['dragleave', 'dragend'].forEach(evt => {
+            dz.addEventListener(evt, () => dz.classList.remove('dropzone-active'));
+        });
+        dz.addEventListener('drop', async e => {
+            e.preventDefault();
+            dz.classList.remove('dropzone-active');
+            if (e.dataTransfer.files.length > 0) await uploadFile(e.dataTransfer.files[0]);
+        });
+    }
+
+    /* ──────────────────────────────────────────────────────
+       TOGGLE DE VISTA
+       ────────────────────────────────────────────────────── */
+    function setView(mode) {
+        currentView = mode;
+        const table = document.getElementById('view-table');
+        const grid  = document.getElementById('view-grid');
+        const btnT  = document.getElementById('btn-view-table');
+        const btnG  = document.getElementById('btn-view-grid');
+
+        if (mode === 'table') {
+            table.classList.remove('hidden');
+            grid.classList.add('hidden');
+            btnT.classList.add('view-btn-active');
+            btnT.classList.remove('text-gray-400');
+            btnG.classList.remove('view-btn-active');
+            btnG.classList.add('text-gray-400');
+        } else {
+            table.classList.add('hidden');
+            grid.classList.remove('hidden');
+            btnG.classList.add('view-btn-active');
+            btnG.classList.remove('text-gray-400');
+            btnT.classList.remove('view-btn-active');
+            btnT.classList.add('text-gray-400');
+        }
+
+        renderDocuments(rawDocumentsList.filter(d =>
+            d.name.toLowerCase().includes(document.getElementById('doc-search').value.toLowerCase())
+        ));
+    }
+
+    /* ──────────────────────────────────────────────────────
+       SELECCIÓN DE CARPETA
+       ────────────────────────────────────────────────────── */
     function selectFolder(folder) {
         activeFolder = folder;
-        document.getElementById("active-folder-title").innerText = folder;
+        document.getElementById('active-folder-title').textContent = folder;
+        document.getElementById('doc-search').value = '';
 
-        // Estilos del menú
-        const folders = ['General', 'IT', 'RRHH', 'Finanzas'];
-        folders.forEach(f => {
-            const btn = document.getElementById(`fold-${f}`);
-            if (btn) {
-                if (f === folder) {
-                    btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-corp text-white shadow-md shadow-blue-corp/15 text-left w-full transition-all";
-                    btn.querySelector("i").className = "fa-solid fa-folder text-base";
-                } else {
-                    btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-100 text-left w-full transition-all";
-                    btn.querySelector("i").className = "fa-solid fa-folder-closed text-base text-[#8C8C8C]";
-                }
+        document.querySelectorAll('.folder-btn').forEach(btn => {
+            const isActive = btn.id === `fold-${folder}`;
+            btn.classList.toggle('folder-btn-active', isActive);
+            btn.classList.toggle('text-black-dark', !isActive);
+            btn.classList.toggle('hover:bg-gray-50', !isActive);
+            // Ícono
+            const iconWrap = btn.querySelector('span:first-of-type');
+            if (isActive) {
+                iconWrap.className = 'w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0';
             }
         });
 
         loadDocuments();
     }
 
-    // Consultar API
+    /* ──────────────────────────────────────────────────────
+       CARGAR DOCUMENTOS DE CARPETA
+       ────────────────────────────────────────────────────── */
     async function loadDocuments() {
-        const tbody = document.getElementById("documents-table-body");
-        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Leyendo archivos en la carpeta virtual...</td></tr>`;
+        showTableSkeleton();
 
         try {
             const response = await fetchAPI(`/api/documents?folder=${encodeURIComponent(activeFolder)}`);
             if (response && response.ok) {
                 rawDocumentsList = await response.json();
                 renderDocuments(rawDocumentsList);
+                updateFolderStats(rawDocumentsList);
+                updateFolderCount(activeFolder, rawDocumentsList.length);
             }
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500 italic">Error de conexión al leer el servidor.</td></tr>`;
+            showTableError();
         }
     }
 
-    // Renderizar tabla
+    function showTableSkeleton() {
+        const rows = Array(3).fill(`
+            <tr><td colspan="7" class="px-6 py-3">
+                <div class="flex items-center gap-3">
+                    <div class="skeleton w-8 h-8 rounded-xl flex-shrink-0"></div>
+                    <div class="flex-1 space-y-2">
+                        <div class="skeleton h-3 w-48"></div>
+                        <div class="skeleton h-2 w-32"></div>
+                    </div>
+                </div>
+            </td></tr>`).join('');
+        document.getElementById('documents-table-body').innerHTML = rows;
+    }
+
+    function showTableError() {
+        document.getElementById('documents-table-body').innerHTML = `
+            <tr><td colspan="7" class="px-6 py-10 text-center">
+                <div class="flex flex-col items-center gap-2 text-red-400">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                    <p class="text-xs font-semibold">Error de conexión al leer el servidor.</p>
+                </div>
+            </td></tr>`;
+    }
+
+    /* ──────────────────────────────────────────────────────
+       CONTADORES DE TODAS LAS CARPETAS (en paralelo)
+       ────────────────────────────────────────────────────── */
+    async function loadAllFolderCounts() {
+        const folders = ['General','IT','RRHH','Finanzas','Claves'];
+        await Promise.allSettled(folders.map(async f => {
+            try {
+                const r = await fetchAPI(`/api/documents?folder=${encodeURIComponent(f)}`);
+                if (r && r.ok) {
+                    const list = await r.json();
+                    updateFolderCount(f, list.length);
+                    // Si es la carpeta activa actualizar stats también
+                    if (f === activeFolder) updateFolderStats(list);
+                }
+            } catch {}
+        }));
+        const total = folders.reduce((acc, f) => acc + (folderCounts[f] || 0), 0);
+        document.getElementById('sidebar-total-count').textContent = `${total} archivos`;
+    }
+
+    function updateFolderCount(folder, count) {
+        folderCounts[folder] = count;
+        const el = document.getElementById(`count-${folder}`);
+        if (el) el.textContent = count;
+    }
+
+    /* ──────────────────────────────────────────────────────
+       ESTADÍSTICAS DEL SIDEBAR
+       ────────────────────────────────────────────────────── */
+    function updateFolderStats(list) {
+        document.getElementById('toolbar-count').textContent = list.length + (list.length === 1 ? ' archivo' : ' archivos');
+        document.getElementById('stat-count').textContent = list.length;
+
+        const totalBytes = list.reduce((acc, d) => acc + (d.size_bytes || 0), 0);
+        document.getElementById('stat-size').textContent = formatBytes(totalBytes);
+
+        if (list.length > 0) {
+            const sorted = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            document.getElementById('stat-last').textContent = sorted[0].name;
+            document.getElementById('stat-last').title = sorted[0].name;
+        } else {
+            document.getElementById('stat-last').textContent = '—';
+        }
+
+        // Mini badges de tipos
+        const typeCounts = {};
+        list.forEach(d => { typeCounts[d.file_type] = (typeCounts[d.file_type] || 0) + 1; });
+        const typesEl = document.getElementById('stat-types');
+        typesEl.innerHTML = Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).slice(0,6).map(([t, c]) => {
+            const m = getFileMeta(t);
+            return `<span class="${m.badge} type-badge">${m.label} · ${c}</span>`;
+        }).join('') || '<span class="text-[10px] text-grey-main italic">Sin archivos</span>';
+    }
+
+    /* ──────────────────────────────────────────────────────
+       RENDERIZADO DE DOCUMENTOS
+       ────────────────────────────────────────────────────── */
     function renderDocuments(list) {
-        const tbody = document.getElementById("documents-table-body");
-        tbody.innerHTML = "";
-        
+        if (currentView === 'table') renderTable(list);
+        else renderGrid(list);
+    }
+
+    /* ── TABLA ── */
+    function renderTable(list) {
+        const tbody = document.getElementById('documents-table-body');
+        tbody.innerHTML = '';
+
         if (list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-grey-main italic">Esta carpeta está vacía. Arrastre archivos para empezar a compartir.</td></tr>`;
+            tbody.innerHTML = `
+                <tr><td colspan="7" class="px-6 py-12 text-center">
+                    <div class="flex flex-col items-center gap-3 text-grey-main">
+                        <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
+                            <i class="fa-solid fa-folder-open text-2xl text-gray-300"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400">Carpeta vacía</p>
+                            <p class="text-[11px] text-gray-300 mt-0.5">Arrastra archivos para empezar a compartir.</p>
+                        </div>
+                    </div>
+                </td></tr>`;
             return;
         }
 
-        list.forEach(doc => {
-            let iconClass = "fa-file text-gray-400";
-            let iconColor = "bg-gray-100 text-gray-500";
-            
-            if (doc.file_type === 'pdf') {
-                iconClass = "fa-file-pdf";
-                iconColor = "bg-red-500/10 text-red-500";
-            } else if (doc.file_type === 'docx' || doc.file_type === 'doc') {
-                iconClass = "fa-file-word";
-                iconColor = "bg-blue-500/10 text-blue-500";
-            } else if (doc.file_type === 'xlsx' || doc.file_type === 'xls' || doc.file_type === 'csv') {
-                iconClass = "fa-file-excel";
-                iconColor = "bg-emerald-500/10 text-emerald-500";
-            } else if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(doc.file_type)) {
-                iconClass = "fa-file-image";
-                iconColor = "bg-purple-500/10 text-purple-500";
+        list.forEach((doc, i) => {
+            const m = getFileMeta(doc.file_type);
+            const size = formatBytes(doc.size_bytes);
+            const date = new Date(doc.created_at).toLocaleDateString('es-ES', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+            const time = new Date(doc.created_at).toLocaleTimeString('es-ES', {
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            let updateDate = "—";
+            let updateTime = "";
+            if (doc.updated_at) {
+                updateDate = new Date(doc.updated_at).toLocaleDateString('es-ES', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                });
+                updateTime = new Date(doc.updated_at).toLocaleTimeString('es-ES', {
+                    hour: '2-digit', minute: '2-digit'
+                });
             }
 
-            const sizeFormatted = formatBytes(doc.size_bytes);
-            const dateFormatted = new Date(doc.created_at).toLocaleDateString('es-ES', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'});
-
-            const tr = document.createElement("tr");
-            tr.className = "hover:bg-white/40 transition-colors";
+            const tr = document.createElement('tr');
+            tr.className = 'doc-row doc-fade-in';
+            tr.style.animationDelay = `${i * 30}ms`;
             tr.innerHTML = `
-                <td class="px-6 py-4 font-bold text-black-dark">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-8 h-8 rounded-xl ${iconColor} flex items-center justify-center">
-                            <i class="fa-solid ${iconClass} text-sm"></i>
+                <td class="px-5 py-3.5 pl-6 font-semibold text-black-dark">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-xl ${m.color} flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid ${m.icon} text-sm"></i>
                         </div>
-                        <span class="truncate max-w-xs md:max-w-md block" title="${doc.name}">${doc.name}</span>
+                        <span class="truncate max-w-[200px] md:max-w-xs block text-xs" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
                     </div>
                 </td>
-                <td class="px-6 py-4 text-gray-500 font-semibold">${sizeFormatted}</td>
-                <td class="px-6 py-4">
-                    <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">${doc.version}</span>
+                <td class="px-5 py-3.5">
+                    <span class="${m.badge} type-badge">${m.label}</span>
                 </td>
-                <td class="px-6 py-4 text-gray-500">${dateFormatted}</td>
-                <td class="px-6 py-4 text-right">
-                    <div class="flex items-center justify-end space-x-1">
-                        <a href="/api/documents/${doc.id}/download" class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-blue-corp transition-all" title="Descargar de forma auditada">
+                <td class="px-5 py-3.5 text-[11px] text-grey-main font-medium tabular-nums">${size}</td>
+                <td class="px-5 py-3.5">
+                    <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-widest">${escapeHtml(doc.version || 'v1')}</span>
+                </td>
+                <td class="px-5 py-3.5 text-[11px] text-grey-main">
+                    <span class="font-medium text-black-dark/70">${date}</span>
+                    <span class="ml-1 text-grey-main/70">${time}</span>
+                </td>
+                <td class="px-5 py-3.5 text-[11px] text-grey-main">
+                    <span class="font-medium text-black-dark/70">${updateDate}</span>
+                    <span class="ml-1 text-grey-main/70">${updateTime}</span>
+                </td>
+                <td class="px-5 py-3.5 pr-6 text-right">
+                    <div class="flex items-center justify-end gap-1">
+                        ${isAdmin ? `
+                        <button onclick="openDocumentPreview(${doc.id})"
+                            class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Ver / editar">
+                            <i class="fa-solid fa-eye text-xs"></i>
+                        </button>` : ''}
+                        <a href="/api/documents/${doc.id}/download"
+                            class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Descargar (auditado)">
                             <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
                         </a>
-                        <button onclick="deleteDocument(${doc.id})" class="p-2 rounded-xl text-gray-500 hover:bg-red-500/10 hover:text-red-500 transition-all" title="Eliminar permanentemente">
+                        <button onclick="deleteDocument(${doc.id})"
+                            class="p-2 rounded-xl text-gray-400 hover:bg-red-500/8 hover:text-red-500 transition-all" title="Eliminar permanentemente">
                             <i class="fa-solid fa-trash text-xs"></i>
                         </button>
                     </div>
-                </td>
-            `;
+                </td>`;
             tbody.appendChild(tr);
         });
     }
 
-    // Buscador local
+    /* ── GRID (tarjetas) ── */
+    function renderGrid(list) {
+        const grid = document.getElementById('view-grid');
+        grid.innerHTML = '';
+
+        if (list.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full py-12 text-center">
+                    <div class="flex flex-col items-center gap-3 text-grey-main">
+                        <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
+                            <i class="fa-solid fa-folder-open text-2xl text-gray-300"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-400">Carpeta vacía</p>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        list.forEach((doc, i) => {
+            const m = getFileMeta(doc.file_type);
+            const size = formatBytes(doc.size_bytes);
+            const date = new Date(doc.created_at).toLocaleDateString('es-ES', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+
+            let updateDateStr = "";
+            if (doc.updated_at) {
+                const ud = new Date(doc.updated_at).toLocaleDateString('es-ES', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                });
+                updateDateStr = ` · <span class="text-[#049DD9]" title="Fecha de actualización">Act: ${ud}</span>`;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'doc-card glass-card rounded-2xl p-4 shadow-sm doc-fade-in flex flex-col gap-3';
+            card.style.animationDelay = `${i * 40}ms`;
+            card.innerHTML = `
+                <!-- Cabecera de tarjeta -->
+                <div class="flex items-start justify-between gap-2">
+                    <div class="w-10 h-10 rounded-2xl ${m.color} flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid ${m.icon} text-lg"></i>
+                    </div>
+                    <span class="${m.badge} type-badge self-start">${m.label}</span>
+                </div>
+
+                <!-- Nombre del archivo -->
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-black-dark leading-snug line-clamp-2" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</p>
+                    <p class="text-[10px] text-grey-main mt-1">${date} · ${size}${updateDateStr}</p>
+                </div>
+
+                <!-- Footer de tarjeta -->
+                <div class="flex items-center justify-between border-t border-gray-100 pt-2.5 mt-auto">
+                    <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-widest">${escapeHtml(doc.version || 'v1')}</span>
+                    <div class="flex items-center gap-0.5">
+                        ${isAdmin ? `
+                        <button onclick="openDocumentPreview(${doc.id})"
+                            class="p-1.5 rounded-lg text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Ver / editar">
+                            <i class="fa-solid fa-eye text-[11px]"></i>
+                        </button>` : ''}
+                        <a href="/api/documents/${doc.id}/download"
+                            class="p-1.5 rounded-lg text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Descargar">
+                            <i class="fa-solid fa-cloud-arrow-down text-[11px]"></i>
+                        </a>
+                        <button onclick="deleteDocument(${doc.id})"
+                            class="p-1.5 rounded-lg text-gray-400 hover:bg-red-500/8 hover:text-red-500 transition-all" title="Eliminar">
+                            <i class="fa-solid fa-trash text-[11px]"></i>
+                        </button>
+                    </div>
+                </div>`;
+            grid.appendChild(card);
+        });
+    }
+
+    /* ──────────────────────────────────────────────────────
+       BUSCADOR LOCAL
+       ────────────────────────────────────────────────────── */
     function filterDocuments() {
-        const query = document.getElementById("doc-search").value.toLowerCase();
-        const filtered = rawDocumentsList.filter(d => d.name.toLowerCase().includes(query));
+        const q = document.getElementById('doc-search').value.toLowerCase();
+        const filtered = rawDocumentsList.filter(d => d.name.toLowerCase().includes(q));
         renderDocuments(filtered);
     }
 
-    // Formateador de bytes a unidades
-    function formatBytes(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    // Eventos de Uploader
+    /* ──────────────────────────────────────────────────────
+       UPLOADER
+       ────────────────────────────────────────────────────── */
     async function handleFileSelect(e) {
-        if (e.target.files.length > 0) {
-            await uploadFile(e.target.files[0]);
-        }
+        if (e.target.files.length > 0) await uploadFile(e.target.files[0]);
     }
 
-    // Subir archivo al API
     async function uploadFile(file) {
         const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folder", activeFolder);
+        formData.append('file', file);
+        formData.append('folder', activeFolder);
 
-        showToast(`Subiendo archivo: ${file.name}...`, "info");
+        // Mostrar barra de progreso simulada
+        const wrap  = document.getElementById('upload-progress-wrap');
+        const bar   = document.getElementById('upload-progress-bar');
+        const label = document.getElementById('upload-progress-label');
+        wrap.classList.remove('hidden');
+        label.textContent = `Subiendo: ${file.name}`;
+        let prog = 0;
+        const ticker = setInterval(() => {
+            prog = Math.min(prog + Math.random() * 12, 88);
+            bar.style.width = prog + '%';
+        }, 180);
+
+        showToast(`Subiendo: ${file.name}`, 'info');
 
         try {
-            const response = await fetchAPI('/api/documents', {
-                method: 'POST',
-                body: formData
-            });
+            const response = await fetchAPI('/api/documents', { method: 'POST', body: formData });
+            clearInterval(ticker);
+            bar.style.width = '100%';
+            setTimeout(() => wrap.classList.add('hidden'), 800);
 
             if (response && response.ok) {
-                showToast("Archivo cargado y sincronizado con éxito. Acción auditada.", "success");
+                showToast('Archivo cargado y sincronizado. Acción auditada.', 'success');
                 loadDocuments();
-            } else {
+                loadAllFolderCounts();
+            } else if (response) {
                 const data = await response.json();
-                showToast(data.detail || "Error al subir documento.", "error");
+                showToast(data.detail || 'Error al subir documento.', 'error');
             }
         } catch (err) {
-            showToast("Error de conexión al cargar archivo.", "error");
+            clearInterval(ticker);
+            wrap.classList.add('hidden');
+            showToast('Error de conexión al cargar archivo.', 'error');
+        }
+
+        // Resetear el input para poder subir el mismo archivo dos veces
+        document.getElementById('file-uploader').value = '';
+    }
+
+    /* ──────────────────────────────────────────────────────
+       MODAL DE PREVIEW
+       ────────────────────────────────────────────────────── */
+    async function openDocumentPreview(docId) {
+        const modal    = document.getElementById('doc-preview-modal');
+        const titleEl  = document.getElementById('doc-preview-title');
+        const subtitleEl = document.getElementById('doc-preview-subtitle');
+        const body     = document.getElementById('doc-preview-body');
+        const footer   = document.getElementById('doc-preview-footer');
+        const infoEl   = document.getElementById('doc-preview-info');
+        const dlBtn    = document.getElementById('modal-download-btn');
+        const iconEl   = document.getElementById('modal-icon');
+        const iconWrap = document.getElementById('modal-icon-wrap');
+
+        // Estado de carga
+        titleEl.textContent = 'Cargando vista previa...';
+        subtitleEl.textContent = 'Leyendo documento desde el servidor...';
+        body.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;padding:64px 0">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#8C8C8C">
+                    <div style="width:40px;height:40px;border-radius:16px;background:rgba(4,157,217,0.1);display:flex;align-items:center;justify-content:center">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:20px;color:#049DD9"></i>
+                    </div>
+                    <p style="font-size:12px;font-weight:600">Procesando documento...</p>
+                </div>
+            </div>`;
+        footer.querySelector('div:last-child').innerHTML = `
+            <button onclick="closeDocumentPreview()" type="button" class="modal-toolbar-btn" style="background:#f3f4f6;color:#4b5563">Cerrar</button>`;
+        infoEl.textContent = '';
+        modal.classList.remove('modal-hidden');
+
+        try {
+            const response = await fetchAPI(`/api/documents/${docId}/preview`);
+            if (!response || !response.ok) {
+                const err = response ? await response.json() : { detail: 'Error desconocido' };
+                body.innerHTML = `
+                    <div class="flex flex-col items-center gap-3 py-16 text-red-400">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+                        <p class="text-sm font-semibold">${escapeHtml(err.detail || 'No se pudo cargar la vista previa.')}</p>
+                    </div>`;
+                return;
+            }
+
+            const data = await response.json();
+            currentPreviewDocument = { id: docId, fileType: data.document.file_type, mode: data.preview.mode };
+
+            // Configurar cabecera del modal
+            const m = getFileMeta(data.document.file_type);
+            // Use inline styles for icon wrap since it's in body, not in Tailwind context
+            const colorMap = {
+                'bg-red-500/10 text-red-500': { bg: 'rgba(239,68,68,0.1)', fg: '#ef4444' },
+                'bg-blue-500/10 text-blue-500': { bg: 'rgba(59,130,246,0.1)', fg: '#3b82f6' },
+                'bg-emerald-500/10 text-emerald-500': { bg: 'rgba(16,185,129,0.1)', fg: '#10b981' },
+                'bg-teal-500/10 text-teal-500': { bg: 'rgba(20,184,166,0.1)', fg: '#14b8a6' },
+                'bg-amber-500/10 text-amber-500': { bg: 'rgba(245,158,11,0.1)', fg: '#f59e0b' },
+                'bg-violet-500/10 text-violet-500': { bg: 'rgba(139,92,246,0.1)', fg: '#8b5cf6' },
+                'bg-pink-500/10 text-pink-500': { bg: 'rgba(236,72,153,0.1)', fg: '#ec4899' },
+                'bg-gray-100 text-gray-500': { bg: '#f3f4f6', fg: '#6b7280' },
+            };
+            const cmap = colorMap[m.color] || { bg: '#f3f4f6', fg: '#6b7280' };
+            iconWrap.style.background = cmap.bg;
+            iconEl.className = `fa-solid ${m.icon}`;
+            iconEl.style.fontSize = '20px';
+            iconEl.style.color = cmap.fg;
+            titleEl.textContent = data.document.name;
+            subtitleEl.textContent = `${data.document.file_type.toUpperCase()} · ${formatBytes(data.document.size_bytes || 0)}`;
+            dlBtn.href = `/api/documents/${docId}/download`;
+            infoEl.textContent = `Versión ${data.document.version || 'v1'} · Subido el ${new Date(data.document.created_at).toLocaleDateString('es-ES', {day:'numeric', month:'short', year:'numeric'})}`;
+
+            // Botón guardar (solo si es editable)
+            const isEditable = data.preview.mode === 'text' || data.preview.mode === 'table';
+            footer.querySelector('div:last-child').innerHTML = `
+                <button onclick="closeDocumentPreview()" type="button" class="modal-toolbar-btn" style="background:#f3f4f6;color:#4b5563">Cerrar</button>
+                ${isEditable && isAdmin ? `<button onclick="saveDocumentContent()" type="button"
+                    class="modal-toolbar-btn" style="background:#049DD9;color:white">
+                    <i class="fa-solid fa-floppy-disk" style="font-size:12px"></i> Guardar cambios
+                </button>` : ''}`;
+
+            /* ── Renderizado según modo ── */
+            if (data.preview.mode === 'text') {
+                body.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 pb-2 border-b border-gray-100">
+                            <i class="fa-solid fa-code text-xs text-grey-main"></i>
+                            <p class="text-[11px] text-grey-main">Editor de texto · Los cambios se guardan con versionado automático.</p>
+                        </div>
+                        <textarea id="doc-preview-text"
+                            class="w-full min-h-[380px] bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl p-4 text-xs text-black-dark resize-y focus:outline-none focus:border-blue-corp focus:ring-1 focus:ring-blue-corp/20 transition-all"
+                        >${escapeHtml(data.preview.content)}</textarea>
+                    </div>`;
+
+            } else if (data.preview.mode === 'table') {
+                currentPreviewDocument.sheets    = data.preview.sheets || [];
+                currentPreviewDocument.sheetName = currentPreviewDocument.sheets[0]?.name || null;
+
+                const sheetTabs = currentPreviewDocument.sheets.map((s, i) => `
+                    <button type="button" data-sheet-tab="${escapeHtml(s.name)}"
+                        onclick='switchPreviewSheet(${escapeHtml(JSON.stringify(s.name))})'
+                        class="doc-sheet-tab text-[10px] font-bold rounded-full px-3 py-1 transition-all ${i===0 ? 'bg-blue-corp text-white shadow-sm shadow-blue-corp/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+                        <i class="fa-solid fa-table-cells text-[9px] mr-1"></i>${escapeHtml(s.name)}
+                    </button>`).join('');
+
+                body.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex flex-wrap items-center gap-2 pb-3 border-b border-gray-100">
+                            <div class="flex flex-wrap gap-1.5">${sheetTabs}</div>
+                            <p class="text-[10px] text-grey-main ml-auto">Edita las celdas directamente. Usa Tab para navegar.</p>
+                        </div>
+                        <div class="overflow-auto rounded-2xl border border-[#E2E8F0] bg-white" style="max-height: 420px;" id="doc-preview-table-container"></div>
+                    </div>`;
+                renderPreviewSheet(currentPreviewDocument.sheetName);
+
+            } else if (data.preview.mode === 'binary') {
+                const url  = data.preview.preview_url;
+                const type = data.document.file_type;
+
+                if (type === 'pdf') {
+                    body.innerHTML = `<iframe src="${url}" class="w-full rounded-2xl border border-[#E2E8F0] bg-white" style="min-height:560px;"></iframe>`;
+                } else if (['jpg','jpeg','png','webp','gif'].includes(type)) {
+                    body.innerHTML = `
+                        <div class="flex items-center justify-center bg-[#F8FAFC] rounded-2xl p-6 border border-gray-100 min-h-[320px]">
+                            <img src="${url}" alt="Vista previa" class="max-w-full rounded-xl shadow-lg">
+                        </div>`;
+                } else {
+                    body.innerHTML = `
+                        <div class="flex flex-col items-center gap-4 py-12 text-centre">
+                            <div class="w-16 h-16 rounded-2xl ${m.color} flex items-center justify-center">
+                                <i class="fa-solid ${m.icon} text-3xl"></i>
+                            </div>
+                            <div class="text-center space-y-1">
+                                <p class="text-sm font-bold text-black-dark">Vista previa no disponible</p>
+                                <p class="text-xs text-grey-main">Este formato no tiene previsualización integrada.<br>Descárgalo para revisarlo en tu aplicación local.</p>
+                            </div>
+                            <a href="/api/documents/${docId}/download"
+                                class="modal-toolbar-btn bg-blue-corp text-white hover:bg-blue-corp/90">
+                                <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
+                                Descargar archivo
+                            </a>
+                        </div>`;
+                }
+            }
+
+        } catch (err) {
+            body.innerHTML = `
+                <div class="flex flex-col items-center gap-3 py-16 text-red-400">
+                    <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+                    <p class="text-sm font-semibold">Error al cargar la vista previa del documento.</p>
+                </div>`;
         }
     }
 
-    // Suprimir archivo de disco y base de datos
-    async function deleteDocument(id) {
-        if (!confirm("¿Está seguro de eliminar de forma permanente e irreversible este archivo corporativo? Esta acción se auditará.")) return;
+    function closeDocumentPreview() {
+        const modal = document.getElementById('doc-preview-modal');
+        if (modal) modal.classList.add('modal-hidden');
+        currentPreviewDocument = null;
+    }
 
+    /* ── ESC para cerrar modal ── */
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeDocumentPreview();
+    });
+
+    /* ──────────────────────────────────────────────────────
+       TABLAS EDITABLES (EXCEL)
+       ────────────────────────────────────────────────────── */
+    function renderEditableTable(rows) {
+        const container = document.getElementById('doc-preview-table-container');
+        if (!container || !rows.length) return;
+
+        // Generar letras de columna (A, B, C, ...)
+        const maxCols = Math.max(...rows.map(r => r.length), 0);
+        const colLetters = i => i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i/26)) + String.fromCharCode(65 + i%26);
+        const colHeaders = Array.from({length: maxCols}, (_, i) =>
+            `<th>${colLetters(i)}</th>`).join('');
+
+        let html = `<table>
+            <thead><tr>
+                <th style="min-width:40px;text-align:center">#</th>
+                ${colHeaders}
+            </tr></thead><tbody>`;
+
+        rows.forEach((row, ri) => {
+            html += `<tr>`;
+            html += `<td class="row-num">${ri + 1}</td>`;
+            for (let ci = 0; ci < maxCols; ci++) {
+                const cell = row[ci] !== undefined ? row[ci] : '';
+                html += `<td contenteditable="true" data-row="${ri}" data-col="${ci}">${escapeHtml(cell)}</td>`;
+            }
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function renderPreviewSheet(sheetName) {
+        if (!currentPreviewDocument?.sheets) return;
+        const sheet = currentPreviewDocument.sheets.find(s => s.name === sheetName);
+        if (!sheet) return;
+        currentPreviewDocument.sheetName = sheetName;
+        updateSheetTabStyles(sheetName);
+        renderEditableTable(sheet.rows);
+    }
+
+    function switchPreviewSheet(sheetName) { renderPreviewSheet(sheetName); }
+
+    function updateSheetTabStyles(active) {
+        document.querySelectorAll('[data-sheet-tab]').forEach(btn => {
+            const isActive = btn.getAttribute('data-sheet-tab') === active;
+            btn.className = `doc-sheet-tab text-[10px] font-bold rounded-full px-3 py-1 transition-all ${
+                isActive ? 'bg-blue-corp text-white shadow-sm shadow-blue-corp/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
+        });
+    }
+
+    function buildEditableRows() {
+        const cells = document.querySelectorAll("#doc-preview-table-container td[contenteditable='true']");
+        const rows  = [];
+        cells.forEach(cell => {
+            const ri = Number(cell.dataset.row);
+            const ci = Number(cell.dataset.col);
+            rows[ri] = rows[ri] || [];
+            rows[ri][ci] = cell.innerText;
+        });
+        return rows;
+    }
+
+    /* ──────────────────────────────────────────────────────
+       GUARDAR DOCUMENTO
+       ────────────────────────────────────────────────────── */
+    async function saveDocumentContent() {
+        if (!currentPreviewDocument) return;
+        const payload = {};
+
+        if (currentPreviewDocument.mode === 'text') {
+            payload.content = document.getElementById('doc-preview-text').value;
+        } else if (currentPreviewDocument.mode === 'table') {
+            payload.rows       = buildEditableRows();
+            payload.sheet_name = currentPreviewDocument.sheetName;
+        } else {
+            showToast('Este formato no es editable en la vista previa.', 'error');
+            return;
+        }
+
+        const saveBtn = document.querySelector('#doc-preview-footer button[onclick="saveDocumentContent()"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Guardando...'; }
+
+        try {
+            const response = await fetchAPI(`/api/documents/${currentPreviewDocument.id}/content`, {
+                method: 'PUT',
+                body: payload
+            });
+            if (response && response.ok) {
+                showToast('Cambios guardados con éxito.', 'success');
+                loadDocuments();
+                closeDocumentPreview();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || 'No se pudo guardar el documento.', 'error');
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk text-xs"></i> Guardar cambios'; }
+            }
+        } catch (err) {
+            showToast('Falla al guardar cambios en el documento.', 'error');
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk text-xs"></i> Guardar cambios'; }
+        }
+    }
+
+    /* ──────────────────────────────────────────────────────
+       ELIMINAR DOCUMENTO
+       ────────────────────────────────────────────────────── */
+    async function deleteDocument(id) {
+        if (!confirm('¿Está seguro de eliminar de forma permanente e irreversible este archivo corporativo? Esta acción se auditará.')) return;
         try {
             const response = await fetchAPI(`/api/documents/${id}`, { method: 'DELETE' });
             if (response && response.ok) {
-                showToast("Archivo eliminado físicamente y purgado del servidor.", "success");
+                showToast('Archivo eliminado físicamente y purgado del servidor.', 'success');
                 loadDocuments();
+                loadAllFolderCounts();
             }
         } catch (e) {
-            showToast("Falla de red al eliminar el archivo.", "error");
+            showToast('Falla de red al eliminar el archivo.', 'error');
         }
+    }
+
+    /* ──────────────────────────────────────────────────────
+       UTILIDADES
+       ────────────────────────────────────────────────────── */
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 </script>
 {% endblock %}

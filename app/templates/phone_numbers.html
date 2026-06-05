@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+
+{% block title %}Números Contratados{% endblock %}
+{% block page_title %}Números Contratados — Gestión de Líneas{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       PHONE NUMBERS MODULE — ESTILOS
+       ===================================================== */
+
+    /* Tarjetas de número */
+    .phone-card {
+        background: #fff;
+        border: 1px solid rgba(140,140,140,0.12);
+        border-radius: 18px;
+        padding: 1.25rem 1.5rem;
+        transition: box-shadow .2s ease, transform .18s ease, border-color .18s ease;
+        position: relative;
+        overflow: hidden;
+        animation: fadeUp .28s ease both;
+    }
+    .phone-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 4px; height: 100%;
+        border-radius: 18px 0 0 18px;
+        transition: opacity .2s ease;
+        opacity: 0;
+    }
+    .phone-card:hover {
+        box-shadow: 0 8px 32px rgba(4,157,217,.12);
+        transform: translateY(-2px);
+        border-color: rgba(4,157,217,.22);
+    }
+    .phone-card:hover::before { opacity: 1; }
+
+    /* Colores por dirección */
+    .dir-entrada  { background: rgba(5,150,105,.08);  color: #059669; }
+    .dir-salida   { background: rgba(220,38,38,.08);  color: #dc2626; }
+    .dir-ambos    { background: rgba(4,157,217,.08);  color: #049DD9; }
+    .card-entrada::before { background: linear-gradient(180deg,#059669,#34d399); }
+    .card-salida::before  { background: linear-gradient(180deg,#dc2626,#f87171); }
+    .card-ambos::before   { background: linear-gradient(180deg,#049DD9,#79F2E6); }
+
+    /* Badge dirección */
+    .dir-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 10px; font-weight: 700; letter-spacing: .05em;
+        text-transform: uppercase; padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* Filtros pill */
+    .filter-pill {
+        font-size: 11px; font-weight: 600; padding: 6px 14px;
+        border-radius: 999px; border: 1.5px solid rgba(140,140,140,.2);
+        color: #8C8C8C; background: #fff; cursor: pointer;
+        transition: all .18s ease; letter-spacing: .04em;
+    }
+    .filter-pill:hover { border-color: #049DD9; color: #049DD9; }
+    .filter-pill.active {
+        background: #049DD9; border-color: #049DD9; color: #fff;
+        box-shadow: 0 4px 12px rgba(4,157,217,.3);
+    }
+    .filter-pill.active-entrada { background:#059669; border-color:#059669; color:#fff; box-shadow:0 4px 12px rgba(5,150,105,.3); }
+    .filter-pill.active-salida  { background:#dc2626; border-color:#dc2626; color:#fff; box-shadow:0 4px 12px rgba(220,38,38,.3); }
+
+    /* Modal */
+    .modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(38,37,35,.55); backdrop-filter: blur(6px);
+        z-index: 9998; display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity .22s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+        background: #fff; border-radius: 22px; padding: 2rem;
+        width: 100%; max-width: 540px; max-height: 92vh; overflow-y: auto;
+        box-shadow: 0 24px 64px rgba(4,157,217,.18);
+        transform: translateY(24px) scale(.97);
+        transition: transform .25s cubic-bezier(.16,1,.3,1);
+    }
+    .modal-backdrop.open .modal-box { transform: translateY(0) scale(1); }
+
+    /* Form inputs */
+    .form-group label {
+        font-size: 11px; font-weight: 600; color: #8C8C8C;
+        letter-spacing: .06em; text-transform: uppercase;
+        display: block; margin-bottom: 5px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%; background: #F2F2F2;
+        border: 1.5px solid transparent; border-radius: 10px;
+        padding: 9px 13px; font-size: 13px; color: #262523;
+        font-family: 'Outfit', sans-serif; outline: none;
+        transition: border-color .18s ease, background .18s ease;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { background: #fff; border-color: #049DD9; }
+
+    /* Skeleton */
+    .skeleton {
+        background: linear-gradient(90deg,#F2F2F2 25%,#e8e8e8 50%,#F2F2F2 75%);
+        background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+    /* Tabla */
+    .phone-table { width:100%; border-collapse:separate; border-spacing:0 6px; }
+    .phone-table thead th {
+        font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+        color:#8C8C8C; padding:8px 14px; text-align:left;
+    }
+    .phone-table tbody tr {
+        background:#fff; border-radius:12px;
+        transition: box-shadow .18s ease, transform .15s ease;
+    }
+    .phone-table tbody tr:hover {
+        box-shadow: 0 4px 18px rgba(4,157,217,.1);
+        transform: translateX(2px);
+    }
+    .phone-table tbody td {
+        padding:12px 14px; font-size:13px; color:#262523;
+    }
+    .phone-table tbody td:first-child { border-radius:12px 0 0 12px; }
+    .phone-table tbody td:last-child  { border-radius:0 12px 12px 0; }
+
+    /* Stat cards */
+    .stat-card {
+        background:#fff; border:1px solid rgba(140,140,140,.12);
+        border-radius:16px; padding:1.1rem 1.4rem;
+        display:flex; align-items:center; gap:14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ==============================================================
+     ENCABEZADO
+     ============================================================== -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-[#262523] flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center shadow-lg shadow-[#049DD9]/25">
+                <i class="fa-solid fa-phone text-white text-base"></i>
+            </span>
+            Números Contratados
+        </h1>
+        <p class="text-xs text-[#8C8C8C] mt-1 ml-13">Gestión de líneas telefónicas activas · Entrada · Salida · Ambos</p>
+    </div>
+    <button onclick="openCreateModal()" id="btn-nuevo-numero"
+        class="flex items-center gap-2 bg-[#049DD9] hover:bg-[#038bc2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#049DD9]/30 transition-all duration-200 hover:-translate-y-0.5">
+        <i class="fa-solid fa-plus"></i>
+        Nuevo Número
+    </button>
+</div>
+
+<!-- ==============================================================
+     STATS RÁPIDAS
+     ============================================================== -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="stats-row">
+    <div class="stat-card">
+        <div class="w-10 h-10 rounded-xl bg-[#049DD9]/10 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-phone text-[#049DD9] text-base"></i>
+        </div>
+        <div>
+            <p id="stat-total" class="text-2xl font-bold text-[#262523]">—</p>
+            <p class="text-[10px] text-[#8C8C8C] font-medium uppercase tracking-wide">Total Líneas</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-phone-volume text-green-600 text-base"></i>
+        </div>
+        <div>
+            <p id="stat-entrada" class="text-2xl font-bold text-[#262523]">—</p>
+            <p class="text-[10px] text-[#8C8C8C] font-medium uppercase tracking-wide">Entrada</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-phone-arrow-up-right text-red-500 text-base"></i>
+        </div>
+        <div>
+            <p id="stat-salida" class="text-2xl font-bold text-[#262523]">—</p>
+            <p class="text-[10px] text-[#8C8C8C] font-medium uppercase tracking-wide">Salida</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="w-10 h-10 rounded-xl bg-[#049DD9]/10 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-arrows-left-right text-[#049DD9] text-base"></i>
+        </div>
+        <div>
+            <p id="stat-ambos" class="text-2xl font-bold text-[#262523]">—</p>
+            <p class="text-[10px] text-[#8C8C8C] font-medium uppercase tracking-wide">Ambos</p>
+        </div>
+    </div>
+</div>
+
+<!-- ==============================================================
+     BARRA DE BÚSQUEDA + FILTROS
+     ============================================================== -->
+<div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4">
+    <div class="relative flex-1 max-w-xs">
+        <span class="absolute inset-y-0 left-3 flex items-center text-[#8C8C8C] pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+        </span>
+        <input id="phone-search" type="text" placeholder="Número, cliente o prefijo…"
+            class="w-full text-xs bg-[#F2F2F2] rounded-xl pl-8 pr-4 py-2 border border-[#8C8C8C]/15 focus:outline-none focus:border-[#049DD9] transition-all"
+            oninput="applyFilters()">
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <button class="filter-pill active" data-dir="all"      onclick="setDirFilter(this)">Todos</button>
+        <button class="filter-pill"        data-dir="Entrada"  onclick="setDirFilter(this)">
+            <i class="fa-solid fa-phone-volume mr-1 text-green-500"></i>Entrada
+        </button>
+        <button class="filter-pill"        data-dir="Salida"   onclick="setDirFilter(this)">
+            <i class="fa-solid fa-phone-arrow-up-right mr-1 text-red-500"></i>Salida
+        </button>
+        <button class="filter-pill"        data-dir="Ambos"    onclick="setDirFilter(this)">
+            <i class="fa-solid fa-arrows-left-right mr-1 text-[#049DD9]"></i>Ambos
+        </button>
+    </div>
+    <span id="phone-count" class="text-xs text-[#8C8C8C] font-medium whitespace-nowrap ml-auto hidden md:inline">— líneas</span>
+</div>
+
+<!-- ==============================================================
+     TABLA DE NÚMEROS
+     ============================================================== -->
+<div class="bg-white border border-[#8C8C8C]/12 rounded-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-[#8C8C8C]/10 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-[#262523]">Directorio de Líneas</h2>
+        <span class="text-[10px] text-[#8C8C8C] bg-[#F2F2F2] px-3 py-1 rounded-full font-medium" id="table-count">Cargando…</span>
+    </div>
+    <div class="overflow-x-auto px-4 pb-4">
+        <table class="phone-table">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Número</th>
+                    <th>Prefijo</th>
+                    <th>Dirección</th>
+                    <th>Notas</th>
+                    <th>Registrado</th>
+                    <th class="text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="phone-tbody">
+                <!-- Skeleton rows -->
+                <tr id="sk1"><td colspan="7"><div class="flex gap-4 py-2">
+                    <div class="skeleton h-4 flex-1"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-16"></div>
+                    <div class="skeleton h-4 w-20"></div>
+                </div></td></tr>
+                <tr id="sk2"><td colspan="7"><div class="flex gap-4 py-2">
+                    <div class="skeleton h-4 flex-1"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-16"></div>
+                    <div class="skeleton h-4 w-20"></div>
+                </div></td></tr>
+                <tr id="sk3"><td colspan="7"><div class="flex gap-4 py-2">
+                    <div class="skeleton h-4 flex-1"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-16"></div>
+                    <div class="skeleton h-4 w-20"></div>
+                </div></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Estado vacío -->
+<div id="empty-state" class="hidden text-center py-20 text-[#8C8C8C]">
+    <div class="w-16 h-16 rounded-full bg-[#F2F2F2] flex items-center justify-center mx-auto mb-4">
+        <i class="fa-solid fa-phone-slash text-2xl text-[#8C8C8C]"></i>
+    </div>
+    <p class="font-semibold text-[#262523] text-sm">Sin números registrados</p>
+    <p class="text-xs mt-1">Agrega el primer número contratado para comenzar</p>
+    <button onclick="openCreateModal()"
+        class="mt-4 bg-[#049DD9] text-white text-xs font-semibold px-5 py-2 rounded-xl hover:bg-[#038bc2] transition-colors">
+        <i class="fa-solid fa-plus mr-1"></i>Nuevo Número
+    </button>
+</div>
+
+<!-- ==============================================================
+     MODAL: CREAR / EDITAR NÚMERO
+     ============================================================== -->
+<div id="phone-modal" class="modal-backdrop" onclick="handleModalClick(event,'phone-modal')">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center">
+                    <i class="fa-solid fa-phone text-white text-sm"></i>
+                </div>
+                <div>
+                    <h3 id="modal-title" class="font-bold text-[#262523] text-base">Nuevo Número</h3>
+                    <p class="text-[10px] text-[#8C8C8C]">Completa los datos de la línea contratada</p>
+                </div>
+            </div>
+            <button onclick="closeModal('phone-modal')"
+                class="text-[#8C8C8C] hover:text-[#262523] p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <form id="phone-form" class="space-y-4" onsubmit="submitPhone(event)">
+            <input type="hidden" id="phone-id" value="">
+
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Cliente -->
+                <div class="form-group col-span-2">
+                    <label>Cliente / Empresa *</label>
+                    <input id="f-cliente" type="text" placeholder="Ej: Nexus Global" required maxlength="120">
+                </div>
+                <!-- Número -->
+                <div class="form-group col-span-2 sm:col-span-1">
+                    <label>Número *</label>
+                    <input id="f-numero" type="text" placeholder="Ej: +58 212 1234567" required maxlength="30">
+                </div>
+                <!-- Prefijo -->
+                <div class="form-group col-span-2 sm:col-span-1">
+                    <label>Prefijo / DDI</label>
+                    <input id="f-prefijo" type="text" placeholder="Ej: 0212" maxlength="20">
+                </div>
+                <!-- Dirección -->
+                <div class="form-group col-span-2">
+                    <label>Tipo de Línea *</label>
+                    <div class="grid grid-cols-3 gap-3 mt-1">
+                        <label id="dir-entrada-lbl"
+                            class="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-transparent bg-[#F2F2F2] cursor-pointer transition-all hover:border-green-400 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                            <input type="radio" name="direccion" value="Entrada" class="hidden" onchange="highlightDir()">
+                            <i class="fa-solid fa-phone-volume text-green-500 text-lg"></i>
+                            <span class="text-xs font-semibold text-[#262523]">Entrada</span>
+                        </label>
+                        <label id="dir-salida-lbl"
+                            class="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-transparent bg-[#F2F2F2] cursor-pointer transition-all hover:border-red-400 has-[:checked]:border-red-500 has-[:checked]:bg-red-50">
+                            <input type="radio" name="direccion" value="Salida" class="hidden" onchange="highlightDir()">
+                            <i class="fa-solid fa-phone-arrow-up-right text-red-500 text-lg"></i>
+                            <span class="text-xs font-semibold text-[#262523]">Salida</span>
+                        </label>
+                        <label id="dir-ambos-lbl"
+                            class="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-[#049DD9] bg-[#049DD9]/5 cursor-pointer transition-all hover:border-[#049DD9]">
+                            <input type="radio" name="direccion" value="Ambos" class="hidden" checked onchange="highlightDir()">
+                            <i class="fa-solid fa-arrows-left-right text-[#049DD9] text-lg"></i>
+                            <span class="text-xs font-semibold text-[#262523]">Ambos</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Notas -->
+                <div class="form-group col-span-2">
+                    <label>Notas / Observaciones</label>
+                    <textarea id="f-notas" rows="2" placeholder="Información adicional sobre esta línea…" maxlength="300"></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button type="button" onclick="closeModal('phone-modal')"
+                    class="flex-1 py-2.5 rounded-xl border border-[#8C8C8C]/20 text-sm font-medium text-[#8C8C8C] hover:bg-gray-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" id="phone-submit-btn"
+                    class="flex-1 py-2.5 rounded-xl bg-[#049DD9] text-white text-sm font-semibold hover:bg-[#038bc2] transition-colors shadow-lg shadow-[#049DD9]/25">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i>Guardar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// =============================================================================
+// ESTADO
+// =============================================================================
+let allPhones    = [];
+let dirFilter    = 'all';
+let searchTerm   = '';
+
+// =============================================================================
+// CARGA INICIAL
+// =============================================================================
+document.addEventListener('DOMContentLoaded', loadPhones);
+
+async function loadPhones() {
+    try {
+        const res = await fetchAPI('/api/phone-numbers');
+        if (!res.ok) throw new Error();
+        allPhones = await res.json();
+        updateStats();
+        renderTable(allPhones);
+    } catch {
+        showToast('Error al cargar los números.', 'error');
+        renderTable([]);
+    }
+}
+
+// =============================================================================
+// ESTADÍSTICAS
+// =============================================================================
+function updateStats() {
+    document.getElementById('stat-total').textContent   = allPhones.length;
+    document.getElementById('stat-entrada').textContent = allPhones.filter(p => p.direccion === 'Entrada').length;
+    document.getElementById('stat-salida').textContent  = allPhones.filter(p => p.direccion === 'Salida').length;
+    document.getElementById('stat-ambos').textContent   = allPhones.filter(p => p.direccion === 'Ambos').length;
+}
+
+// =============================================================================
+// RENDER TABLA
+// =============================================================================
+function renderTable(phones) {
+    const tbody  = document.getElementById('phone-tbody');
+    const empty  = document.getElementById('empty-state');
+    const counter= document.getElementById('phone-count');
+    const tcnt   = document.getElementById('table-count');
+
+    tbody.innerHTML = '';
+    counter.textContent = `${phones.length} línea${phones.length !== 1 ? 's' : ''}`;
+    tcnt.textContent    = `${phones.length} resultado${phones.length !== 1 ? 's' : ''}`;
+
+    if (phones.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    phones.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.animationDelay = `${idx * 25}ms`;
+
+        const dirClass = p.direccion === 'Entrada' ? 'dir-entrada'
+                       : p.direccion === 'Salida'  ? 'dir-salida'
+                       : 'dir-ambos';
+        const dirIcon  = p.direccion === 'Entrada' ? 'fa-phone-volume'
+                       : p.direccion === 'Salida'  ? 'fa-phone-arrow-up-right'
+                       : 'fa-arrows-left-right';
+
+        tr.innerHTML = `
+            <td>
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-[#049DD9]/10 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-building text-[#049DD9] text-xs"></i>
+                    </div>
+                    <span class="font-semibold text-[#262523] text-sm">${esc(p.cliente)}</span>
+                </div>
+            </td>
+            <td>
+                <div class="flex items-center gap-2">
+                    <span class="font-mono font-semibold text-[#262523]">${esc(p.numero)}</span>
+                    <button onclick="copyText('${esc(p.numero)}','Número copiado')"
+                        class="text-[#8C8C8C] hover:text-[#049DD9] p-1 rounded transition-colors" title="Copiar">
+                        <i class="fa-regular fa-copy text-xs"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                ${p.prefijo
+                    ? `<span class="font-mono text-sm bg-[#F2F2F2] px-2 py-0.5 rounded-lg text-[#262523]">${esc(p.prefijo)}</span>`
+                    : `<span class="text-[#8C8C8C] text-xs">—</span>`}
+            </td>
+            <td>
+                <span class="dir-badge ${dirClass}">
+                    <i class="fa-solid ${dirIcon}"></i>${esc(p.direccion)}
+                </span>
+            </td>
+            <td class="text-xs text-[#8C8C8C] max-w-[160px] truncate" title="${esc(p.notas || '')}">
+                ${p.notas ? esc(p.notas) : '<span class="text-[#8C8C8C]/50">—</span>'}
+            </td>
+            <td class="text-xs text-[#8C8C8C] whitespace-nowrap">${fmtDate(p.created_at)}</td>
+            <td class="text-right">
+                <div class="flex items-center justify-end gap-1">
+                    <button onclick="openEditModal(${p.id})"
+                        class="text-[#8C8C8C] hover:text-[#049DD9] p-1.5 rounded-lg hover:bg-[#049DD9]/8 transition-colors" title="Editar">
+                        <i class="fa-solid fa-pen text-xs"></i>
+                    </button>
+                    <button onclick="deletePhone(${p.id},'${esc(p.numero)}')"
+                        class="text-[#8C8C8C] hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Eliminar">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// =============================================================================
+// FILTROS
+// =============================================================================
+function setDirFilter(btn) {
+    document.querySelectorAll('.filter-pill').forEach(b => {
+        b.classList.remove('active','active-entrada','active-salida');
+    });
+    const dir = btn.dataset.dir;
+    if      (dir === 'Entrada') btn.classList.add('active-entrada');
+    else if (dir === 'Salida')  btn.classList.add('active-salida');
+    else                        btn.classList.add('active');
+    dirFilter = dir;
+    applyFilters();
+}
+
+function applyFilters() {
+    searchTerm = document.getElementById('phone-search').value.trim().toLowerCase();
+    const filtered = allPhones.filter(p => {
+        const dirMatch = dirFilter === 'all' || p.direccion === dirFilter;
+        const txtMatch = !searchTerm ||
+            p.numero.toLowerCase().includes(searchTerm) ||
+            p.cliente.toLowerCase().includes(searchTerm) ||
+            (p.prefijo && p.prefijo.toLowerCase().includes(searchTerm));
+        return dirMatch && txtMatch;
+    });
+    renderTable(filtered);
+}
+
+// =============================================================================
+// MODAL CREAR / EDITAR
+// =============================================================================
+function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Nuevo Número';
+    document.getElementById('phone-id').value  = '';
+    document.getElementById('f-cliente').value = '';
+    document.getElementById('f-numero').value  = '';
+    document.getElementById('f-prefijo').value = '';
+    document.getElementById('f-notas').value   = '';
+    // Reset radio a Ambos
+    document.querySelector('input[name="direccion"][value="Ambos"]').checked = true;
+    highlightDir();
+    document.getElementById('phone-submit-btn').innerHTML = '<i class="fa-solid fa-plus mr-1"></i>Crear';
+    openModal('phone-modal');
+}
+
+function openEditModal(phoneId) {
+    const p = allPhones.find(x => x.id === phoneId);
+    if (!p) return;
+
+    document.getElementById('modal-title').textContent = 'Editar Número';
+    document.getElementById('phone-id').value  = p.id;
+    document.getElementById('f-cliente').value = p.cliente;
+    document.getElementById('f-numero').value  = p.numero;
+    document.getElementById('f-prefijo').value = p.prefijo || '';
+    document.getElementById('f-notas').value   = p.notas   || '';
+    const radio = document.querySelector(`input[name="direccion"][value="${p.direccion}"]`);
+    if (radio) { radio.checked = true; highlightDir(); }
+    document.getElementById('phone-submit-btn').innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i>Actualizar';
+    openModal('phone-modal');
+}
+
+async function submitPhone(e) {
+    e.preventDefault();
+    const phoneId = document.getElementById('phone-id').value;
+    const isEdit  = !!phoneId;
+    const btn     = document.getElementById('phone-submit-btn');
+
+    const direccion = document.querySelector('input[name="direccion"]:checked')?.value;
+    if (!direccion) { showToast('Selecciona el tipo de línea.','error'); return; }
+
+    const body = {
+        cliente  : document.getElementById('f-cliente').value.trim(),
+        numero   : document.getElementById('f-numero').value.trim(),
+        prefijo  : document.getElementById('f-prefijo').value.trim() || null,
+        notas    : document.getElementById('f-notas').value.trim()   || null,
+        direccion,
+    };
+
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Guardando…';
+
+    try {
+        const method = isEdit ? 'PUT' : 'POST';
+        const url    = isEdit ? `/api/phone-numbers/${phoneId}` : '/api/phone-numbers';
+        const res    = await fetchAPI(url, { method, body });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Error al guardar.');
+        }
+
+        showToast(isEdit ? 'Número actualizado correctamente.' : 'Número registrado correctamente.', 'success');
+        closeModal('phone-modal');
+        await loadPhones();
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = isEdit
+            ? '<i class="fa-solid fa-floppy-disk mr-1"></i>Actualizar'
+            : '<i class="fa-solid fa-plus mr-1"></i>Crear';
+    }
+}
+
+async function deletePhone(phoneId, numero) {
+    if (!confirm(`¿Eliminar el número "${numero}"?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+        const res = await fetchAPI(`/api/phone-numbers/${phoneId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
+        showToast(`Número "${numero}" eliminado.`, 'success');
+        await loadPhones();
+    } catch {
+        showToast('No se pudo eliminar el número.', 'error');
+    }
+}
+
+// =============================================================================
+// HIGHLIGHT RADIOS DE DIRECCIÓN
+// =============================================================================
+function highlightDir() {
+    const dirs = ['Entrada','Salida','Ambos'];
+    dirs.forEach(d => {
+        const lbl   = document.getElementById(`dir-${d.toLowerCase()}-lbl`);
+        const radio = document.querySelector(`input[name="direccion"][value="${d}"]`);
+        if (!lbl || !radio) return;
+        if (radio.checked) {
+            if (d === 'Entrada') { lbl.style.borderColor='#059669'; lbl.style.background='#f0fdf4'; }
+            if (d === 'Salida')  { lbl.style.borderColor='#dc2626'; lbl.style.background='#fef2f2'; }
+            if (d === 'Ambos')   { lbl.style.borderColor='#049DD9'; lbl.style.background='rgba(4,157,217,.05)'; }
+        } else {
+            lbl.style.borderColor = 'transparent';
+            lbl.style.background  = '#F2F2F2';
+        }
+    });
+}
+
+// =============================================================================
+// UTILIDADES
+// =============================================================================
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function handleModalClick(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
+
+function copyText(text, msg) {
+    navigator.clipboard.writeText(text).then(() => showToast(msg,'success')).catch(() => showToast('No se pudo copiar.','error'));
+}
+
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
+}
+</script>
+{% endblock %}

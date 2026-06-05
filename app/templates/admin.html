@@ -127,9 +127,7 @@
                     <div>
                         <label for="user-role" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Rol Corporativo</label>
                         <select id="user-role" class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
-                            <option value="3">Usuario estándar</option>
-                            <option value="2">Supervisor</option>
-                            <option value="1">Administrador</option>
+                            <option value="">Cargando roles...</option>
                         </select>
                     </div>
                     
@@ -161,6 +159,12 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         loadUsers();
+
+        // Auto-abrir modal de creación si se navega desde el acceso rápido del Dashboard
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('action') === 'create_user') {
+            openUserCreateModal();
+        }
     });
 
     // Pestañas
@@ -207,7 +211,7 @@
                     tr.innerHTML = `
                         <td class="px-6 py-4 font-bold text-black-dark">
                             <div class="flex items-center space-x-3">
-                                <img src="${u.avatar_url or '/static/images/default-avatar.png'}" class="w-8 h-8 rounded-xl object-cover border border-[#8C8C8C]/20">
+                                <img src="${u.avatar_url || '/static/images/default-avatar.png'}" class="w-8 h-8 rounded-xl object-cover border border-[#8C8C8C]/20">
                                 <div>
                                     <p class="font-bold text-black-dark leading-tight">${u.full_name}</p>
                                     <p class="text-[10px] text-grey-main font-mono">${u.email}</p>
@@ -347,7 +351,7 @@
                                 <span class="text-[9px] font-extrabold uppercase border px-2 py-0.5 rounded-lg flex items-center ${badgeColor}">
                                     <i class="fa-solid ${iconClass} mr-1"></i>${log.action}
                                 </span>
-                                <span class="text-[9px] bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-lg">IP: ${log.ip_address or 'Desconocida'}</span>
+                                <span class="text-[9px] bg-gray-100 text-gray-500 font-bold px-2 py-0.5 rounded-lg">IP: ${log.ip_address || 'Desconocida'}</span>
                             </div>
                             <p class="text-xs text-black-dark font-semibold leading-relaxed">${log.details}</p>
                             <p class="text-[10px] text-grey-main">Ejecutor: <span class="font-bold text-black-dark">${log.user_name}</span> (${log.user_email})</p>
@@ -364,28 +368,48 @@
     }
 
     // Modales y CRUD Usuarios
-    function openUserCreateModal() {
+    async function openUserCreateModal() {
         document.getElementById('user-form').reset();
         document.getElementById('admin-user-id').value = '';
         document.getElementById('user-email').disabled = false;
         document.getElementById('user-password').required = true;
         document.getElementById('user-pw-label').innerText = "Contraseña Inicial (mínimo 6 chars)";
         document.getElementById('user-modal-title').innerText = "Crear Nuevo Colaborador";
+        await loadRolesIntoSelect();
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
-    function openUserEditModal(u) {
+    async function openUserEditModal(u) {
         document.getElementById('admin-user-id').value = u.id;
         document.getElementById('user-name').value = u.full_name;
         document.getElementById('user-email').value = u.email;
-        document.getElementById('user-email').disabled = true; // No modificar email en edición por seguridad
-        document.getElementById('user-role').value = u.role_id;
+        document.getElementById('user-email').disabled = true;
         document.getElementById('user-active').checked = u.is_active;
         document.getElementById('user-password').value = '';
         document.getElementById('user-password').required = false;
         document.getElementById('user-pw-label').innerText = "Modificar Contraseña (dejar en blanco para conservar)";
         document.getElementById('user-modal-title').innerText = "Modificar Colaborador";
+        await loadRolesIntoSelect(u.role_id);
         document.getElementById('user-modal').classList.remove('hidden');
+    }
+
+    async function loadRolesIntoSelect(selectedRoleId = null) {
+        const select = document.getElementById('user-role');
+        try {
+            const res = await fetchAPI('/api/roles');
+            if (res && res.ok) {
+                const roles = await res.json();
+                select.innerHTML = roles.map(r =>
+                    `<option value="${r.id}" ${selectedRoleId == r.id ? 'selected' : ''}>${r.name}</option>`
+                ).join('');
+                // Si no hay selección previa, seleccionar el último (usuario estándar suele ser el de mayor id)
+                if (!selectedRoleId && roles.length > 0) {
+                    select.value = roles[roles.length - 1].id;
+                }
+            }
+        } catch(e) {
+            select.innerHTML = '<option value="">Error al cargar roles</option>';
+        }
     }
 
     function closeUserModal() {

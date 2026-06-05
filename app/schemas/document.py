@@ -12,6 +12,11 @@ class DocumentCreate(DocumentBase):
     size_bytes: int
     version: Optional[str] = "v1.0"
 
+class DocumentContentUpdate(BaseModel):
+    content: Optional[str] = None
+    rows: Optional[list[list[str]]] = None
+    sheet_name: Optional[str] = None
+
 class DocumentResponse(DocumentBase):
     id: int
     file_path: str
@@ -20,6 +25,7 @@ class DocumentResponse(DocumentBase):
     version: str
     uploader_id: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

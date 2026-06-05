@@ -1,0 +1,34 @@
+SHEET: 10.220.10.11
+ROWS: 30, COLS: 8
+======================================================================================================================================================
+
+R01: HOSTNAME | IP |  |  |  |  |  | 
+R02: GEIM-MERCED-ACC01 | 10.220.10.11 |  |  | Configuración actual |  |  | 
+R03:  |  |  |  |  |  |  | 
+R04: VLANS EXISTENTES EN SW |  |  |  | INTERFAZ | VLAN | DESCRIPCION | 
+R05: VLAN | NOMBRE | STATUS |  | Fa0/1 | 103 | LIBRE | 
+R06: 1 | DEFAULT | active |  | Fa0/2 | 103 | ENDPOINT CONECTADO | 
+R07: 10 | ADMINISTRACION | active |  | Fa0/3 | 103 | ENDPOINT CONECTADO | 
+R08: 11 | WIFI | active |  | Fa0/4 | 103 | ENDPOINT CONECTADO | 
+R09: 101 | VLAN_101 | active |  | Fa0/5 | 103 | LIBRE | 
+R10: 102 | VLAN_102 | active |  | Fa0/6 | 103 | ENDPOINT CONECTADO | 
+R11: 103 | VLAN_103 | active |  | Fa0/7 | 103 | ENDPOINT CONECTADO | 
+R12: 104 | VLAN_104 | active |  | Fa0/8 | 103 | ENDPOINT CONECTADO | 
+R13: 105 | VLAN_105 | active |  | Fa0/9 | 103 | ENDPOINT CONECTADO | 
+R14: 1002 | fddi-default | act/unsup |  | Fa0/10 | 103 | ENDPOINT CONECTADO | 
+R15: 1003 | token-ring-default | act/unsup |  | Fa0/11 | 103 | LIBRE | 
+R16: 1004 | fddinet-default | act/unsup |  | Fa0/12 | 103 | LIBRE | 
+R17: 1005 | trnet-default | act/unsup |  | Fa0/13 | 103 | LIBRE | 
+R18: 200 | BLACKHOLE | active |  | Fa0/14 | 103 | ENDPOINT CONECTADO | 
+R19:  |  |  |  | Fa0/15 | 103 | ENDPOINT CONECTADO | 
+R20:  |  |  |  | Fa0/16 | 103 | ENDPOINT CONECTADO | 
+R21:  |  |  |  | Fa0/17 | 103 | ENDPOINT CONECTADO | 
+R22:  |  |  |  | Fa0/18 | 103 | ENDPOINT CONECTADO | 
+R23:  |  |  |  | Fa0/19 | 103 | ENDPOINT CONECTADO | 
+R24:  |  |  |  | Fa0/20 | 103 | LIBRE | 
+R25:  |  |  |  | Fa0/21 | 103 | ENDPOINT CONECTADO | 
+R26:  |  |  |  | Fa0/22 | 103 | ENDPOINT CONECTADO | 
+R27:  |  |  |  | Fa0/23 | 103 | ENDPOINT CONECTADO | 
+R28:  |  |  |  | Fa0/24 | 103 | LIBRE | 
+R29:  |  |  |  | Gi0/1 | Trunk | SW-ACC01 --> SW-DIST | 
+R30:  |  |  |  | Gi0/2 | 1 | LIBRE | 

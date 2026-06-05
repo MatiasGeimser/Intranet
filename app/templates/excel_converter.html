@@ -1,0 +1,897 @@
+{% extends "base.html" %}
+
+{% block title %}Conversor de Excel a CSV{% endblock %}
+{% block page_title %}Conversor de Excel a CSV — Extracción de Campos{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       EXCEL CONVERTER MODULE — STYLES
+       ===================================================== */
+    .drop-zone {
+        border: 2px dashed rgba(4, 157, 217, 0.3);
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 20px;
+        transition: all 0.25s ease;
+        cursor: pointer;
+        position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: #049DD9;
+        background: rgba(4, 157, 217, 0.04);
+        box-shadow: 0 8px 24px rgba(4, 157, 217, 0.08);
+    }
+    
+    .excel-table-container {
+        max-height: 380px;
+        overflow-y: auto;
+        overflow-x: auto;
+        border-radius: 12px;
+        border: 1px solid rgba(140, 140, 140, 0.15);
+    }
+    
+    .excel-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    
+    .excel-table th {
+        position: sticky;
+        top: 0;
+        background: #F2F2F2;
+        color: #262523;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 10px 14px;
+        text-align: left;
+        border-bottom: 2px solid rgba(140, 140, 140, 0.15);
+        z-index: 10;
+        white-space: nowrap;
+    }
+    
+    .excel-table td {
+        padding: 10px 14px;
+        font-size: 12px;
+        color: #8C8C8C;
+        border-bottom: 1px solid rgba(140, 140, 140, 0.08);
+        white-space: nowrap;
+        background: #fff;
+    }
+    
+    .excel-table tr:hover td {
+        background: #F8F9FA;
+    }
+    
+    /* Column highlighting for selected fields */
+    .col-selected-1 {
+        background: rgba(4, 157, 217, 0.06) !important;
+        color: #049DD9 !important;
+        font-weight: 600;
+    }
+    
+    .col-selected-2 {
+        background: rgba(121, 242, 230, 0.09) !important;
+        color: #038a80 !important;
+        font-weight: 600;
+    }
+    
+    .col-selected-3 {
+        background: rgba(139, 92, 246, 0.06) !important;
+        color: #7c3aed !important;
+        font-weight: 600;
+    }
+    
+    .field-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .badge-f1 { background: rgba(4, 157, 217, 0.1); color: #049DD9; }
+    .badge-f2 { background: rgba(121, 242, 230, 0.15); color: #038a80; }
+    .badge-f3 { background: rgba(139, 92, 246, 0.1); color: #7c3aed; }
+    
+    .custom-select {
+        width: 100%;
+        background: #F2F2F2;
+        border: 1.5px solid transparent;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: #262523;
+        font-family: 'Outfit', sans-serif;
+        outline: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C8C8C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 16px;
+        transition: all 0.18s ease;
+    }
+    
+    .custom-select:focus {
+        background-color: #fff;
+        border-color: #049DD9;
+        box-shadow: 0 0 0 4px rgba(4, 157, 217, 0.1);
+    }
+
+    .csv-preview-box {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        background: #262523;
+        color: #79F2E6;
+        border-radius: 14px;
+        padding: 1.25rem;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    
+    .nav-tabs {
+        display: flex;
+        border-bottom: 1px solid rgba(140, 140, 140, 0.15);
+        gap: 1.5rem;
+    }
+    
+    .nav-tab-btn {
+        padding: 8px 4px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #8C8C8C;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .nav-tab-btn:hover {
+        color: #262523;
+    }
+    
+    .nav-tab-btn.active {
+        color: #049DD9;
+        border-color: #049DD9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ==============================================================
+     HEADER
+     ============================================================== -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-[#262523] flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center shadow-lg shadow-[#049DD9]/25">
+                <i class="fa-solid fa-file-csv text-white text-base"></i>
+            </span>
+            Conversor Excel a CSV
+        </h1>
+        <p class="text-xs text-[#8C8C8C] mt-1 ml-13">Sube un Excel, selecciona 3 campos y descárgalo como un CSV personalizado en segundos.</p>
+    </div>
+</div>
+
+<!-- ==============================================================
+     PASO 1: SUBIDA DE ARCHIVO
+     ============================================================== -->
+<div id="section-upload" class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-6 md:p-8 space-y-6">
+    <div class="max-w-xl mx-auto text-center space-y-4">
+        <h3 class="text-base font-semibold text-[#262523]">Paso 1: Sube tu archivo Excel (.xlsx, .xls)</h3>
+        
+        <div id="drop-zone" class="drop-zone p-8 flex flex-col items-center justify-center min-h-[220px]"
+             onclick="document.getElementById('excel-file-input').click()">
+            
+            <input type="file" id="excel-file-input" class="hidden" accept=".xlsx, .xls" onchange="handleFileSelect(event)">
+            
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#049DD9]/10 to-[#79F2E6]/10 flex items-center justify-center text-[#049DD9] mb-4">
+                <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+            </div>
+            
+            <p class="text-sm font-semibold text-[#262523]">Arrastra tu archivo aquí o haz clic para explorar</p>
+            <p class="text-xs text-[#8C8C8C] mt-1">Soporta formatos Excel standard .xlsx y .xls</p>
+        </div>
+    </div>
+</div>
+
+<!-- ==============================================================
+     PASO 2 Y 3: VISUALIZACIÓN, SELECCIÓN Y DESCARGA (OCULTO INICIALMENTE)
+     ============================================================== -->
+<div id="section-processor" class="hidden space-y-6">
+    
+    <!-- Info del archivo cargado -->
+    <div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
+                <i class="fa-regular fa-file-excel text-lg"></i>
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold text-[#262523]" id="loaded-file-name">archivo.xlsx</h4>
+                <p class="text-[10px] text-[#8C8C8C] flex items-center gap-2 mt-0.5">
+                    <span id="loaded-file-size">0 KB</span>
+                    <span>•</span>
+                    <span id="loaded-file-rows">0 filas encontradas</span>
+                </p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <!-- Selector de hoja de cálculo (Si el excel tiene varias) -->
+            <div class="flex items-center gap-2 flex-1 sm:flex-initial" id="sheet-selector-container">
+                <label class="text-[10px] font-bold text-[#8C8C8C] uppercase tracking-wider whitespace-nowrap">Hoja:</label>
+                <select id="sheet-select" class="text-xs bg-[#F2F2F2] border-0 rounded-lg px-3 py-1.5 font-medium text-[#262523] outline-none cursor-pointer" onchange="changeSheet()">
+                    <!-- Hojas se cargan dinámicamente -->
+                </select>
+            </div>
+            <button onclick="resetProcessor()" class="text-xs font-semibold text-red-500 hover:text-red-600 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
+                <i class="fa-solid fa-arrow-rotate-left mr-1"></i>Cambiar Archivo
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- COLUMNA IZQUIERDA: SELECTORES Y OPCIONES (1/3) -->
+        <div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-5 space-y-6 flex flex-col justify-between">
+            <div class="space-y-5">
+                <div class="border-b border-[#8C8C8C]/10 pb-3">
+                    <h3 class="text-sm font-bold text-[#262523] flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-[#049DD9]/10 flex items-center justify-center text-[#049DD9] text-xs">2</span>
+                        Selecciona los 3 campos
+                    </h3>
+                    <p class="text-[10px] text-[#8C8C8C] mt-0.5">Elige las columnas en el orden que deseas unirlas</p>
+                </div>
+                
+                <!-- Selector Campo 1 -->
+                <div class="space-y-2">
+                    <label class="field-badge badge-f1">
+                        <i class="fa-solid fa-1"></i>
+                        <span>Primer Campo</span>
+                    </label>
+                    <select id="col-select-1" class="custom-select" onchange="updateSelectedColumnsPreview()">
+                        <!-- Opciones cargadas dinámicamente -->
+                    </select>
+                </div>
+
+                <!-- Selector Campo 2 -->
+                <div class="space-y-2">
+                    <label class="field-badge badge-f2">
+                        <i class="fa-solid fa-2"></i>
+                        <span>Segundo Campo</span>
+                    </label>
+                    <select id="col-select-2" class="custom-select" onchange="updateSelectedColumnsPreview()">
+                        <!-- Opciones cargadas dinámicamente -->
+                    </select>
+                </div>
+
+                <!-- Selector Campo 3 -->
+                <div class="space-y-2">
+                    <label class="field-badge badge-f3">
+                        <i class="fa-solid fa-3"></i>
+                        <span>Tercer Campo</span>
+                    </label>
+                    <select id="col-select-3" class="custom-select" onchange="updateSelectedColumnsPreview()">
+                        <!-- Opciones cargadas dinámicamente -->
+                    </select>
+                </div>
+
+                <!-- Formato de salida -->
+                <div class="space-y-3 pt-3 border-t border-[#8C8C8C]/10">
+                    <label class="text-[10px] font-bold text-[#8C8C8C] uppercase tracking-wider">Formato del CSV</label>
+                    
+                    <div class="space-y-2.5">
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-transparent bg-[#F2F2F2] cursor-pointer hover:bg-gray-100 transition-colors">
+                            <input type="radio" name="csv-format" value="single-col" checked class="mt-0.5" onchange="updateCSVPreview()">
+                            <div>
+                                <span class="text-xs font-bold text-[#262523] block">Columna Única (Por defecto)</span>
+                                <span class="text-[10px] text-[#8C8C8C] block mt-0.5">El CSV tendrá una sola columna. El encabezado y filas tendrán los datos elegidos agrupados por comas bajo comillas.</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-transparent bg-[#F2F2F2] cursor-pointer hover:bg-gray-100 transition-colors">
+                            <input type="radio" name="csv-format" value="multi-col" class="mt-0.5" onchange="updateCSVPreview()">
+                            <div>
+                                <span class="text-xs font-bold text-[#262523] block">Columnas Separadas (Estándar)</span>
+                                <span class="text-[10px] text-[#8C8C8C] block mt-0.5">Tres columnas independientes separadas físicamente por comas.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón de descarga -->
+            <div class="pt-4 border-t border-[#8C8C8C]/10 mt-6">
+                <button onclick="downloadCSV()" class="w-full py-3 rounded-xl bg-gradient-to-r from-[#049DD9] to-[#79F2E6] text-white text-sm font-bold hover:shadow-lg hover:shadow-[#049DD9]/20 transition-all duration-200 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-circle-arrow-down text-base"></i>
+                    Descargar CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: PREVIEWS Y DATOS (2/3) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Vista de la tabla original -->
+            <div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-[#262523]">Visualización de Datos de Excel</h3>
+                        <p class="text-[10px] text-[#8C8C8C]">Mostrando una vista previa del archivo cargado (máx. 10 filas)</p>
+                    </div>
+                    <span class="text-[10px] font-bold text-[#049DD9] bg-[#049DD9]/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Excel Preview</span>
+                </div>
+                
+                <div class="excel-table-container">
+                    <table class="excel-table" id="preview-table">
+                        <thead>
+                            <tr id="preview-thead-row"></tr>
+                        </thead>
+                        <tbody id="preview-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Vista previa del CSV generado -->
+            <div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-[#262523]">Vista Previa del Archivo CSV de Salida</h3>
+                        <p class="text-[10px] text-[#8C8C8C]">Contenido exacto que se guardará en tu archivo local</p>
+                    </div>
+                    <span class="text-[10px] font-bold text-[#79F2E6] bg-[#79F2E6]/20 px-2.5 py-1 rounded-full uppercase tracking-wider">CSV Output</span>
+                </div>
+                
+                <div class="csv-preview-box" id="csv-preview">
+                    <!-- Preview generado dinámicamente -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Cargar librería SheetJS para procesamiento local -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+    // =============================================================================
+    // VARIABLES DE ESTADO GLOBAL
+    // =============================================================================
+    let workbookData = null;      // Libro completo de Excel
+    let activeSheetName = "";     // Nombre de la hoja activa
+    let activeHeaders = [];       // Cabeceras de la hoja activa
+    let activeRows = [];          // Filas (arreglo de objetos) de la hoja activa
+    let originalFileName = "archivo";
+
+    // =============================================================================
+    // GESTIÓN DE EVENTOS DE ARCHIVO / DRAG & DROP
+    // =============================================================================
+    const dropZone = document.getElementById('drop-zone');
+    
+    // Prevenir comportamientos por defecto del navegador para drag and drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Efecto visual al arrastrar archivo sobre la zona
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.add('dragover');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.remove('dragover');
+        }, false);
+    });
+
+    // Manejar el archivo soltado
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            processFile(files[0]);
+        }
+    });
+
+    // Manejar el archivo seleccionado mediante explorador
+    function handleFileSelect(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            processFile(files[0]);
+        }
+    }
+
+    // =============================================================================
+    // PROCESAMIENTO DEL ARCHIVO EXCEL (SheetJS)
+    // =============================================================================
+    function processFile(file) {
+        // Validar extensión
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext !== 'xlsx' && ext !== 'xls') {
+            showToast('Por favor, selecciona un archivo válido de Excel (.xlsx, .xls)', 'error');
+            return;
+        }
+
+        originalFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        document.getElementById('loaded-file-name').textContent = file.name;
+        document.getElementById('loaded-file-size').textContent = formatBytes(file.size);
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                let workbook;
+                try {
+                    // Intento normal como archivo binario de Excel
+                    workbook = XLSX.read(data, { type: 'array' });
+                } catch (err1) {
+                    console.warn("Fallo lectura inicial, intentando modo texto/CSV...", err1);
+                    // Fallback: A veces los archivos .xls son en realidad CSV o HTML renombrados
+                    const text = new TextDecoder("utf-8").decode(data);
+                    workbook = XLSX.read(text, { type: 'string' });
+                }
+                
+                workbookData = workbook;
+
+                // Llenar selector de hojas
+                const sheetSelect = document.getElementById('sheet-select');
+                sheetSelect.innerHTML = '';
+                
+                if (workbook.SheetNames.length === 0) {
+                    showToast('El archivo Excel no contiene hojas de cálculo.', 'error');
+                    return;
+                }
+
+                workbook.SheetNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sheetSelect.appendChild(opt);
+                });
+
+                // Cargar la primera hoja
+                loadSheet(workbook.SheetNames[0]);
+
+                // Ocultar zona de subida y mostrar panel de procesamiento
+                document.getElementById('section-upload').classList.add('hidden');
+                document.getElementById('section-processor').classList.remove('hidden');
+
+                showToast('Archivo Excel procesado con éxito.', 'success');
+            } catch (err) {
+                console.error("Error al procesar el archivo:", err);
+                showToast(`Error al leer el archivo: ${err.message || err}`, 'error');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // Cargar datos de una hoja específica
+    function loadSheet(sheetName) {
+        activeSheetName = sheetName;
+        const worksheet = workbookData.Sheets[sheetName];
+        
+        // Convertir hoja a JSON incluyendo cabeceras en la primera fila o detectando llaves
+        // Optamos por convertir a array de arrays primero para obtener la primera fila exacta como cabeceras
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+        const rowsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+        if (rowsArray.length === 0) {
+            activeHeaders = [];
+            activeRows = [];
+            document.getElementById('loaded-file-rows').textContent = '0 filas';
+            renderExcelPreview();
+            updateComboboxes();
+            return;
+        }
+
+        // Determinar cabeceras (primera fila no vacía)
+        activeHeaders = rowsArray[0].map((cell, index) => {
+            return cell ? String(cell).trim() : `Columna ${index + 1}`;
+        });
+
+        // Buscar si hay alguna columna de correo (email, correo, mail) para eliminar duplicados
+        const emailColumn = activeHeaders.find(h => 
+            h.toLowerCase().includes('correo') || 
+            h.toLowerCase().includes('email') || 
+            h.toLowerCase().includes('mail')
+        );
+
+        // El resto son filas de datos
+        // Convertimos a array de objetos usando los headers
+        activeRows = [];
+        const seenEmails = new Set();
+        let duplicatesRemoved = 0;
+
+        for (let i = 1; i < rowsArray.length; i++) {
+            const rowData = rowsArray[i];
+            // Omitir si la fila está completamente vacía
+            if (rowData.length === 0 || rowData.every(c => c === "")) continue;
+            
+            const obj = {};
+            activeHeaders.forEach((header, index) => {
+                obj[header] = rowData[index] !== undefined ? rowData[index] : "";
+            });
+
+            // Eliminar duplicados si detectamos columna de correo
+            if (emailColumn) {
+                const emailVal = String(obj[emailColumn]).trim().toLowerCase();
+                if (emailVal) {
+                    if (seenEmails.has(emailVal)) {
+                        duplicatesRemoved++;
+                        continue; // Saltar esta fila
+                    }
+                    seenEmails.add(emailVal);
+                }
+            }
+
+            activeRows.push(obj);
+        }
+
+        let rowCountText = `${activeRows.length} fila${activeRows.length !== 1 ? 's' : ''} de datos`;
+        if (duplicatesRemoved > 0) {
+            rowCountText += ` (${duplicatesRemoved} duplicados omitidos)`;
+            // Mostrar notificación al usuario
+            if (typeof showToast === 'function') {
+                showToast(`Se omitieron ${duplicatesRemoved} registros con correo duplicado.`, 'info');
+            }
+        }
+        document.getElementById('loaded-file-rows').textContent = rowCountText;
+
+        // Renderizar la tabla de visualización (primeras 10 filas)
+        renderExcelPreview();
+        
+        // Cargar los nombres de columnas en los 3 comboboxes
+        updateComboboxes();
+    }
+
+    // Evento al cambiar de hoja
+    function changeSheet() {
+        const sheetName = document.getElementById('sheet-select').value;
+        loadSheet(sheetName);
+    }
+
+    // =============================================================================
+    // DIBUJAR COMBOS Y TABLA PREVIEW
+    // =============================================================================
+    function updateComboboxes() {
+        const select1 = document.getElementById('col-select-1');
+        const select2 = document.getElementById('col-select-2');
+        const select3 = document.getElementById('col-select-3');
+
+        [select1, select2, select3].forEach((select, idx) => {
+            select.innerHTML = '';
+            
+            if (activeHeaders.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Sin columnas';
+                select.appendChild(opt);
+                return;
+            }
+
+            if (idx === 2) {
+                const optEmpty = document.createElement('option');
+                optEmpty.value = '';
+                optEmpty.textContent = '--- Vacío (Opcional) ---';
+                select.appendChild(optEmpty);
+            }
+
+            activeHeaders.forEach((header, index) => {
+                const opt = document.createElement('option');
+                opt.value = header;
+                opt.textContent = header;
+                // Auto-seleccionar primer, segundo y tercer campo si existen
+                if (index === idx) {
+                    opt.selected = true;
+                }
+                select.appendChild(opt);
+            });
+        });
+
+        // Si hay menos de 3 columnas, ajustar selecciones para evitar colisiones
+        if (activeHeaders.length > 0) {
+            if (activeHeaders.length < 3) {
+                if (select2.options[0]) select2.options[0].selected = true;
+                if (select3.options[0]) select3.options[0].selected = true;
+            } else {
+                if (select1.options[0]) select1.options[0].selected = true;
+                if (select2.options[1]) select2.options[1].selected = true;
+                if (select3.options[2]) select3.options[2].selected = true;
+            }
+        }
+
+        updateSelectedColumnsPreview();
+    }
+
+    function renderExcelPreview() {
+        const theadRow = document.getElementById('preview-thead-row');
+        const tbody = document.getElementById('preview-tbody');
+
+        theadRow.innerHTML = '';
+        tbody.innerHTML = '';
+
+        if (activeHeaders.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="100" class="text-center py-6 text-xs text-[#8C8C8C]">No hay datos para mostrar</td></tr>`;
+            return;
+        }
+
+        // Render headers
+        activeHeaders.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            th.setAttribute('data-colname', header);
+            theadRow.appendChild(th);
+        });
+
+        // Render primeros 10 registros
+        const previewLimit = Math.min(activeRows.length, 10);
+        
+        for (let i = 0; i < previewLimit; i++) {
+            const row = activeRows[i];
+            const tr = document.createElement('tr');
+            
+            activeHeaders.forEach(header => {
+                const td = document.createElement('td');
+                td.textContent = row[header] !== undefined ? row[header] : "";
+                td.setAttribute('data-colname', header);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+    }
+
+    // =============================================================================
+    // ACTUALIZACIONES DE VISUALIZACIÓN AL SELECCIONAR COLUMNAS
+    // =============================================================================
+    function updateSelectedColumnsPreview() {
+        const col1 = document.getElementById('col-select-1').value;
+        const col2 = document.getElementById('col-select-2').value;
+        const col3 = document.getElementById('col-select-3').value;
+
+        // Limpiar todas las clases destacadas en la tabla
+        document.querySelectorAll('th[data-colname], td[data-colname]').forEach(el => {
+            el.classList.remove('col-selected-1', 'col-selected-2', 'col-selected-3');
+        });
+
+        // Aplicar clases destacadas correspondientes
+        highlightColumn(col1, 'col-selected-1');
+        highlightColumn(col2, 'col-selected-2');
+        highlightColumn(col3, 'col-selected-3');
+
+        // Actualizar la caja de vista previa del CSV
+        updateCSVPreview();
+    }
+
+    function highlightColumn(colName, className) {
+        if (!colName) return;
+        
+        const safeName = colName.replace(/"/g, '\\"');
+        document.querySelectorAll(`[data-colname="${safeName}"]`).forEach(el => {
+            el.classList.add(className);
+        });
+    }
+
+    // =============================================================================
+    // GENERACIÓN Y EXPORTACIÓN DE CSV
+    // =============================================================================
+    
+    // Función auxiliar para escapar campos del CSV según estándar RFC 4180
+    function escapeCSV(val) {
+        if (val === null || val === undefined) return '';
+        let str = String(val).trim();
+        // Duplicar comillas dobles internas
+        str = str.replace(/"/g, '""');
+        return str;
+    }
+
+    function generateCSVData() {
+        const col1 = document.getElementById('col-select-1').value;
+        const col2 = document.getElementById('col-select-2').value;
+        const col3 = document.getElementById('col-select-3').value;
+        const isSingleCol = document.querySelector('input[name="csv-format"]:checked').value === 'single-col';
+
+        if (!col1 || !col2) {
+            return { csvText: "Error: Debes elegir al menos los dos primeros campos.", totalRows: 0 };
+        }
+
+        let csvLines = [];
+        
+        // --- Lógica de deduplicación de correos basada en columnas seleccionadas ---
+        const seenEmails = new Set();
+        let duplicatesRemoved = 0;
+        
+        // 1. Identificar si alguna de las columnas seleccionadas es de correos
+        let emailCol = null;
+        const selectedCols = [col1, col2, col3].filter(Boolean);
+        
+        // Por nombre
+        selectedCols.forEach(col => {
+            const lower = col.toLowerCase();
+            if (lower.includes('correo') || lower.includes('email') || lower.includes('mail')) {
+                emailCol = col;
+            }
+        });
+        
+        // Por contenido (si no se encontró por nombre, buscar el símbolo @ en las primeras 5 filas)
+        if (!emailCol) {
+            for (let i = 0; i < Math.min(activeRows.length, 5); i++) {
+                for (const col of selectedCols) {
+                    const val = String(activeRows[i][col] || '').trim();
+                    if (val.includes('@') && val.includes('.')) {
+                        emailCol = col;
+                        break;
+                    }
+                }
+                if (emailCol) break;
+            }
+        }
+        // -------------------------------------------------------------------------
+
+        if (isSingleCol) {
+            // ====== MODO COLUMNA ÚNICA (Requerimiento literal del usuario) ======
+            const singleHeader = col3 
+                ? `"${escapeCSV(col1)},${escapeCSV(col2)},${escapeCSV(col3)}"`
+                : `"${escapeCSV(col1)},${escapeCSV(col2)}"`;
+            csvLines.push(singleHeader);
+
+            activeRows.forEach(row => {
+                // Deduplicar
+                if (emailCol) {
+                    const emailVal = String(row[emailCol]).trim().toLowerCase();
+                    if (emailVal) {
+                        if (seenEmails.has(emailVal)) {
+                            duplicatesRemoved++;
+                            return; // Saltar fila
+                        }
+                        seenEmails.add(emailVal);
+                    }
+                }
+
+                const val1 = escapeCSV(row[col1]);
+                const val2 = escapeCSV(row[col2]);
+                const val3 = col3 ? escapeCSV(row[col3]) : "";
+                
+                const singleCellVal = col3 
+                    ? `"${val1},${val2},${val3}"`
+                    : `"${val1},${val2}"`;
+                csvLines.push(singleCellVal);
+            });
+        } else {
+            // ====== MODO COLUMNAS SEPARADAS (Estándar tradicional) ======
+            const standardHeader = col3 
+                ? `${escapeCSV(col1)},${escapeCSV(col2)},${escapeCSV(col3)}`
+                : `${escapeCSV(col1)},${escapeCSV(col2)}`;
+            csvLines.push(standardHeader);
+
+            activeRows.forEach(row => {
+                // Deduplicar
+                if (emailCol) {
+                    const emailVal = String(row[emailCol]).trim().toLowerCase();
+                    if (emailVal) {
+                        if (seenEmails.has(emailVal)) {
+                            duplicatesRemoved++;
+                            return; // Saltar fila
+                        }
+                        seenEmails.add(emailVal);
+                    }
+                }
+
+                const processField = (v) => {
+                    const clean = escapeCSV(v);
+                    if (clean.includes(',') || clean.includes('\n') || clean.includes('"')) {
+                        return `"${clean}"`;
+                    }
+                    return clean;
+                };
+
+                const val1 = processField(row[col1]);
+                const val2 = processField(row[col2]);
+                const val3 = col3 ? processField(row[col3]) : "";
+                
+                if (col3) {
+                    csvLines.push(`${val1},${val2},${val3}`);
+                } else {
+                    csvLines.push(`${val1},${val2}`);
+                }
+            });
+        }
+
+        // Si es una descarga real (se detecta por dónde se llama), podríamos mostrar toast, pero esto se llama también en el preview.
+        // Lo dejamos retornar el número de duplicados para que la función principal lo pueda usar si desea.
+        return {
+            csvText: csvLines.join('\n'),
+            totalRows: csvLines.length - 1,
+            duplicatesRemoved: duplicatesRemoved
+        };
+    }
+
+    function updateCSVPreview() {
+        const previewBox = document.getElementById('csv-preview');
+        const { csvText } = generateCSVData();
+        
+        // Mostrar sólo las primeras 8 líneas en la caja de preview para rendimiento
+        const lines = csvText.split('\n');
+        const showLines = lines.slice(0, 8);
+        let previewStr = showLines.join('\n');
+        if (lines.length > 8) {
+            previewStr += `\n... y ${lines.length - 8} filas más.`;
+        }
+
+        previewBox.textContent = previewStr;
+    }
+
+    function downloadCSV() {
+        const { csvText, totalRows, duplicatesRemoved } = generateCSVData();
+        
+        if (activeRows.length === 0) {
+            showToast('No hay datos disponibles para exportar.', 'error');
+            return;
+        }
+
+        try {
+            // Crear Blob con UTF-8 BOM para que Excel lea los caracteres latinos/acentos correctamente
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvText], { type: 'text/csv;charset=utf-8;' });
+            
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${originalFileName}_convertido.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            let successMsg = `CSV descargado con éxito (${totalRows} filas).`;
+            if (duplicatesRemoved && duplicatesRemoved > 0) {
+                successMsg += ` Se omitieron ${duplicatesRemoved} correos duplicados.`;
+            }
+            showToast(successMsg, 'success');
+        } catch (err) {
+            console.error(err);
+            showToast('Error al generar la descarga.', 'error');
+        }
+    }
+
+    // =============================================================================
+    // UTILIDADES & LIMPIEZA
+    // =============================================================================
+    function resetProcessor() {
+        workbookData = null;
+        activeSheetName = "";
+        activeHeaders = [];
+        activeRows = [];
+        
+        document.getElementById('excel-file-input').value = '';
+        document.getElementById('section-upload').classList.remove('hidden');
+        document.getElementById('section-processor').classList.add('hidden');
+    }
+
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+</script>
+{% endblock %}

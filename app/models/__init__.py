@@ -7,19 +7,12 @@ from app.models.event import Event
 from app.models.document import Document
 from app.models.news import News, Comment
 from app.models.audit import AuditLog
+from app.models.phone_number import PhoneNumber
+from app.models.task import Task
 
-# Exponer todo en un solo módulo para facilidad de importación externa
+# Exportar todos los modelos para que Base.metadata.create_all() los encuentre
 __all__ = [
-    "Base",
-    "Role",
-    "Permission",
-    "role_permissions",
-    "User",
-    "Session",
-    "Credential",
-    "Event",
-    "Document",
-    "News",
-    "Comment",
-    "AuditLog"
+    "User", "Role", "Permission", "Session", "Credential", "Event",
+    "Document", "News", "Comment", "AuditLog", "ITAsset", "VLAN",
+    "NetworkDevice", "PhoneNumber", "Task"
 ]

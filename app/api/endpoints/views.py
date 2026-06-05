@@ -84,6 +84,24 @@ def passwords_view(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/vault", response_class=HTMLResponse)
+def vault_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el gestor de contraseñas generales (Bóveda)."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "credentials:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="vault.html", context={
+        "user": user,
+        "active_page": "vault",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
 @router.get("/calendar", response_class=HTMLResponse)
 def calendar_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el calendario corporativo."""
@@ -138,6 +156,24 @@ def news_view(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/it-assets", response_class=HTMLResponse)
+def it_assets_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el módulo de inventario IT (Software, Hardware, Redes)."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "it:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="it_assets.html", context={
+        "user": user,
+        "active_page": "it-assets",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
 @router.get("/profile", response_class=HTMLResponse)
 def profile_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el perfil y configuración del usuario actual."""
@@ -164,3 +200,58 @@ def admin_view(request: Request, db: Session = Depends(get_db)):
         "active_page": "admin",
         "project_name": settings.PROJECT_NAME
     })
+
+
+@router.get("/network", response_class=HTMLResponse)
+def network_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra la gestión de dispositivos de red (Switches)."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "it:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="network_devices.html", context={
+        "user": user,
+        "active_page": "network",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
+@router.get("/phone-numbers", response_class=HTMLResponse)
+def phone_numbers_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el módulo de números telefónicos contratados."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "it:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="phone_numbers.html", context={
+        "user": user,
+        "active_page": "phone-numbers",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
+@router.get("/excel-converter", response_class=HTMLResponse)
+def excel_converter_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el módulo conversor de Excel a CSV de campos seleccionados."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "it:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="excel_converter.html", context={
+        "user": user,
+        "active_page": "excel-converter",
+        "project_name": settings.PROJECT_NAME
+    })
+

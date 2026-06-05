@@ -2,6 +2,10 @@ from sqlalchemy.orm import Session
 from app.core.database import Base, engine
 from app.models.role import Role, Permission
 from app.models.user import User
+from app.models.it_asset import ITAsset  # noqa: F401 — ensures table is created
+from app.models.vlan import VLAN  # noqa: F401 — ensures table is created
+from app.models.network_devices import SwitchDevice, SwitchInterface  # noqa: F401
+from app.models.phone_number import PhoneNumber  # noqa: F401 — ensures table is created
 from app.core.security import get_password_hash
 from app.core.config import settings
 
@@ -26,7 +30,8 @@ def seed_database(db: Session):
         {"code": "credentials:manage", "description": "Gestionar credenciales en el gestor de contraseñas"},
         {"code": "events:manage", "description": "Gestionar eventos en el calendario corporativo"},
         {"code": "documents:manage", "description": "Gestionar archivos en el gestor documental"},
-        {"code": "news:manage", "description": "Gestionar artículos y comentarios de noticias"}
+        {"code": "news:manage", "description": "Gestionar artículos y comentarios de noticias"},
+        {"code": "it:manage", "description": "Gestionar el inventario de activos IT (Software, Hardware, Redes)"},
     ]
 
     db_permissions = {}

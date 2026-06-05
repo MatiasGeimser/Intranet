@@ -1,0 +1,801 @@
+{% extends "base.html" %}
+
+{% block title %}Gestor de Contraseñas{% endblock %}
+{% block page_title %}Gestor de Contraseñas — Bóveda Segura{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       VAULT — ESTILOS EXCLUSIVOS
+       ===================================================== */
+
+    /* Tarjetas de credencial con hover elevado */
+    .cred-card {
+        background: #fff;
+        border: 1px solid rgba(140,140,140,0.12);
+        border-radius: 18px;
+        padding: 1.25rem 1.5rem;
+        transition: box-shadow .22s ease, transform .18s ease, border-color .18s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .cred-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 4px; height: 100%;
+        border-radius: 18px 0 0 18px;
+        background: linear-gradient(180deg, #049DD9, #79F2E6);
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+    .cred-card:hover {
+        box-shadow: 0 8px 32px rgba(4,157,217,.13);
+        transform: translateY(-2px);
+        border-color: rgba(4,157,217,.22);
+    }
+    .cred-card:hover::before { opacity: 1; }
+
+    /* Badge de categoría */
+    .cat-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 999px;
+    }
+
+    /* Botón de filtro de categoría */
+    .filter-btn {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1.5px solid rgba(140,140,140,.2);
+        color: #8C8C8C;
+        background: #fff;
+        cursor: pointer;
+        transition: all .18s ease;
+        letter-spacing: .04em;
+    }
+    .filter-btn:hover { border-color: #049DD9; color: #049DD9; }
+    .filter-btn.active {
+        background: #049DD9;
+        border-color: #049DD9;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(4,157,217,.3);
+    }
+
+    /* Campo de contraseña */
+    .pw-field {
+        font-family: 'Courier New', monospace;
+        letter-spacing: .12em;
+        font-size: 13px;
+        color: #262523;
+        background: #F2F2F2;
+        border-radius: 8px;
+        padding: 5px 10px;
+        flex: 1;
+        user-select: none;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    /* Animación del modal */
+    .modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(38,37,35,.55);
+        backdrop-filter: blur(6px);
+        z-index: 9998;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none;
+        transition: opacity .22s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+        background: #fff;
+        border-radius: 22px;
+        padding: 2rem;
+        width: 100%; max-width: 520px;
+        max-height: 92vh; overflow-y: auto;
+        box-shadow: 0 24px 64px rgba(4,157,217,.18);
+        transform: translateY(24px) scale(.97);
+        transition: transform .25s cubic-bezier(.16,1,.3,1);
+    }
+    .modal-backdrop.open .modal-box { transform: translateY(0) scale(1); }
+
+    /* Input groups del formulario */
+    .form-group label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #8C8C8C;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 5px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        background: #F2F2F2;
+        border: 1.5px solid transparent;
+        border-radius: 10px;
+        padding: 9px 13px;
+        font-size: 13px;
+        color: #262523;
+        font-family: 'Outfit', sans-serif;
+        outline: none;
+        transition: border-color .18s ease, background .18s ease;
+    }
+    .form-group input:focus,
+    .form-group select:focus { 
+        background: #fff;
+        border-color: #049DD9;
+    }
+
+    /* Animación de cards al entrar */
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .cred-card { animation: fadeUp .28s ease both; }
+
+    /* Estado vacío */
+    .empty-state {
+        text-align: center;
+        padding: 5rem 2rem;
+        color: #8C8C8C;
+    }
+
+    /* Skeleton loader */
+    .skeleton {
+        background: linear-gradient(90deg, #F2F2F2 25%, #e8e8e8 50%, #F2F2F2 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+        border-radius: 8px;
+    }
+    @keyframes shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================================================
+     ENCABEZADO DEL MÓDULO
+     ============================================================ -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-[#262523] flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center shadow-lg shadow-[#049DD9]/25">
+                <i class="fa-solid fa-key text-white text-base"></i>
+            </span>
+            Gestor de Contraseñas
+        </h1>
+        <p class="text-xs text-[#8C8C8C] mt-1 ml-13">Bóveda de credenciales generales · Cifrado AES-256-GCM</p>
+    </div>
+    <div class="flex gap-3">
+        <button onclick="openCreateModal()" id="btn-nueva-credencial"
+            class="flex items-center gap-2 bg-[#049DD9] hover:bg-[#038bc2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#049DD9]/30 transition-all duration-200 hover:-translate-y-0.5">
+            <i class="fa-solid fa-plus"></i>
+            Nueva Credencial
+        </button>
+        <button onclick="openImportModal()" id="btn-importar"
+            class="flex items-center gap-2 bg-white border border-[#8C8C8C]/20 text-[#262523] text-sm font-medium px-4 py-2.5 rounded-xl hover:border-[#049DD9] hover:text-[#049DD9] transition-all duration-200">
+            <i class="fa-solid fa-file-import"></i>
+            Importar
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================
+     BARRA DE BÚSQUEDA + FILTROS
+     ============================================================ -->
+<div class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4">
+    <!-- Búsqueda -->
+    <div class="relative flex-1 max-w-xs">
+        <span class="absolute inset-y-0 left-3 flex items-center text-[#8C8C8C] pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+        </span>
+        <input id="vault-search" type="text" placeholder="Buscar título, usuario, URL…"
+            class="w-full text-xs bg-[#F2F2F2] rounded-xl pl-8 pr-4 py-2 border border-[#8C8C8C]/15 focus:outline-none focus:border-[#049DD9] transition-all"
+            oninput="filterCredentials()">
+    </div>
+    <!-- Filtros de categoría -->
+    <div id="cat-filters" class="flex flex-wrap gap-2">
+        <button class="filter-btn active" data-cat="all" onclick="setCategoryFilter(this)">Todos</button>
+        <button class="filter-btn" data-cat="Servidores" onclick="setCategoryFilter(this)">
+            <i class="fa-solid fa-server mr-1"></i>Servidores
+        </button>
+        <button class="filter-btn" data-cat="Bases de Datos" onclick="setCategoryFilter(this)">
+            <i class="fa-solid fa-database mr-1"></i>BD
+        </button>
+        <button class="filter-btn" data-cat="Aplicaciones" onclick="setCategoryFilter(this)">
+            <i class="fa-solid fa-cubes mr-1"></i>Aplicaciones
+        </button>
+        <button class="filter-btn" data-cat="Redes" onclick="setCategoryFilter(this)">
+            <i class="fa-solid fa-network-wired mr-1"></i>Redes
+        </button>
+        <button class="filter-btn" data-cat="General" onclick="setCategoryFilter(this)">
+            <i class="fa-solid fa-folder mr-1"></i>General
+        </button>
+    </div>
+    <!-- Contador -->
+    <span id="cred-count" class="text-xs text-[#8C8C8C] font-medium whitespace-nowrap ml-auto hidden md:inline">
+        — credenciales
+    </span>
+</div>
+
+<!-- ============================================================
+     GRID DE TARJETAS DE CREDENCIALES
+     ============================================================ -->
+<div id="cred-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <!-- Skeletons iniciales -->
+    <div class="cred-card" id="skeleton-1">
+        <div class="skeleton h-4 w-2/3 mb-3"></div>
+        <div class="skeleton h-3 w-1/3 mb-4"></div>
+        <div class="skeleton h-8 w-full mb-2"></div>
+        <div class="skeleton h-3 w-1/2"></div>
+    </div>
+    <div class="cred-card" id="skeleton-2">
+        <div class="skeleton h-4 w-3/4 mb-3"></div>
+        <div class="skeleton h-3 w-1/4 mb-4"></div>
+        <div class="skeleton h-8 w-full mb-2"></div>
+        <div class="skeleton h-3 w-2/5"></div>
+    </div>
+    <div class="cred-card" id="skeleton-3">
+        <div class="skeleton h-4 w-1/2 mb-3"></div>
+        <div class="skeleton h-3 w-1/3 mb-4"></div>
+        <div class="skeleton h-8 w-full mb-2"></div>
+        <div class="skeleton h-3 w-3/5"></div>
+    </div>
+</div>
+
+<!-- Estado vacío (oculto por defecto) -->
+<div id="empty-state" class="empty-state hidden">
+    <div class="w-16 h-16 rounded-full bg-[#F2F2F2] flex items-center justify-center mx-auto mb-4">
+        <i class="fa-solid fa-vault text-2xl text-[#8C8C8C]"></i>
+    </div>
+    <p class="font-semibold text-[#262523] text-sm">La bóveda está vacía</p>
+    <p class="text-xs text-[#8C8C8C] mt-1">Crea tu primera credencial o importa desde Excel</p>
+    <button onclick="openCreateModal()" class="mt-4 bg-[#049DD9] text-white text-xs font-semibold px-5 py-2 rounded-xl hover:bg-[#038bc2] transition-colors">
+        <i class="fa-solid fa-plus mr-1"></i>Nueva Credencial
+    </button>
+</div>
+
+<!-- ============================================================
+     MODAL: CREAR / EDITAR CREDENCIAL
+     ============================================================ -->
+<div id="cred-modal" class="modal-backdrop" onclick="handleModalClick(event, 'cred-modal')">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center">
+                    <i class="fa-solid fa-key text-white text-sm"></i>
+                </div>
+                <div>
+                    <h3 id="modal-title" class="font-bold text-[#262523] text-base">Nueva Credencial</h3>
+                    <p class="text-[10px] text-[#8C8C8C]">Todos los datos se cifran con AES-256-GCM</p>
+                </div>
+            </div>
+            <button onclick="closeModal('cred-modal')" class="text-[#8C8C8C] hover:text-[#262523] p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <form id="cred-form" class="space-y-4" onsubmit="submitCredential(event)">
+            <input type="hidden" id="cred-id" value="">
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group col-span-2">
+                    <label>Título / Nombre *</label>
+                    <input id="f-title" type="text" placeholder="Ej: Servidor Producción" required maxlength="100">
+                </div>
+                <div class="form-group col-span-2 sm:col-span-1">
+                    <label>Categoría *</label>
+                    <select id="f-category" required>
+                        <option value="Servidores">🖥️ Servidores</option>
+                        <option value="Bases de Datos">🗄️ Bases de Datos</option>
+                        <option value="Aplicaciones">📦 Aplicaciones</option>
+                        <option value="Redes">🌐 Redes</option>
+                        <option value="General" selected>📁 General</option>
+                    </select>
+                </div>
+                <div class="form-group col-span-2 sm:col-span-1">
+                    <label>URL / Host</label>
+                    <input id="f-url" type="text" placeholder="https://… o IP">
+                </div>
+                <div class="form-group col-span-2 sm:col-span-1">
+                    <label>Usuario *</label>
+                    <input id="f-username" type="text" placeholder="usuario@empresa.com" required maxlength="100">
+                </div>
+                <div class="form-group col-span-2 sm:col-span-1 relative">
+                    <label id="f-pass-label">Contraseña *</label>
+                    <div class="relative">
+                        <input id="f-password" type="password" placeholder="••••••••••" maxlength="200"
+                            class="pr-10" autocomplete="new-password">
+                        <button type="button" onclick="toggleFormPw()"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C8C8C] hover:text-[#049DD9] transition-colors">
+                            <i id="form-pw-eye" class="fa-solid fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                    <p id="f-pass-hint" class="text-[10px] text-[#8C8C8C] mt-1 hidden">Deja vacío para mantener la contraseña actual.</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="closeModal('cred-modal')"
+                    class="flex-1 py-2.5 rounded-xl border border-[#8C8C8C]/20 text-sm font-medium text-[#8C8C8C] hover:bg-gray-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" id="cred-submit-btn"
+                    class="flex-1 py-2.5 rounded-xl bg-[#049DD9] text-white text-sm font-semibold hover:bg-[#038bc2] transition-colors shadow-lg shadow-[#049DD9]/25">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i>Guardar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================
+     MODAL: IMPORTAR EXCEL
+     ============================================================ -->
+<div id="import-modal" class="modal-backdrop" onclick="handleModalClick(event, 'import-modal')">
+    <div class="modal-box" style="max-width:440px">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#79F2E6]/20 border border-[#79F2E6]/30 flex items-center justify-center">
+                    <i class="fa-solid fa-file-excel text-[#049DD9] text-base"></i>
+                </div>
+                <h3 class="font-bold text-[#262523] text-base">Importar Credenciales</h3>
+            </div>
+            <button onclick="closeModal('import-modal')" class="text-[#8C8C8C] hover:text-[#262523] p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <div class="bg-[#F2F2F2] rounded-xl p-4 text-xs text-[#8C8C8C] mb-5 space-y-1">
+            <p class="font-semibold text-[#262523] mb-2">Formato esperado del Excel (.xlsx):</p>
+            <div class="grid grid-cols-5 gap-1 text-center">
+                <span class="bg-[#049DD9] text-white rounded px-1 py-0.5 font-bold">Titulo</span>
+                <span class="bg-[#049DD9] text-white rounded px-1 py-0.5 font-bold">URL</span>
+                <span class="bg-[#049DD9] text-white rounded px-1 py-0.5 font-bold">Usuario</span>
+                <span class="bg-[#049DD9] text-white rounded px-1 py-0.5 font-bold">Contraseña</span>
+                <span class="bg-[#049DD9] text-white rounded px-1 py-0.5 font-bold">Categoria</span>
+            </div>
+        </div>
+
+        <div class="form-group mb-4">
+            <label>Seleccionar archivo .xlsx</label>
+            <input id="import-file" type="file" accept=".xlsx"
+                class="block w-full text-xs text-[#8C8C8C] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#049DD9]/10 file:text-[#049DD9] file:font-semibold hover:file:bg-[#049DD9]/20 cursor-pointer">
+        </div>
+
+        <div id="import-result" class="hidden text-xs rounded-xl p-3 mb-4"></div>
+
+        <div class="flex gap-3">
+            <a href="/api/credentials/template/download"
+                class="flex items-center gap-2 text-xs text-[#049DD9] font-semibold hover:underline transition-colors py-2">
+                <i class="fa-solid fa-download"></i>Descargar Plantilla
+            </a>
+            <div class="flex-1"></div>
+            <button type="button" onclick="closeModal('import-modal')"
+                class="py-2 px-4 rounded-xl border border-[#8C8C8C]/20 text-sm font-medium text-[#8C8C8C] hover:bg-gray-50 transition-colors">
+                Cancelar
+            </button>
+            <button type="button" onclick="submitImport()" id="import-submit-btn"
+                class="py-2 px-5 rounded-xl bg-[#049DD9] text-white text-sm font-semibold hover:bg-[#038bc2] transition-colors shadow-lg shadow-[#049DD9]/25">
+                <i class="fa-solid fa-file-import mr-1"></i>Importar
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// =============================================================================
+// ESTADO GLOBAL
+// =============================================================================
+let allCredentials = [];          // Cache completo de credenciales
+let currentCategoryFilter = 'all'; // Filtro activo
+let currentSearchTerm    = '';    // Búsqueda activa
+let revealedIds = new Set();      // IDs con contraseña revelada
+let decryptedPasswords = {};      // Cache de contraseñas decifradas
+
+// Mapas de color y icono por categoría
+const CAT_CONFIG = {
+    'Servidores'    : { icon: 'fa-server',        color: '#049DD9', bg: 'rgba(4,157,217,.1)',    label: '#049DD9' },
+    'Bases de Datos': { icon: 'fa-database',       color: '#7c3aed', bg: 'rgba(124,58,237,.1)',   label: '#7c3aed' },
+    'Aplicaciones'  : { icon: 'fa-cubes',          color: '#d97706', bg: 'rgba(217,119,6,.1)',    label: '#d97706' },
+    'Redes'         : { icon: 'fa-network-wired',  color: '#059669', bg: 'rgba(5,150,105,.1)',    label: '#059669' },
+    'General'       : { icon: 'fa-folder',         color: '#8C8C8C', bg: 'rgba(140,140,140,.1)', label: '#8C8C8C' },
+};
+
+function getCatConf(cat) {
+    return CAT_CONFIG[cat] || CAT_CONFIG['General'];
+}
+
+// =============================================================================
+// CARGA INICIAL
+// =============================================================================
+document.addEventListener('DOMContentLoaded', loadCredentials);
+
+async function loadCredentials() {
+    try {
+        const res = await fetchAPI('/api/credentials');
+        if (!res.ok) throw new Error('Error al obtener credenciales');
+        allCredentials = await res.json();
+
+        // Filtrar: sólo categorías que NO sean de ejecutivos
+        const execCategories = ['Correo Corporativo','CRM','Telefonía','Sistemas'];
+        allCredentials = allCredentials.filter(c => !execCategories.includes(c.category));
+
+        renderGrid(allCredentials);
+    } catch (e) {
+        console.error(e);
+        showToast('Error al cargar la bóveda.', 'error');
+        renderGrid([]);
+    }
+}
+
+// =============================================================================
+// RENDERIZADO DE TARJETAS
+// =============================================================================
+function renderGrid(creds) {
+    const grid = document.getElementById('cred-grid');
+    const empty = document.getElementById('empty-state');
+    const counter = document.getElementById('cred-count');
+
+    // Quitar skeletons
+    grid.innerHTML = '';
+
+    counter.textContent = `${creds.length} credencial${creds.length !== 1 ? 'es' : ''}`;
+
+    if (creds.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    creds.forEach((cred, idx) => {
+        const conf = getCatConf(cred.category);
+        const card = document.createElement('div');
+        card.className = 'cred-card';
+        card.style.animationDelay = `${idx * 35}ms`;
+        card.dataset.id = cred.id;
+
+        card.innerHTML = `
+            <!-- Cabecera -->
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center"
+                         style="background:${conf.bg}; color:${conf.color}">
+                        <i class="fa-solid ${conf.icon} text-sm"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-semibold text-[#262523] text-sm leading-tight truncate" title="${escHtml(cred.title)}">${escHtml(cred.title)}</p>
+                        <p class="text-[10px] text-[#8C8C8C] truncate">${cred.url ? escHtml(cred.url) : 'Sin URL'}</p>
+                    </div>
+                </div>
+                <span class="cat-badge flex-shrink-0" style="background:${conf.bg}; color:${conf.label}">
+                    ${escHtml(cred.category)}
+                </span>
+            </div>
+
+            <!-- Usuario -->
+            <div class="flex items-center gap-2 mb-3">
+                <i class="fa-solid fa-user text-[10px] text-[#8C8C8C]"></i>
+                <span class="text-xs text-[#262523] font-medium truncate">${escHtml(cred.username)}</span>
+                <button onclick="copyToClipboard('${escHtml(cred.username)}','Usuario copiado')"
+                    class="ml-auto text-[#8C8C8C] hover:text-[#049DD9] transition-colors p-1 rounded-lg hover:bg-[#049DD9]/5" title="Copiar usuario">
+                    <i class="fa-regular fa-copy text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Contraseña -->
+            <div class="flex items-center gap-2 bg-[#F2F2F2] rounded-xl px-3 py-2 mb-3">
+                <i class="fa-solid fa-lock text-[10px] text-[#8C8C8C]"></i>
+                <span id="pw-display-${cred.id}" class="pw-field">••••••••••••</span>
+                <button onclick="toggleReveal(${cred.id})" id="reveal-btn-${cred.id}"
+                    class="text-[#8C8C8C] hover:text-[#049DD9] transition-colors p-1 rounded-lg hover:bg-[#049DD9]/8 flex-shrink-0" title="Revelar contraseña">
+                    <i id="reveal-icon-${cred.id}" class="fa-solid fa-eye text-xs"></i>
+                </button>
+                <button onclick="copyPassword(${cred.id})"
+                    class="text-[#8C8C8C] hover:text-[#049DD9] transition-colors p-1 rounded-lg hover:bg-[#049DD9]/8 flex-shrink-0" title="Copiar contraseña">
+                    <i class="fa-regular fa-copy text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between pt-1">
+                <span class="text-[10px] text-[#8C8C8C]">
+                    ${formatDate(cred.created_at)}
+                </span>
+                <div class="flex items-center gap-1">
+                    <button onclick="openEditModal(${cred.id})"
+                        class="text-[#8C8C8C] hover:text-[#049DD9] p-1.5 rounded-lg hover:bg-[#049DD9]/8 transition-colors" title="Editar">
+                        <i class="fa-solid fa-pen text-xs"></i>
+                    </button>
+                    <button onclick="deleteCredential(${cred.id}, '${escHtml(cred.title)}')"
+                        class="text-[#8C8C8C] hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Eliminar">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
+}
+
+// =============================================================================
+// FILTRADO
+// =============================================================================
+function setCategoryFilter(btn) {
+    document.querySelectorAll('#cat-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCategoryFilter = btn.dataset.cat;
+    filterCredentials();
+}
+
+function filterCredentials() {
+    currentSearchTerm = document.getElementById('vault-search').value.trim().toLowerCase();
+    const filtered = allCredentials.filter(c => {
+        const catMatch = currentCategoryFilter === 'all' || c.category === currentCategoryFilter;
+        const searchMatch = !currentSearchTerm ||
+            c.title.toLowerCase().includes(currentSearchTerm) ||
+            c.username.toLowerCase().includes(currentSearchTerm) ||
+            (c.url && c.url.toLowerCase().includes(currentSearchTerm)) ||
+            c.category.toLowerCase().includes(currentSearchTerm);
+        return catMatch && searchMatch;
+    });
+    renderGrid(filtered);
+}
+
+// =============================================================================
+// REVELAR / COPIAR CONTRASEÑA
+// =============================================================================
+async function toggleReveal(credId) {
+    const display  = document.getElementById(`pw-display-${credId}`);
+    const icon     = document.getElementById(`reveal-icon-${credId}`);
+
+    if (revealedIds.has(credId)) {
+        // Ocultar
+        display.textContent = '••••••••••••';
+        display.style.userSelect = 'none';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+        revealedIds.delete(credId);
+        return;
+    }
+
+    // Revelar — buscar en caché primero
+    if (!decryptedPasswords[credId]) {
+        icon.classList.replace('fa-eye', 'fa-spinner');
+        icon.classList.add('fa-spin');
+        try {
+            const res = await fetchAPI(`/api/credentials/${credId}/decrypt`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            decryptedPasswords[credId] = data.password;
+        } catch {
+            showToast('No se pudo descifrar la contraseña.', 'error');
+            icon.classList.remove('fa-spinner','fa-spin');
+            icon.classList.add('fa-eye');
+            return;
+        }
+        icon.classList.remove('fa-spinner','fa-spin');
+    }
+
+    display.textContent = decryptedPasswords[credId];
+    display.style.userSelect = 'text';
+    icon.classList.replace('fa-eye', 'fa-eye-slash');
+    revealedIds.add(credId);
+}
+
+async function copyPassword(credId) {
+    if (!decryptedPasswords[credId]) {
+        try {
+            const res = await fetchAPI(`/api/credentials/${credId}/decrypt`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            decryptedPasswords[credId] = data.password;
+        } catch {
+            showToast('No se pudo obtener la contraseña para copiar.', 'error');
+            return;
+        }
+    }
+    copyToClipboard(decryptedPasswords[credId], 'Contraseña copiada al portapapeles');
+}
+
+function copyToClipboard(text, msg = 'Copiado') {
+    navigator.clipboard.writeText(text).then(() => showToast(msg, 'success')).catch(() => {
+        showToast('No se pudo copiar al portapapeles.', 'error');
+    });
+}
+
+// =============================================================================
+// MODAL CREAR / EDITAR
+// =============================================================================
+function openCreateModal() {
+    document.getElementById('modal-title').textContent  = 'Nueva Credencial';
+    document.getElementById('cred-id').value            = '';
+    document.getElementById('f-title').value            = '';
+    document.getElementById('f-category').value         = 'General';
+    document.getElementById('f-url').value              = '';
+    document.getElementById('f-username').value         = '';
+    document.getElementById('f-password').value         = '';
+    document.getElementById('f-password').required      = true;
+    document.getElementById('f-pass-label').textContent = 'Contraseña *';
+    document.getElementById('f-pass-hint').classList.add('hidden');
+    document.getElementById('cred-submit-btn').innerHTML= '<i class="fa-solid fa-plus mr-1"></i>Crear';
+    openModal('cred-modal');
+}
+
+function openEditModal(credId) {
+    const cred = allCredentials.find(c => c.id === credId);
+    if (!cred) return;
+
+    document.getElementById('modal-title').textContent  = 'Editar Credencial';
+    document.getElementById('cred-id').value            = cred.id;
+    document.getElementById('f-title').value            = cred.title;
+    document.getElementById('f-category').value         = cred.category;
+    document.getElementById('f-url').value              = cred.url || '';
+    document.getElementById('f-username').value         = cred.username;
+    document.getElementById('f-password').value         = '';
+    document.getElementById('f-password').required      = false;
+    document.getElementById('f-pass-label').textContent = 'Nueva Contraseña';
+    document.getElementById('f-pass-hint').classList.remove('hidden');
+    document.getElementById('cred-submit-btn').innerHTML= '<i class="fa-solid fa-floppy-disk mr-1"></i>Actualizar';
+    openModal('cred-modal');
+}
+
+async function submitCredential(e) {
+    e.preventDefault();
+    const credId   = document.getElementById('cred-id').value;
+    const isEdit   = !!credId;
+    const btn      = document.getElementById('cred-submit-btn');
+
+    const body = {
+        title   : document.getElementById('f-title').value.trim(),
+        category: document.getElementById('f-category').value,
+        url     : document.getElementById('f-url').value.trim() || null,
+        username: document.getElementById('f-username').value.trim(),
+    };
+    const pw = document.getElementById('f-password').value;
+    if (pw) body.password = pw;
+    else if (!isEdit) { showToast('La contraseña es requerida.','error'); return; }
+
+    btn.disabled   = true;
+    btn.innerHTML  = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Guardando…';
+
+    try {
+        const method = isEdit ? 'PUT' : 'POST';
+        const url    = isEdit ? `/api/credentials/${credId}` : '/api/credentials';
+        const res    = await fetchAPI(url, { method, body });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Error al guardar.');
+        }
+
+        showToast(isEdit ? 'Credencial actualizada.' : 'Credencial creada.', 'success');
+        closeModal('cred-modal');
+        // Limpiar caché de contraseña revelada si se editó
+        if (isEdit) {
+            delete decryptedPasswords[parseInt(credId)];
+            revealedIds.delete(parseInt(credId));
+        }
+        await loadCredentials();
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = isEdit
+            ? '<i class="fa-solid fa-floppy-disk mr-1"></i>Actualizar'
+            : '<i class="fa-solid fa-plus mr-1"></i>Crear';
+    }
+}
+
+async function deleteCredential(credId, title) {
+    if (!confirm(`¿Eliminar la credencial "${title}"?\n\nEsta acción no se puede deshacer.`)) return;
+
+    try {
+        const res = await fetchAPI(`/api/credentials/${credId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al eliminar.');
+        showToast(`"${title}" eliminada de la bóveda.`, 'success');
+        delete decryptedPasswords[credId];
+        revealedIds.delete(credId);
+        await loadCredentials();
+    } catch (err) {
+        showToast('No se pudo eliminar la credencial.', 'error');
+    }
+}
+
+// =============================================================================
+// MODAL IMPORTAR
+// =============================================================================
+function openImportModal() {
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-result').className = 'hidden text-xs rounded-xl p-3 mb-4';
+    document.getElementById('import-result').textContent = '';
+    openModal('import-modal');
+}
+
+async function submitImport() {
+    const fileInput = document.getElementById('import-file');
+    const resultBox = document.getElementById('import-result');
+    const btn       = document.getElementById('import-submit-btn');
+
+    if (!fileInput.files.length) {
+        showToast('Selecciona un archivo .xlsx primero.', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Importando…';
+
+    try {
+        const res  = await fetchAPI('/api/credentials/import', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        resultBox.classList.remove('hidden');
+        if (res.ok) {
+            resultBox.className = 'text-xs rounded-xl p-3 mb-4 bg-green-50 text-green-700 border border-green-200';
+            resultBox.textContent = data.detail;
+            await loadCredentials();
+        } else {
+            resultBox.className = 'text-xs rounded-xl p-3 mb-4 bg-red-50 text-red-700 border border-red-200';
+            resultBox.textContent = data.detail || 'Error en la importación.';
+        }
+    } catch {
+        showToast('Error en la importación.', 'error');
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="fa-solid fa-file-import mr-1"></i>Importar';
+    }
+}
+
+// =============================================================================
+// UTILIDADES DE MODAL
+// =============================================================================
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function handleModalClick(e, id) {
+    if (e.target === document.getElementById(id)) closeModal(id);
+}
+
+// Toggle ojo del formulario
+function toggleFormPw() {
+    const inp  = document.getElementById('f-password');
+    const icon = document.getElementById('form-pw-eye');
+    if (inp.type === 'password') { inp.type = 'text';     icon.classList.replace('fa-eye','fa-eye-slash'); }
+    else                         { inp.type = 'password'; icon.classList.replace('fa-eye-slash','fa-eye'); }
+}
+
+// Escape HTML
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Formatear fecha
+function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
+}
+</script>
+{% endblock %}

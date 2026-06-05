@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.document import Document
-from app.schemas.document import DocumentResponse
+from app.schemas.document import DocumentResponse, DocumentContentUpdate
 from app.api.deps import PermissionChecker, get_current_active_user
 from app.services.doc_service import doc_service
 from app.services.audit_service import audit_service
@@ -53,6 +53,85 @@ def upload_document(
     )
 
     return db_doc
+
+
+@router.get("/{doc_id}/preview")
+def preview_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Permite ver y editar contenidos simples directamente desde la Intranet (solo Administradores)."""
+    if current_user.role.name != "Administrador":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
+
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+
+    try:
+        preview = doc_service.read_document_preview(doc)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "document": {
+            "id": doc.id,
+            "name": doc.name,
+            "file_type": doc.file_type,
+            "version": doc.version,
+            "folder": doc.folder,
+            "size_bytes": doc.size_bytes,
+            "created_at": doc.created_at
+        },
+        "preview": preview
+    }
+
+
+@router.put("/{doc_id}/content")
+def update_document_content(
+    doc_id: int,
+    update_data: DocumentContentUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Guarda cambios en el documento desde la vista de edición (solo Administradores)."""
+    if current_user.role.name != "Administrador":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
+
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+
+    try:
+        updated_doc = doc_service.save_document_content(
+            db=db,
+            doc=doc,
+            content=update_data.content,
+            rows=update_data.rows,
+            sheet_name=update_data.sheet_name
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="document_edit",
+        ip_address=request.client.host if request.client else None,
+        details=f"Editó el archivo '{updated_doc.name}' (ID {updated_doc.id}) en la carpeta '{updated_doc.folder}'"
+    )
+
+    return {"detail": "Documento guardado correctamente.", "document": {
+        "id": updated_doc.id,
+        "size_bytes": updated_doc.size_bytes,
+        "version": updated_doc.version
+    }}
 
 
 @router.get("/{doc_id}/download")

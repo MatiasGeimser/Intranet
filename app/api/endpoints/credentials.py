@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.credential import Credential
-from app.schemas.credential import CredentialResponse, CredentialCreate, CredentialUpdate
+from app.schemas.credential import CredentialResponse, CredentialCreate, CredentialUpdate, ExecutiveCredentialCreate
 from app.api.deps import get_current_active_user, PermissionChecker
 from app.services.crypto_service import crypto_service
 from app.services.audit_service import audit_service
@@ -166,3 +166,255 @@ def delete_credential(
     )
 
     return {"detail": "Credencial eliminada exitosamente."}
+
+
+@router.get("/template/download")
+def download_credential_template(
+    current_user: User = Depends(PermissionChecker("credentials:manage"))
+):
+    """Descarga una plantilla Excel vacía para la importación masiva de credenciales."""
+    import openpyxl
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Credenciales"
+    
+    headers = ["Titulo", "URL", "Usuario", "Contraseña", "Categoria"]
+    ws.append(headers)
+
+    # Estilos básicos
+    from openpyxl.styles import Font, PatternFill
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="049DD9", end_color="049DD9", fill_type="solid")
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 25
+
+    # Fila de ejemplo
+    ws.append(["Servidor Producción", "https://prod.empresa.local", "admin", "P@ssw0rd123", "Servidores"])
+
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    headers = {
+        'Content-Disposition': 'attachment; filename="plantilla_credenciales.xlsx"'
+    }
+    return StreamingResponse(stream, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
+
+
+@router.delete("/import/last")
+def delete_last_import(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("credentials:manage"))
+):
+    """Elimina el último lote de credenciales importadas (agrupadas por timestamp de creación)."""
+    from datetime import timedelta
+    
+    # Buscar la credencial más reciente del usuario
+    latest = (
+        db.query(Credential)
+        .filter(Credential.owner_id == current_user.id)
+        .order_by(Credential.created_at.desc())
+        .first()
+    )
+    
+    if not latest:
+        raise HTTPException(status_code=404, detail="No hay importaciones previas para eliminar.")
+    
+    # Eliminar todas las credenciales creadas en el mismo minuto (± 60 segundos)
+    window_start = latest.created_at - timedelta(seconds=60)
+    window_end   = latest.created_at + timedelta(seconds=60)
+    
+    to_delete = (
+        db.query(Credential)
+        .filter(
+            Credential.owner_id == current_user.id,
+            Credential.created_at >= window_start,
+            Credential.created_at <= window_end
+        )
+        .all()
+    )
+    
+    count = len(to_delete)
+    for cred in to_delete:
+        db.delete(cred)
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="credential_import_delete",
+        ip_address=request.client.host if request.client else None,
+        details=f"Eliminó la última importación: {count} credenciales."
+    )
+    
+    return {"detail": f"✅ Se eliminaron {count} credenciales del último lote importado.", "deleted": count}
+
+
+@router.post("/import", status_code=status.HTTP_201_CREATED)
+def import_credentials(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("credentials:manage"))
+):
+    """Importa credenciales masivamente desde un archivo Excel con múltiples sistemas."""
+    from app.services.credential_import_service import CredentialImportService
+
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx)")
+
+    try:
+        contents = file.file.read()
+        result = CredentialImportService.import_credentials_from_excel(
+            file_content=contents,
+            user_id=current_user.id,
+            db=db
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error procesando el archivo Excel.")
+
+    # Log de auditoría
+    if result["total_imported"] > 0:
+        systems_str = ", ".join([f"{k}: {v}" for k, v in result["systems_imported"].items()])
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="credential_import",
+            ip_address=request.client.host if request.client else None,
+            details=f"Importación de ejecutivos: {result['total_imported']} credenciales. Sistemas: {systems_str}"
+        )
+
+    if result["total_errors"] > 0:
+        return {
+            "detail": f"Se importaron {result['total_imported']} credenciales con {result['total_errors']} errores.",
+            "imported": result["total_imported"],
+            "errors": result["errors"],
+            "systems": result["systems_imported"]
+        }
+    
+    return {
+        "detail": f"✅ Importación exitosa: {result['total_imported']} credenciales de {len(result['systems_imported'])} sistemas.",
+        "imported": result["total_imported"],
+        "systems": result["systems_imported"]
+    }
+
+
+@router.post("/executive", status_code=status.HTTP_201_CREATED)
+def create_executive_credentials(
+    request: Request,
+    exec_data: ExecutiveCredentialCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("credentials:manage"))
+):
+    """Crea credenciales para múltiples sistemas de un ejecutivo en una sola transacción."""
+    imported_count = 0
+    systems_created = []
+
+    # Helper function to add/update a single credential
+    def add_system_cred(title: str, username: str, password_raw: str, category: str, url_val: Optional[str] = None):
+        nonlocal imported_count
+        if not username or not password_raw:
+            return
+        
+        encrypted_pw = crypto_service.encrypt_password(password_raw)
+        
+        # Check if already exists
+        existing = db.query(Credential).filter(
+            Credential.title == title,
+            Credential.username == username,
+            Credential.owner_id == current_user.id
+        ).first()
+        
+        if existing:
+            existing.url = url_val
+            existing.encrypted_password = encrypted_pw
+            existing.category = category
+        else:
+            db_cred = Credential(
+                title=title,
+                url=url_val,
+                username=username,
+                encrypted_password=encrypted_pw,
+                category=category,
+                owner_id=current_user.id
+            )
+            db.add(db_cred)
+        
+        imported_count += 1
+        systems_created.append(category)
+
+    try:
+        # 1. Correo Corporativo
+        if exec_data.correo_user and exec_data.correo_pass:
+            add_system_cred(
+                title=f"Correo - {exec_data.name.strip().upper()}",
+                username=exec_data.correo_user.strip(),
+                password_raw=exec_data.correo_pass.strip(),
+                category="Correo Corporativo"
+            )
+
+        # 2. CRM
+        if exec_data.crm_user and exec_data.crm_pass:
+            add_system_cred(
+                title=f"CRM - {exec_data.name.strip().upper()}",
+                username=exec_data.crm_user.strip(),
+                password_raw=exec_data.crm_pass.strip(),
+                category="CRM"
+            )
+
+        # 3. Vocalcom
+        if exec_data.vocalcom_user and exec_data.vocalcom_pass:
+            add_system_cred(
+                title=f"Vocalcom - {exec_data.name.strip().upper()}",
+                username=exec_data.vocalcom_user.strip(),
+                password_raw=exec_data.vocalcom_pass.strip(),
+                category="Telefonía",
+                url_val=exec_data.vocalcom_estacion.strip() if (exec_data.vocalcom_estacion and exec_data.vocalcom_estacion.strip()) else None
+            )
+
+        # 4. PC
+        if exec_data.pc_user and exec_data.pc_pass:
+            add_system_cred(
+                title=f"PC - {exec_data.name.strip().upper()} ({exec_data.pc_user.strip()})",
+                username=exec_data.pc_user.strip(),
+                password_raw=exec_data.pc_pass.strip(),
+                category="Sistemas"
+            )
+
+        if imported_count == 0:
+            raise HTTPException(status_code=400, detail="Debe ingresar credenciales para al menos un sistema.")
+
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creando credenciales de ejecutivo: {str(e)}")
+
+    # Log de auditoría
+    systems_str = ", ".join(systems_created)
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="credential_executive_create",
+        ip_address=request.client.host if request.client else None,
+        details=f"Creó credenciales agrupadas para ejecutivo '{exec_data.name}' en sistemas: {systems_str}"
+    )
+
+    return {
+        "detail": f"Se registraron exitosamente {imported_count} credenciales para {exec_data.name.strip().upper()}.",
+        "imported": imported_count,
+        "systems": systems_created
+    }
+

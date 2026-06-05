@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+env/
+venv/
+*.db
+*.sqlite
+.vscode/
+.idea/
+*.xlsx
+!ejemplo_importacion.xlsx

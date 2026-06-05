@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Redes{% endblock %}
+{% block page_title %}Gestión de Switches y Configuración de Redes{% endblock %}
+
+{% block extra_css %}
+<style>
+    .switch-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 20px;
+        color: white;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .switch-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.35);
+    }
+
+    .port-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
+        margin: 15px 0;
+    }
+
+    .port {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 9px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        padding: 4px;
+    }
+
+    .port:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .port-active {
+        background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+        color: white;
+    }
+
+    .port-free {
+        background: #e5e7eb;
+        color: #6b7280;
+        border: 2px dashed #9ca3af;
+    }
+
+    .port-trunk {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+
+    .port-uplink {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        font-weight: 900;
+    }
+
+    .vlan-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        margin: 2px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: 900;
+        color: #667eea;
+        margin-top: 8px;
+    }
+
+    .stat-label {
+        font-size: 10px;
+        color: #6b7280;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+
+    .interface-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 11px;
+    }
+
+    .interface-table thead th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+    }
+
+    .interface-table tbody tr {
+        border-bottom: 1px solid #e5e7eb;
+        transition: background 0.2s ease;
+    }
+
+    .interface-table tbody tr:hover {
+        background: #f9fafb;
+    }
+
+    .interface-table td {
+        padding: 12px;
+    }
+
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+
+    .status-dot.connected {
+        background: #34d399;
+        box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+    }
+
+    .status-dot.free {
+        background: #9ca3af;
+    }
+
+    .utilization-bar {
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .utilization-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #34d399 0%, #667eea 100%);
+        transition: width 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+        animation: fadeIn 0.3s ease forwards;
+    }
+
+    .port-tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 10px;
+        z-index: 1000;
+        display: none;
+        white-space: nowrap;
+    }
+
+    .port:hover .port-tooltip {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── KPI CARDS ── -->
+<div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="stat-card fade-in" style="animation-delay: 0s">
+        <div class="stat-label">Switches</div>
+        <div class="stat-value" id="stat-switches">0</div>
+    </div>
+    <div class="stat-card fade-in" style="animation-delay: 0.1s">
+        <div class="stat-label">Puertos Totales</div>
+        <div class="stat-value" id="stat-ports">0</div>
+    </div>
+    <div class="stat-card fade-in" style="animation-delay: 0.2s">
+        <div class="stat-label">Puertos en Uso</div>
+        <div class="stat-value" id="stat-connected">0</div>
+    </div>
+    <div class="stat-card fade-in" style="animation-delay: 0.3s">
+        <div class="stat-label">Modelos</div>
+        <div class="stat-value" id="stat-vlans">0</div>
+    </div>
+</div>
+
+<!-- ── BOTONES DE ACCIÓN ── -->
+<div class="flex gap-3 mb-6">
+    <button onclick="openImportModal()"
+        class="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg py-2.5 px-4 text-sm font-semibold hover:shadow-lg transition-all flex items-center gap-2">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        Importar Configuración Excel
+    </button>
+</div>
+
+<!-- ── LISTADO DE SWITCHES ── -->
+<div id="switches-container" class="space-y-4">
+    <div id="switches-loading" class="text-center py-16 text-gray-400">
+        <i class="fa-solid fa-spinner fa-spin text-3xl mb-4"></i>
+        <p>Cargando switches...</p>
+    </div>
+</div>
+
+<!-- ══════════ MODAL IMPORTAR ══════════ -->
+<div id="import-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+        <div class="h-1 w-full bg-gradient-to-r from-green-500 via-emerald-400 to-green-600"></div>
+
+        <div class="p-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+                <i class="fa-solid fa-file-excel text-green-600 text-2xl"></i>
+                <span>Importar Configuración de Switch</span>
+            </h3>
+            <p class="text-sm text-gray-500 mb-6">Carga un archivo Excel con la configuración completa del switch (VLANs e Interfaces)</p>
+
+            <form id="import-form" onsubmit="processImport(event)" class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 hover:border-green-500 rounded-lg p-8 transition-all text-center relative bg-gray-50 cursor-pointer group">
+                    <input type="file" id="excel-file" accept=".xlsx, .xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="flex flex-col items-center gap-3 pointer-events-none">
+                        <i class="fa-solid fa-cloud-arrow-up text-4xl text-green-500/60 group-hover:text-green-500 transition-colors"></i>
+                        <p class="text-sm font-semibold text-gray-600" id="file-label">Arrastra tu archivo aquí o haz clic</p>
+                        <p class="text-xs text-gray-400">Formato: Excel (.xlsx, .xls)</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeImportModal()"
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition-all">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:shadow-lg text-white rounded-lg py-2.5 text-sm font-semibold transition-all">
+                        Importar y Procesar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════ MODAL EDITAR INTERFAZ ══════════ -->
+<div id="edit-interface-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="h-1.5 w-full bg-gradient-to-r from-[#049DD9] via-[#79F2E6] to-[#049DD9]"></div>
+
+        <div class="p-6 md:p-8">
+            <h3 class="text-sm font-bold text-black-dark mb-5 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-blue-corp"></i>
+                <span>Editar Interfaz <span id="modal-iface-name" class="font-mono text-blue-corp font-bold"></span></span>
+            </h3>
+
+            <form id="edit-interface-form" onsubmit="saveInterfaceChange(event)" class="space-y-4">
+                <input type="hidden" id="edit-iface-id">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">VLAN</label>
+                    <input type="text" id="edit-iface-vlan" placeholder="ej. VLAN 10 o 10"
+                           class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Descripción</label>
+                    <input type="text" id="edit-iface-desc" placeholder="ej. ENDPOINT CONECTADO o LIBRE"
+                           class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Tipo de Dispositivo</label>
+                    <input type="text" id="edit-iface-type" placeholder="ej. PC, Printer, VoIP, Switch"
+                           class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeEditInterfaceModal()"
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2.5 text-xs font-semibold transition-all">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal
+    function openImportModal() {
+        document.getElementById('import-form').reset();
+        document.getElementById('file-label').innerText = 'Arrastra tu archivo aquí o haz clic';
+        document.getElementById('import-modal').classList.remove('hidden');
+    }
+
+    function closeImportModal() {
+        document.getElementById('import-modal').classList.add('hidden');
+    }
+
+    document.getElementById('excel-file').addEventListener('change', (e) => {
+        const name = e.target.files[0]?.name || 'Archivo seleccionado';
+        document.getElementById('file-label').innerHTML = `<span class="text-green-600 font-bold">${name}</span>`;
+    });
+
+    function getAuthHeaders() {
+        const token = localStorage.getItem('token');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    async function processImport(e) {
+        e.preventDefault();
+        const file = document.getElementById('excel-file').files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetchAPI('/api/switches/import-cisco-config', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: formData
+            });
+
+            if (!response) return;
+            const result = await response.json();
+
+            if (!response.ok) {
+                showToast(`Error: ${result.detail}`, 'error');
+                return;
+            }
+
+            let message = `✓ Switch importado: ${result['summary']['vlans_imported']} VLANs, ${result['summary']['interfaces_imported']} puertos`;
+            if (result['summary']['interfaces_errors'] > 0) {
+                message += ` | ⚠ ${result['summary']['interfaces_errors']} errores`;
+            }
+
+            showToast(message, 'success');
+            closeImportModal();
+            loadSwitches();
+        } catch (err) {
+            console.error(err);
+            showToast(`Error: ${err.message}`, 'error');
+        }
+    }
+
+    async function loadSwitches() {
+        const res = await fetch('/api/switches', {
+            headers: getAuthHeaders()
+        });
+
+        if (!res.ok) {
+            document.getElementById('switches-container').innerHTML = '<div class="text-red-400">Error al cargar switches</div>';
+            return;
+        }
+
+        const switches = await res.json();
+
+        if (switches.length === 0) {
+            document.getElementById('switches-container').innerHTML = `
+                <div class="text-center py-16">
+                    <i class="fa-solid fa-server text-4xl text-gray-200 mb-4"></i>
+                    <p class="text-gray-400 text-lg">No hay switches configurados</p>
+                    <p class="text-gray-300 text-sm mt-2">Importa un archivo de configuración para empezar</p>
+                </div>
+            `;
+            return;
+        }
+
+        const rows = await Promise.all(switches.map(sw => renderSwitchTable(sw)));
+        document.getElementById('switches-container').innerHTML = rows.join('');
+        updateStats(switches);
+    }
+
+    async function renderSwitchTable(sw) {
+        const detailRes = await fetch(`/api/switches/${sw.id}`, {
+            headers: getAuthHeaders()
+        });
+        const detail = await detailRes.json();
+
+        const occupiedCount = detail.interfaces.filter(i => i.description && i.description.toUpperCase().includes('CONECTADO')).length;
+        const freeCount = detail.interfaces.filter(i => i.description && i.description.toUpperCase().includes('LIBRE')).length;
+
+        const interfaceRows = detail.interfaces.map(iface => {
+            const ifaceJson = JSON.stringify(iface).replace(/"/g, "&quot;");
+            return `
+            <tr class="border-t border-gray-100 ${iface.description && iface.description.toUpperCase().includes('CONECTADO') ? 'bg-green-50' : iface.description && iface.description.toUpperCase().includes('LIBRE') ? 'bg-gray-50' : ''}">
+                <td class="px-4 py-3 text-sm text-gray-800">${iface.interface_name}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${iface.vlan_name || '-'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${iface.status || 'Active'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${iface.description || '-'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${iface.connected_device || '-'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${iface.connected_device_type || '-'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                    <button onclick="openEditInterfaceModal(${ifaceJson})"
+                            class="p-1.5 text-gray-400 hover:text-blue-corp rounded-xl hover:bg-blue-50 transition-all" title="Editar puerto">
+                        <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+                    </button>
+                </td>
+            </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-6 py-5 bg-gray-50 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">${sw.hostname}</h2>
+                        <p class="text-sm text-gray-500">${sw.ip_address} · ${sw.model || 'Sin modelo'}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs text-gray-600">
+                        <span class="px-3 py-2 rounded-full bg-green-50 text-green-700">Puertos: ${sw.total_ports || '-'}</span>
+                        <span class="px-3 py-2 rounded-full bg-blue-50 text-blue-700">Uplink: ${sw.uplink_ports || '-'}</span>
+                        <span class="px-3 py-2 rounded-full bg-green-100 text-green-800">Conectados: ${occupiedCount}</span>
+                        <span class="px-3 py-2 rounded-full bg-gray-100 text-gray-700">Libres: ${freeCount}</span>
+                    </div>
+                </div>
+                <div class="px-6 py-4">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Interfaz</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">VLAN</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Estado</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Descripción</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Dispositivo</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Tipo</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${interfaceRows || `<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No hay interfaces registradas.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateStats(switches) {
+        document.getElementById('stat-switches').textContent = switches.length;
+        document.getElementById('stat-ports').textContent = switches.reduce((sum, sw) => sum + (sw.total_ports || 0), 0);
+        document.getElementById('stat-connected').textContent = switches.reduce((sum, sw) => sum + (sw.uplink_ports || 0), 0);
+        const modelCount = new Set(switches.map(sw => sw.model || 'Sin modelo')).size;
+        document.getElementById('stat-vlans').textContent = modelCount;
+    }
+
+    function viewSwitchDetails(switchId) {
+        showToast(`Switch seleccionado: ${switchId}`, 'success');
+    }
+
+    // =====================================================
+    // EDICIÓN DE INTERFAZ DE RED
+    // =====================================================
+    function openEditInterfaceModal(iface) {
+        document.getElementById('edit-iface-id').value = iface.id;
+        document.getElementById('modal-iface-name').textContent = iface.interface_name;
+        document.getElementById('edit-iface-vlan').value = iface.vlan_name || '';
+        document.getElementById('edit-iface-desc').value = iface.description || '';
+        document.getElementById('edit-iface-type').value = iface.connected_device_type || '';
+        document.getElementById('edit-interface-modal').classList.remove('hidden');
+    }
+
+    function closeEditInterfaceModal() {
+        document.getElementById('edit-interface-modal').classList.add('hidden');
+    }
+
+    async function saveInterfaceChange(e) {
+        e.preventDefault();
+        const id = document.getElementById('edit-iface-id').value;
+        const vlan_name = document.getElementById('edit-iface-vlan').value;
+        const description = document.getElementById('edit-iface-desc').value;
+        const connected_device_type = document.getElementById('edit-iface-type').value;
+
+        const payload = {
+            vlan_name: vlan_name || null,
+            description: description || null,
+            connected_device_type: connected_device_type || null
+        };
+
+        try {
+            const res = await fetchAPI(`/api/switches/interfaces/${id}`, {
+                method: 'PUT',
+                body: payload
+            });
+
+            if (res && res.ok) {
+                showToast("Interfaz actualizada con éxito", "success");
+                closeEditInterfaceModal();
+                loadSwitches();
+            } else {
+                const d = await res.json();
+                showToast(d.detail || "Error al actualizar la interfaz.", "error");
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("Error de conexión.", "error");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadSwitches);
+</script>
+{% endblock %}

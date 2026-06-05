@@ -29,3 +29,4 @@ class Role(Base):
 
     permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
     users = relationship("User", back_populates="role")
+    tasks = relationship("Task", back_populates="assigned_role")

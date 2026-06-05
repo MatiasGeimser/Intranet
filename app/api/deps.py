@@ -12,7 +12,10 @@ def get_token_from_request(request: Request) -> Optional[str]:
     # 1. Intentar cabecera Authorization (Bearer Token)
     authorization = request.headers.get("Authorization")
     if authorization and authorization.startswith("Bearer "):
-        return authorization.split(" ")[1]
+        token = authorization.split(" ", 1)[1].strip()
+        if token and token.lower() not in ("null", "undefined"):
+            return token
+        # Si el token no es válido en la cabecera, caer de nuevo a cookie
         
     # 2. Intentar Cookies de sesión (Útil para navegación Jinja2)
     return request.cookies.get("access_token")

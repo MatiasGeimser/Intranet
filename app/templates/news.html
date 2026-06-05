@@ -146,7 +146,7 @@
                         <h2 class="text-lg md:text-xl font-bold text-black-dark leading-tight">${feat.title}</h2>
                         <div class="text-xs text-gray-700 leading-relaxed max-w-2xl">${feat.content}</div>
                         <div class="flex items-center space-x-2.5 text-[10px] text-grey-main font-semibold pt-1">
-                            <img src="${feat.author.avatar_url or '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
+                            <img src="${feat.author.avatar_url || '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
                             <span>Redactado por ${feat.author.full_name} • ${featDate}</span>
                         </div>
                     </div>
@@ -199,7 +199,7 @@
                     
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-gray-100">
                         <div class="flex items-center space-x-2 text-[10px] text-grey-main font-semibold">
-                            <img src="${n.author.avatar_url or '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
+                            <img src="${n.author.avatar_url || '/static/images/default-avatar.png'}" class="w-5 h-5 rounded-full object-cover">
                             <span>Escrito por ${n.author.full_name} • ${nDate}</span>
                         </div>
                         
@@ -247,7 +247,7 @@
                 const div = document.createElement("div");
                 div.className = "flex items-start space-x-2.5 p-2 bg-white/70 rounded-2xl border border-gray-50 text-xs";
                 div.innerHTML = `
-                    <img src="${c.author.avatar_url or '/static/images/default-avatar.png'}" class="w-6 h-6 rounded-full object-cover">
+                    <img src="${c.author.avatar_url || '/static/images/default-avatar.png'}" class="w-6 h-6 rounded-full object-cover">
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-center">
                             <span class="font-bold text-black-dark text-[11px]">${c.author.full_name}</span>
