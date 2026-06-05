@@ -38,12 +38,29 @@ class Settings(BaseSettings):
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def validate_database_url(cls, v: str) -> str:
+    def validate_database_url(cls, v: Optional[str]) -> str:
+        if not v or (isinstance(v, str) and not v.strip()):
+            postgres_url = os.environ.get("POSTGRES_URL")
+            if postgres_url:
+                v = postgres_url
+            else:
+                if os.environ.get("VERCEL"):
+                    v = "sqlite:////tmp/intranet.db"
+                else:
+                    v = "sqlite:///intranet.db"
+
         if isinstance(v, str):
             if v.startswith("postgres://"):
                 v = v.replace("postgres://", "postgresql://", 1)
             elif "intranet.db" in v and os.environ.get("VERCEL"):
                 v = "sqlite:////tmp/intranet.db"
+        return v
+
+    @field_validator("UPLOAD_DIR", mode="before")
+    @classmethod
+    def validate_upload_dir(cls, v: str) -> str:
+        if os.environ.get("VERCEL"):
+            return "/tmp/uploads"
         return v
 
 settings = Settings()
