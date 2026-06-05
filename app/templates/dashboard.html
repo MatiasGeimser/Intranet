@@ -310,7 +310,10 @@
                 }
             }
         } catch (e) {
-            console.error("Error al cargar eventos del dashb        // Cargar Tareas y Notas
+            console.error("Error al cargar eventos del dashboard:", e);
+        }
+
+        // Cargar Tareas y Notas
         await loadUsersCache();
         await loadNotes();
     });
