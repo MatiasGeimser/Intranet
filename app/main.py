@@ -40,9 +40,12 @@ app.add_middleware(CSRFMiddleware)
 # Permite un máximo de 20 peticiones cada 2 segundos para APIs críticas
 app.add_middleware(RateLimitMiddleware, limit_seconds=2, max_requests=20)
 
-# Asegurar que existan los directorios de subida y estáticos
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-os.makedirs(os.path.join("app", "static"), exist_ok=True)
+# Asegurar que existan los directorios de subida y estáticos de forma segura (tolerante a entornos read-only)
+try:
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    os.makedirs(os.path.join("app", "static"), exist_ok=True)
+except Exception as e:
+    print(f"====== AVISO: No se pudieron crear los directorios estáticos: {e} ======")
 
 # Montar carpeta estática
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

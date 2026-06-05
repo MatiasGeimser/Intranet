@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -35,7 +36,20 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                v = v.replace("postgres://", "postgresql://", 1)
+            elif "intranet.db" in v and os.environ.get("VERCEL"):
+                v = "sqlite:////tmp/intranet.db"
+        return v
+
 settings = Settings()
 
-# Asegurar que el directorio de subidas exista
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+# Asegurar que el directorio de subidas exista de forma segura (tolerante a entornos read-only)
+try:
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+except Exception as e:
+    print(f"====== AVISO: No se pudo crear el directorio de subidas: {e} ======")
