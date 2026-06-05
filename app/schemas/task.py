@@ -9,6 +9,7 @@ class TaskBase(BaseModel):
     assigned_to_user_id: Optional[int] = None
     assigned_to_role_id: Optional[int] = None
     due_date: Optional[datetime] = None
+    note_id: Optional[int] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -20,6 +21,7 @@ class TaskUpdate(BaseModel):
     assigned_to_user_id: Optional[int] = None
     assigned_to_role_id: Optional[int] = None
     due_date: Optional[datetime] = None
+    note_id: Optional[int] = None
 
 class TaskOut(TaskBase):
     id: int

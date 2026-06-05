@@ -28,6 +28,15 @@ def get_user_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
+@router.get("/list-minimal", response_model=List[UserResponse])
+def get_users_minimal(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Obtiene la lista minimalista de todos los colaboradores activos para asignación."""
+    return db.query(User).filter(User.is_active == True).all()
+
+
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     request: Request,

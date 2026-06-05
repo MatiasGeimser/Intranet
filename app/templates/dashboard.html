@@ -8,21 +8,33 @@
 <!-- FILA PRINCIPAL: TAREAS (NOTAS) Y AUDITORÍA -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Mis Tareas Diarias (Ampliado) - Ocupa 2/3 en pantallas grandes -->
+    <!-- Gestor de Notas y Tareas Colaborativo - Ocupa 2/3 en pantallas grandes -->
     <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[500px]">
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-3 flex-shrink-0">
             <div>
-                <h4 class="text-sm font-bold text-black-dark">Mis Tareas Diarias</h4>
-                <p id="tasks-counter-text" class="text-[11px] text-grey-main">Asignadas a ti o a tu rol</p>
+                <h4 class="text-sm font-bold text-black-dark">Notas y Tareas Colaborativas</h4>
+                <p class="text-[10px] text-grey-main">Organiza tus proyectos y asigna tareas a colaboradores</p>
             </div>
-            <button onclick="openNewTaskModal()" class="w-8 h-8 rounded-full bg-blue-corp/10 text-blue-corp flex items-center justify-center hover:bg-blue-corp hover:text-white transition-colors">
-                <i class="fa-solid fa-plus text-xs"></i>
+            <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
+                <i class="fa-solid fa-folder-plus"></i>
+                <span>Nueva Nota</span>
             </button>
         </div>
 
-        <!-- Lista scrollable de tareas -->
-        <div id="dashboard-tasks-list" class="flex-1 space-y-3 overflow-y-auto pr-2">
-            <p class="text-xs text-grey-main italic text-center py-8">Cargando tareas...</p>
+        <!-- Cuerpo del Split Screen -->
+        <div class="flex flex-1 min-h-0 divide-x divide-gray-100">
+            <!-- Sidebar Izquierdo: Lista de Notas -->
+            <div class="w-1/3 pr-4 flex flex-col h-full overflow-y-auto space-y-2" id="dashboard-notes-list">
+                <p class="text-xs text-grey-main italic text-center py-8">Cargando notas...</p>
+            </div>
+
+            <!-- Panel Derecho: Detalle de Nota y Tareas -->
+            <div class="w-2/3 pl-4 flex flex-col h-full min-h-0" id="note-detail-panel">
+                <div class="flex-1 flex flex-col items-center justify-center text-center text-grey-main space-y-2 py-10">
+                    <i class="fa-regular fa-clipboard text-3xl text-gray-300"></i>
+                    <p class="text-xs italic">Selecciona una nota para gestionar sus tareas</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -121,28 +133,22 @@
 
 </div>
 
-<!-- Modal Nueva Tarea -->
-<div id="newTaskModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
-    <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl transform scale-95 transition-transform duration-300">
+<!-- Modal Nueva Nota -->
+<div id="newNoteModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform duration-300">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-black-dark">Nueva Tarea Diaria</h3>
-            <button onclick="closeNewTaskModal()" class="text-gray-400 hover:text-red-500 transition-colors">
-                <i class="fa-solid fa-xmark text-xl"></i>
+            <h3 class="text-base font-bold text-black-dark">Nueva Nota / Proyecto</h3>
+            <button onclick="closeNewNoteModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
-        <form id="newTaskForm" onsubmit="handleNewTaskSubmit(event)" class="space-y-4">
+        <form id="newNoteForm" onsubmit="handleNewNoteSubmit(event)" class="space-y-4">
             <div>
-                <label class="block text-xs font-bold text-grey-main uppercase mb-1">Título de la tarea</label>
-                <input type="text" id="taskTitle" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-corp/50 outline-none">
+                <label class="block text-xs font-bold text-grey-main uppercase mb-1">Título de la nota</label>
+                <input type="text" id="noteTitle" required placeholder="ej. Mantenimiento Web, Compras" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none">
             </div>
-            <div>
-                <label class="block text-xs font-bold text-grey-main uppercase mb-1">Asignar a Rol (Opcional)</label>
-                <select id="taskRoleSelect" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-corp/50 outline-none">
-                    <option value="">Sin asignar a rol</option>
-                </select>
-            </div>
-            <button type="submit" class="w-full bg-blue-corp text-white rounded-xl py-3 font-bold text-sm hover:bg-[#0385B8] transition-colors shadow-lg shadow-blue-corp/30">
-                Guardar Tarea
+            <button type="submit" class="w-full bg-blue-corp text-white rounded-xl py-2.5 font-bold text-xs hover:bg-[#0385B8] transition-colors shadow-lg shadow-blue-corp/30">
+                Crear Nota
             </button>
         </form>
     </div>
@@ -304,61 +310,187 @@
                 }
             }
         } catch (e) {
-            console.error("Error al cargar eventos del dashboard:", e);
-        }
-
-        // Cargar Tareas
-        loadTasks();
+            console.error("Error al cargar eventos del dashb        // Cargar Tareas y Notas
+        await loadUsersCache();
+        await loadNotes();
     });
 
-    // Funciones para Tareas
-    async function loadTasks() {
+    // Variables globales
+    const currentUserId = {{ user.id }};
+    let activeNoteId = null;
+    let usersList = [];
+    const usersMap = {};
+
+    // Cargar colaboradores en cache
+    async function loadUsersCache() {
         try {
-            const response = await fetchAPI("/api/tasks");
+            const response = await fetchAPI("/api/users/list-minimal");
             if (response && response.ok) {
-                const tasks = await response.json();
-                const list = document.getElementById("dashboard-tasks-list");
-                list.innerHTML = "";
-
-                if (tasks.length === 0) {
-                    list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No tienes tareas pendientes.</p>`;
-                    document.getElementById("tasks-counter-text").innerText = "Sin tareas pendientes • Asignadas a ti o a tu rol";
-                } else {
-                    let completedCount = 0;
-                    tasks.forEach(t => { if (t.status === 'completed') completedCount++; });
-                    document.getElementById("tasks-counter-text").innerText = `${completedCount}/${tasks.length} completadas • Asignadas a ti o a tu rol`;
-
-                    tasks.forEach(t => {
-                        const isCompleted = t.status === 'completed';
-                        const checkIcon = isCompleted ? 'fa-check-circle text-emerald-500' : 'fa-circle text-gray-300';
-                        const textClass = isCompleted ? 'line-through text-gray-400' : 'text-black-dark font-medium';
-                        
-                        const div = document.createElement("div");
-                        div.className = "flex items-center justify-between p-3 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-all group cursor-pointer shadow-xs hover:shadow-sm";
-                        div.onclick = () => toggleTask(t.id, t.status);
-                        
-                        div.innerHTML = `
-                            <div class="flex items-center space-x-3 min-w-0 flex-1">
-                                <i class="fa-regular ${checkIcon} text-lg flex-shrink-0 group-hover:text-blue-corp transition-colors"></i>
-                                <div class="truncate">
-                                    <h5 class="text-xs ${textClass} truncate">${t.title}</h5>
-                                </div>
-                            </div>
-                            <!-- Botón Eliminar Tarea -->
-                            <button onclick="deleteTask(${t.id}, event)" class="w-8 h-8 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 ml-2" title="Eliminar Tarea">
-                                <i class="fa-regular fa-trash-can text-sm"></i>
-                            </button>
-                        `;
-                        list.appendChild(div);
-                    });
-                }
+                usersList = await response.json();
+                usersList.forEach(u => {
+                    usersMap[u.id] = u;
+                });
             }
         } catch (e) {
-            console.error("Error al cargar tareas:", e);
+            console.error("Error cargando usuarios:", e);
         }
     }
 
-    async function toggleTask(taskId, currentStatus) {
+    async function loadNotes(selectNoteId = null) {
+        try {
+            const response = await fetchAPI("/api/notes");
+            if (!response || !response.ok) return;
+            const notes = await response.json();
+            const sidebar = document.getElementById("dashboard-notes-list");
+            sidebar.innerHTML = "";
+
+            if (notes.length === 0) {
+                sidebar.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No hay notas creadas.</p>`;
+                document.getElementById("note-detail-panel").innerHTML = `
+                    <div class="flex-1 flex flex-col items-center justify-center text-center text-grey-main space-y-2 py-10">
+                        <i class="fa-regular fa-clipboard text-3xl text-gray-300"></i>
+                        <p class="text-xs italic">Crea una nota para empezar a organizar tus tareas.</p>
+                    </div>
+                `;
+                activeNoteId = null;
+                return;
+            }
+
+            // Seleccionar nota activa por defecto
+            if (selectNoteId) {
+                activeNoteId = selectNoteId;
+            } else if (!activeNoteId || !notes.find(n => n.id === activeNoteId)) {
+                activeNoteId = notes[0].id;
+            }
+
+            notes.forEach(note => {
+                const isActive = note.id === activeNoteId;
+                const activeClasses = isActive ? "bg-blue-corp/5 border-blue-corp/30 text-blue-corp font-bold" : "bg-white/60 hover:bg-white border-gray-100 text-black-dark";
+                const totalTasks = note.tasks.length;
+                const completedTasks = note.tasks.filter(t => t.status === 'completed').length;
+                
+                const div = document.createElement("div");
+                div.className = `flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${activeClasses} group shadow-xs`;
+                div.onclick = () => selectNote(note.id);
+                
+                div.innerHTML = `
+                    <div class="min-w-0 flex-1 pr-2">
+                        <h5 class="text-xs font-bold truncate">${note.title}</h5>
+                        <p class="text-[9px] text-grey-main mt-0.5">${completedTasks}/${totalTasks} tareas</p>
+                    </div>
+                    ${note.created_by_id === currentUserId ? `
+                        <button onclick="deleteNote(${note.id}, event)" class="w-6 h-6 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" title="Eliminar Nota">
+                            <i class="fa-regular fa-trash-can text-[11px]"></i>
+                        </button>
+                    ` : ''}
+                `;
+                sidebar.appendChild(div);
+
+                if (isActive) {
+                    renderNoteDetail(note);
+                }
+            });
+        } catch (e) {
+            console.error("Error cargando notas:", e);
+        }
+    }
+
+    function selectNote(noteId) {
+        activeNoteId = noteId;
+        loadNotes(noteId);
+    }
+
+    function renderNoteDetail(note) {
+        const panel = document.getElementById("note-detail-panel");
+        const total = note.tasks.length;
+        const completed = note.tasks.filter(t => t.status === 'completed').length;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        // Construir opciones de colaboradores
+        const userOptions = usersList.map(u => `<option value="${u.id}">${u.full_name}</option>`).join('');
+
+        // Construir items de tareas
+        let tasksHtml = "";
+        if (note.tasks.length === 0) {
+            tasksHtml = `<p class="text-xs text-grey-main italic text-center py-12">No hay tareas en esta nota.</p>`;
+        } else {
+            tasksHtml = note.tasks.map(t => {
+                const isCompleted = t.status === 'completed';
+                const checkIcon = isCompleted ? 'fa-check-circle text-emerald-500' : 'fa-circle text-gray-300';
+                const textClass = isCompleted ? 'line-through text-gray-400 font-normal' : 'text-black-dark font-medium';
+                
+                // Buscar usuario asignado
+                let assigneeHtml = "";
+                if (t.assigned_to_user_id && usersMap[t.assigned_to_user_id]) {
+                    const u = usersMap[t.assigned_to_user_id];
+                    assigneeHtml = `
+                        <div class="flex items-center space-x-1 bg-gray-100/80 px-2 py-0.5 rounded-xl border border-gray-200/50" title="Asignado a ${u.full_name}">
+                            <img src="${u.avatar_url || '/static/images/default-avatar.png'}" class="w-3.5 h-3.5 rounded-full object-cover">
+                            <span class="text-[9px] font-semibold text-gray-600 truncate max-w-[60px]">${u.full_name.split(' ')[0]}</span>
+                        </div>
+                    `;
+                } else {
+                    assigneeHtml = `
+                        <span class="text-[9px] text-grey-main italic">Sin asignar</span>
+                    `;
+                }
+
+                return `
+                    <div class="flex items-center justify-between p-2.5 bg-white/60 hover:bg-white rounded-xl border border-gray-100 transition-all group cursor-pointer shadow-xs">
+                        <div onclick="toggleTask(${t.id}, '${t.status}', ${note.id})" class="flex items-center space-x-2.5 min-w-0 flex-1">
+                            <i class="fa-regular ${checkIcon} text-base flex-shrink-0 group-hover:text-blue-corp transition-colors"></i>
+                            <span class="text-xs ${textClass} truncate">${t.title}</span>
+                        </div>
+                        <div class="flex items-center space-x-2 ml-2 flex-shrink-0">
+                            ${assigneeHtml}
+                            <button onclick="deleteTask(${t.id}, ${note.id}, event)" class="w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" title="Eliminar Tarea">
+                                <i class="fa-regular fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        panel.innerHTML = `
+            <div class="flex justify-between items-start mb-2 flex-shrink-0">
+                <div>
+                    <h5 class="text-xs font-bold text-black-dark uppercase tracking-wider">${note.title}</h5>
+                    <p class="text-[9px] text-grey-main mt-0.5">Gestión de tareas de esta nota</p>
+                </div>
+            </div>
+
+            <!-- Barra de progreso -->
+            <div class="mb-3 bg-white/40 p-2.5 rounded-xl border border-gray-100 flex-shrink-0">
+                <div class="flex justify-between items-center text-[10px] text-grey-main mb-1">
+                    <span class="font-medium">Progreso: ${completed}/${total} completadas</span>
+                    <span class="font-bold text-blue-corp">${percent}%</span>
+                </div>
+                <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${percent}%"></div>
+                </div>
+            </div>
+
+            <!-- Lista de Tareas scrollable -->
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1 mb-2 min-h-0">
+                ${tasksHtml}
+            </div>
+
+            <!-- Formulario Inline para Añadir Tarea -->
+            <form onsubmit="handleNewTaskSubmit(event, ${note.id})" class="flex items-center space-x-2 border-t border-gray-100 pt-3 flex-shrink-0">
+                <input type="text" id="newTaskTitle" required placeholder="Escribe una nueva tarea..." class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-blue-corp/30 outline-none">
+                <select id="newTaskAssignee" class="w-32 text-xs bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 outline-none">
+                    <option value="">Sin asignar</option>
+                    ${userOptions}
+                </select>
+                <button type="submit" class="w-8 h-8 rounded-xl bg-blue-corp text-white flex items-center justify-center hover:bg-[#0385B8] transition-colors flex-shrink-0 shadow-sm" title="Añadir Tarea">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            </form>
+        `;
+    }
+
+    async function toggleTask(taskId, currentStatus, noteId) {
         const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
         try {
             const response = await fetchAPI(`/api/tasks/${taskId}`, {
@@ -366,14 +498,14 @@
                 body: { status: newStatus }
             });
             if (response && response.ok) {
-                loadTasks();
+                loadNotes(noteId);
             }
         } catch (e) {
             console.error("Error actualizando tarea:", e);
         }
     }
 
-    async function deleteTask(taskId, event) {
+    async function deleteTask(taskId, noteId, event) {
         if (event) event.stopPropagation();
         if (!confirm("¿Está seguro de eliminar esta tarea?")) return;
         try {
@@ -382,7 +514,7 @@
             });
             if (response && response.status === 204) {
                 showToast("Tarea eliminada correctamente.", "success");
-                loadTasks();
+                loadNotes(noteId);
             } else {
                 showToast("No se pudo eliminar la tarea.", "error");
             }
@@ -392,29 +524,70 @@
         }
     }
 
-    function openNewTaskModal() {
-        const modal = document.getElementById('newTaskModal');
+    // Modal Nota
+    function openNewNoteModal() {
+        const modal = document.getElementById('newNoteModal');
         modal.classList.remove('hidden');
         setTimeout(() => modal.classList.remove('opacity-0'), 10);
     }
 
-    function closeNewTaskModal() {
-        const modal = document.getElementById('newTaskModal');
+    function closeNewNoteModal() {
+        const modal = document.getElementById('newNoteModal');
         modal.classList.add('opacity-0');
         setTimeout(() => {
             modal.classList.add('hidden');
-            document.getElementById('newTaskForm').reset();
+            document.getElementById('newNoteForm').reset();
         }, 300);
     }
 
-    async function handleNewTaskSubmit(e) {
+    async function handleNewNoteSubmit(e) {
         e.preventDefault();
-        const title = document.getElementById('taskTitle').value;
+        const title = document.getElementById('noteTitle').value;
+        try {
+            const response = await fetchAPI("/api/notes", {
+                method: "POST",
+                body: { title }
+            });
+            if (response && response.ok) {
+                const note = await response.json();
+                closeNewNoteModal();
+                showToast("Nota creada correctamente.", "success");
+                loadNotes(note.id);
+            }
+        } catch (error) {
+            console.error("Error creando nota:", error);
+            showToast("Error al crear la nota.", "error");
+        }
+    }
+
+    async function deleteNote(noteId, event) {
+        if (event) event.stopPropagation();
+        if (!confirm("¿Está seguro de eliminar esta nota? Se eliminarán todas sus tareas asociadas.")) return;
+        try {
+            const response = await fetchAPI(`/api/notes/${noteId}`, {
+                method: "DELETE"
+            });
+            if (response && response.status === 204) {
+                showToast("Nota eliminada correctamente.", "success");
+                loadNotes();
+            } else {
+                showToast("No se pudo eliminar la nota.", "error");
+            }
+        } catch (e) {
+            console.error("Error eliminando nota:", e);
+            showToast("Error al conectar con el servidor.", "error");
+        }
+    }
+
+    async function handleNewTaskSubmit(e, noteId) {
+        e.preventDefault();
+        const title = document.getElementById('newTaskTitle').value;
+        const assigneeId = document.getElementById('newTaskAssignee').value;
         const payload = {
-            title: title
+            title: title,
+            note_id: noteId
         };
-        const roleId = document.getElementById('taskRoleSelect').value;
-        if (roleId) payload.assigned_to_role_id = parseInt(roleId);
+        if (assigneeId) payload.assigned_to_user_id = parseInt(assigneeId);
 
         try {
             const response = await fetchAPI("/api/tasks", {
@@ -422,8 +595,7 @@
                 body: payload
             });
             if (response && response.ok) {
-                closeNewTaskModal();
-                loadTasks();
+                loadNotes(noteId);
             }
         } catch (error) {
             console.error("Error creando tarea:", error);
@@ -451,16 +623,6 @@
         } catch(e) {
             select.innerHTML = '<option value="">Error al cargar roles</option>';
         }
-        // También cargar roles en el select de Tareas
-        try {
-            const res2 = await fetchAPI('/api/roles');
-            if (res2 && res2.ok) {
-                const roles2 = await res2.json();
-                const taskSel = document.getElementById('taskRoleSelect');
-                taskSel.innerHTML = '<option value="">Sin asignar a rol</option>' +
-                    roles2.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-            }
-        } catch(e) {}
     }
 
     function closeUserModal() {

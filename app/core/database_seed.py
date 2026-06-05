@@ -6,6 +6,7 @@ from app.models.it_asset import ITAsset  # noqa: F401 — ensures table is creat
 from app.models.vlan import VLAN  # noqa: F401 — ensures table is created
 from app.models.network_devices import SwitchDevice, SwitchInterface  # noqa: F401
 from app.models.phone_number import PhoneNumber  # noqa: F401 — ensures table is created
+from app.models.note import Note  # noqa: F401 — ensures table is created
 from app.core.security import get_password_hash
 from app.core.config import settings
 
@@ -13,6 +14,19 @@ def seed_database(db: Session):
     """Inicializa el esquema de la base de datos y siembra datos iniciales."""
     # 1. Crear tablas si no existen
     Base.metadata.create_all(bind=engine)
+
+    # Migración dinámica de la columna note_id en la tabla tasks
+    from sqlalchemy import text
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS note_id INTEGER REFERENCES notes(id) ON DELETE CASCADE"))
+        else:
+            db.execute(text("ALTER TABLE tasks ADD COLUMN note_id INTEGER REFERENCES notes(id) ON DELETE CASCADE"))
+        db.commit()
+        print("====== COLUMNA note_id VERIFICADA/AÑADIDA EN LA TABLA tasks ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (note_id): {e} ======")
 
     # 2. Definir permisos básicos
     permissions_list = [
