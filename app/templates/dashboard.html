@@ -527,13 +527,25 @@
     // Modal Nota
     function openNewNoteModal() {
         const modal = document.getElementById('newNoteModal');
+        const content = modal.querySelector('.transform');
         modal.classList.remove('hidden');
-        setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            if (content) {
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }
+        }, 10);
     }
 
     function closeNewNoteModal() {
         const modal = document.getElementById('newNoteModal');
+        const content = modal.querySelector('.transform');
         modal.classList.add('opacity-0');
+        if (content) {
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+        }
         setTimeout(() => {
             modal.classList.add('hidden');
             document.getElementById('newNoteForm').reset();
