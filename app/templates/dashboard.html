@@ -5,103 +5,35 @@
 
 {% block content %}
 
-<!-- CONTENEDOR DE GRIDS DE ESTADÍSTICAS RÁPIDAS -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-    <!-- Card 1: Usuarios Activos -->
-    <div
-        class="glass-card p-6 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
-        <div>
-            <p class="text-xs font-bold text-grey-main tracking-wider uppercase">Usuarios Activos</p>
-            <h3 id="stat-active-users" class="text-2xl font-bold text-black-dark mt-1">--</h3>
-            <p class="text-[11px] text-[#049DD9] font-semibold mt-1">
-                <i class="fa-solid fa-users text-xs mr-1"></i>
-                <span id="stat-total-users">--</span> Registrados
-            </p>
-        </div>
-        <div class="w-12 h-12 rounded-2xl bg-blue-corp/10 flex items-center justify-center text-blue-corp">
-            <i class="fa-solid fa-user-check text-lg"></i>
-        </div>
-    </div>
-
-    <!-- Card 2: Conexiones Activas -->
-    <div
-        class="glass-card p-6 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
-        <div>
-            <p class="text-xs font-bold text-grey-main tracking-wider uppercase">En Línea</p>
-            <h3 id="stat-connected-users" class="text-2xl font-bold text-black-dark mt-1">--</h3>
-            <p class="text-[11px] text-[#79F2E6] font-extrabold mt-1 uppercase flex items-center">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#79F2E6] animate-pulse mr-1.5"></span>
-                Sesiones Activas
-            </p>
-        </div>
-        <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-            <i class="fa-solid fa-wifi text-lg animate-pulse"></i>
-        </div>
-    </div>
-
-    <!-- Card 3: Bóveda de Contraseñas -->
-    <div
-        class="glass-card p-6 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
-        <div>
-            <p class="text-xs font-bold text-grey-main tracking-wider uppercase">Bóveda AES-256</p>
-            <h3 id="stat-vault-count" class="text-2xl font-bold text-black-dark mt-1">--</h3>
-            <p class="text-[11px] text-grey-main font-semibold mt-1">
-                <i class="fa-solid fa-lock text-xs mr-1"></i> Credenciales Seguras
-            </p>
-        </div>
-        <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-            <i class="fa-solid fa-key text-lg"></i>
-        </div>
-    </div>
-
-    <!-- Card 4: Documentos Compartidos -->
-    <div
-        class="glass-card p-6 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
-        <div>
-            <p class="text-xs font-bold text-grey-main tracking-wider uppercase">Documentos</p>
-            <h3 id="stat-docs-count" class="text-2xl font-bold text-black-dark mt-1">--</h3>
-            <p class="text-[11px] text-grey-main font-semibold mt-1">
-                <i class="fa-solid fa-folder text-xs mr-1"></i> Archivos Corporativos
-            </p>
-        </div>
-        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-            <i class="fa-solid fa-file-shield text-lg"></i>
-        </div>
-    </div>
-
-</div>
-
-<!-- PANEL CENTRAL: GRÁFICA Y ACTIVIDAD RECIENTE -->
+<!-- FILA PRINCIPAL: TAREAS (NOTAS) Y AUDITORÍA -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Gráfica de Tráfico / Seguridad (Ancho 2/3) -->
-    <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm space-y-4">
-        <div class="flex items-center justify-between">
+    <!-- Mis Tareas Diarias (Ampliado) - Ocupa 2/3 en pantallas grandes -->
+    <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[500px]">
+        <div class="flex justify-between items-center mb-4">
             <div>
-                <h4 class="text-sm font-bold text-black-dark">Estadísticas de Tráfico y Ciberseguridad</h4>
-                <p class="text-[11px] text-grey-main">Peticiones y accesos encriptados a la bóveda en la última semana
-                </p>
+                <h4 class="text-sm font-bold text-black-dark">Mis Tareas Diarias</h4>
+                <p id="tasks-counter-text" class="text-[11px] text-grey-main">Asignadas a ti o a tu rol</p>
             </div>
-            <div class="flex space-x-2 text-[10px] bg-grey-light p-1 rounded-xl">
-                <button class="px-3 py-1 bg-white text-black-dark rounded-lg font-semibold shadow-xs">Semanal</button>
-                <button
-                    class="px-3 py-1 text-grey-main hover:text-black-dark font-medium transition-colors">Mensual</button>
-            </div>
+            <button onclick="openNewTaskModal()" class="w-8 h-8 rounded-full bg-blue-corp/10 text-blue-corp flex items-center justify-center hover:bg-blue-corp hover:text-white transition-colors">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
         </div>
-        <div class="h-64 relative">
-            <canvas id="trafficChart" class="w-full h-full"></canvas>
+
+        <!-- Lista scrollable de tareas -->
+        <div id="dashboard-tasks-list" class="flex-1 space-y-3 overflow-y-auto pr-2">
+            <p class="text-xs text-grey-main italic text-center py-8">Cargando tareas...</p>
         </div>
     </div>
 
-    <!-- Feed de Actividad Reciente / Auditoría (Ancho 1/3) -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-full">
+    <!-- Feed de Actividad Reciente / Auditoría - Ocupa 1/3 -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[500px]">
         <div>
             <h4 class="text-sm font-bold text-black-dark">Actividad de Auditoría Reciente</h4>
             <p class="text-[11px] text-grey-main mb-4">Registro en tiempo real de accesos y seguridad</p>
         </div>
 
-        <div id="recent-activity-list" class="flex-1 space-y-4 overflow-y-auto max-h-[250px] pr-2">
+        <div id="recent-activity-list" class="flex-1 space-y-4 overflow-y-auto pr-2">
             <!-- Skeleton loaders en lo que carga de la API -->
             <div class="animate-pulse flex items-start space-x-3">
                 <div class="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
@@ -122,32 +54,15 @@
 
 </div>
 
-<!-- SECCIÓN INFERIOR: ACCESOS RÁPIDOS, TAREAS Y EVENTOS PRÓXIMOS -->
+<!-- FILA SECUNDARIA: ACCESOS RÁPIDOS Y EVENTOS -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
 
-    <!-- Tareas Diarias (Nuevo Módulo) -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[350px]">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h4 class="text-sm font-bold text-black-dark">Mis Tareas Diarias</h4>
-                <p class="text-[11px] text-grey-main">Asignadas a ti o a tu rol</p>
-            </div>
-            <button onclick="openNewTaskModal()" class="w-8 h-8 rounded-full bg-blue-corp/10 text-blue-corp flex items-center justify-center hover:bg-blue-corp hover:text-white transition-colors">
-                <i class="fa-solid fa-plus text-xs"></i>
-            </button>
-        </div>
-
-        <div id="dashboard-tasks-list" class="flex-1 space-y-3 overflow-y-auto pr-2">
-            <p class="text-xs text-grey-main italic text-center py-8">Cargando tareas...</p>
-        </div>
-    </div>
-
-    <!-- Accesos Rápidos Premium -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm space-y-4">
+    <!-- Accesos Rápidos Premium - Ocupa 2/3 -->
+    <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm space-y-4">
         <h4 class="text-sm font-bold text-black-dark">Accesos Rápidos a Módulos</h4>
         <p class="text-[11px] text-grey-main mb-4">Abre formularios y operaciones directas en segundos</p>
 
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
 
             {% if user.role.name == 'Administrador' %}
             <button onclick="openUserCreateModal()"
@@ -161,49 +76,45 @@
             <a href="/passwords"
                 class="p-4 bg-blue-corp/5 hover:bg-blue-corp/10 rounded-2xl border border-blue-corp/10 hover:border-blue-corp/35 transition-all text-left group">
                 <i class="fa-solid fa-key text-blue-corp text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-blue-corp transition-colors">Nueva
-                    Credencial</h5>
+                <h5 class="text-xs font-bold text-black-dark group-hover:text-blue-corp transition-colors">Nueva Credencial</h5>
                 <p class="text-[10px] text-grey-main">Añadir clave segura AES</p>
             </a>
 
             <a href="/documents"
                 class="p-4 bg-amber-500/5 hover:bg-amber-500/10 rounded-2xl border border-amber-500/10 hover:border-amber-500/35 transition-all text-left group">
                 <i class="fa-solid fa-cloud-arrow-up text-amber-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-amber-500 transition-colors">Subir Archivo
-                </h5>
+                <h5 class="text-xs font-bold text-black-dark group-hover:text-amber-500 transition-colors">Subir Archivo</h5>
                 <p class="text-[10px] text-grey-main">Compartir documentos</p>
             </a>
 
             <a href="/calendar"
                 class="p-4 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-2xl border border-emerald-500/10 hover:border-emerald-500/35 transition-all text-left group">
                 <i class="fa-solid fa-calendar-plus text-emerald-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-emerald-500 transition-colors">Crear
-                    Evento</h5>
+                <h5 class="text-xs font-bold text-black-dark group-hover:text-emerald-500 transition-colors">Crear Evento</h5>
                 <p class="text-[10px] text-grey-main">Agendar reuniones</p>
             </a>
 
             <a href="/news"
                 class="p-4 bg-purple-500/5 hover:bg-purple-500/10 rounded-2xl border border-purple-500/10 hover:border-purple-500/35 transition-all text-left group">
                 <i class="fa-solid fa-bullhorn text-purple-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-purple-500 transition-colors">Publicar
-                    Comunicado</h5>
+                <h5 class="text-xs font-bold text-black-dark group-hover:text-purple-500 transition-colors">Publicar Comunicado</h5>
                 <p class="text-[10px] text-grey-main">Lanzar noticias corporativas</p>
             </a>
 
         </div>
     </div>
 
-    <!-- Calendario Rápido y Próximos Eventos -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[350px]">
+    <!-- Calendario Rápido y Próximos Eventos - Ocupa 1/3 -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-full min-h-[260px]">
         <div class="flex justify-between items-center mb-4">
             <div>
-                <h4 class="text-sm font-bold text-black-dark">Alertas y Eventos del Calendario</h4>
+                <h4 class="text-sm font-bold text-black-dark">Alertas y Eventos</h4>
                 <p class="text-[11px] text-grey-main">Próximos compromisos y cumpleaños</p>
             </div>
             <a href="/calendar" class="text-xs text-blue-corp font-semibold hover:underline">Ver completo</a>
         </div>
 
-        <div id="dashboard-events-list" class="flex-1 space-y-3 overflow-y-auto max-h-[220px]">
+        <div id="dashboard-events-list" class="flex-1 space-y-3 overflow-y-auto max-h-[180px]">
             <p class="text-xs text-grey-main italic text-center py-8">Cargando próximos eventos...</p>
         </div>
     </div>
@@ -276,7 +187,7 @@
                     </div>
                     <div class="flex items-center space-x-2.5 pt-6">
                         <input type="checkbox" id="dash-user-active" checked
-                            class="w-4 h-4 text-indigo-500 bg-gray-50 border-gray-300 rounded focus:ring-indigo-500">
+                            class="w-4.5 h-4.5 text-indigo-500 bg-gray-50 border-gray-300 rounded focus:ring-indigo-500">
                         <label for="dash-user-active" class="text-xs font-semibold text-black-dark cursor-pointer select-none">Usuario Activo</label>
                     </div>
                 </div>
@@ -309,23 +220,13 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Librería Chart.js para las gráficas premium -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
     document.addEventListener("DOMContentLoaded", async () => {
-        // Cargar estadísticas
+        // Cargar estadísticas y actividad
         try {
             const response = await fetchAPI("/api/dashboard");
             if (!response) return;
             const data = await response.json();
-
-            // Inyectar contadores
-            document.getElementById("stat-active-users").innerText = data.active_users;
-            document.getElementById("stat-total-users").innerText = data.total_users;
-            document.getElementById("stat-connected-users").innerText = data.connected_users;
-            document.getElementById("stat-vault-count").innerText = data.vault_credentials_count;
-            document.getElementById("stat-docs-count").innerText = data.total_documents;
 
             // Inyectar lista de actividad reciente
             const feed = document.getElementById("recent-activity-list");
@@ -372,7 +273,7 @@
                 const upcoming = events
                     .filter(e => new Date(e.end_date) >= today)
                     .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
-                    .slice(0, 4);
+                    .slice(0, 3);
 
                 if (upcoming.length === 0) {
                     list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No hay próximos eventos agendados.</p>`;
@@ -408,59 +309,6 @@
 
         // Cargar Tareas
         loadTasks();
-
-        // Gráfica de Tráfico y Accesos con Chart.js (Estilo Stripe/Linear)
-        const ctx = document.getElementById('trafficChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
-                datasets: [
-                    {
-                        label: 'Accesos Bóveda AES',
-                        data: [12, 19, 15, 8, 22, 5, 3],
-                        borderColor: '#049DD9',
-                        backgroundColor: 'rgba(4, 157, 217, 0.05)',
-                        borderWidth: 2,
-                        tension: 0.35,
-                        fill: true
-                    },
-                    {
-                        label: 'Peticiones API',
-                        data: [45, 68, 72, 38, 92, 12, 8],
-                        borderColor: '#79F2E6',
-                        backgroundColor: 'rgba(121, 242, 230, 0.05)',
-                        borderWidth: 2,
-                        tension: 0.35,
-                        fill: true
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            font: { family: 'Outfit', size: 10 },
-                            boxWidth: 8,
-                            usePointStyle: true
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        grid: { color: 'rgba(140, 140, 140, 0.1)' },
-                        ticks: { font: { family: 'Outfit', size: 9 }, color: '#8C8C8C' }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { font: { family: 'Outfit', size: 9 }, color: '#8C8C8C' }
-                    }
-                }
-            }
-        });
     });
 
     // Funciones para Tareas
@@ -474,23 +322,32 @@
 
                 if (tasks.length === 0) {
                     list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No tienes tareas pendientes.</p>`;
+                    document.getElementById("tasks-counter-text").innerText = "Sin tareas pendientes • Asignadas a ti o a tu rol";
                 } else {
+                    let completedCount = 0;
+                    tasks.forEach(t => { if (t.status === 'completed') completedCount++; });
+                    document.getElementById("tasks-counter-text").innerText = `${completedCount}/${tasks.length} completadas • Asignadas a ti o a tu rol`;
+
                     tasks.forEach(t => {
                         const isCompleted = t.status === 'completed';
                         const checkIcon = isCompleted ? 'fa-check-circle text-emerald-500' : 'fa-circle text-gray-300';
-                        const textClass = isCompleted ? 'line-through text-gray-400' : 'text-black-dark';
+                        const textClass = isCompleted ? 'line-through text-gray-400' : 'text-black-dark font-medium';
                         
                         const div = document.createElement("div");
-                        div.className = "flex items-center justify-between p-3 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-colors group cursor-pointer";
+                        div.className = "flex items-center justify-between p-3 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-all group cursor-pointer shadow-xs hover:shadow-sm";
                         div.onclick = () => toggleTask(t.id, t.status);
                         
                         div.innerHTML = `
-                            <div class="flex items-center space-x-3 min-w-0">
+                            <div class="flex items-center space-x-3 min-w-0 flex-1">
                                 <i class="fa-regular ${checkIcon} text-lg flex-shrink-0 group-hover:text-blue-corp transition-colors"></i>
                                 <div class="truncate">
-                                    <h5 class="text-xs font-bold ${textClass} truncate">${t.title}</h5>
+                                    <h5 class="text-xs ${textClass} truncate">${t.title}</h5>
                                 </div>
                             </div>
+                            <!-- Botón Eliminar Tarea -->
+                            <button onclick="deleteTask(${t.id}, event)" class="w-8 h-8 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 ml-2" title="Eliminar Tarea">
+                                <i class="fa-regular fa-trash-can text-sm"></i>
+                            </button>
                         `;
                         list.appendChild(div);
                     });
@@ -506,13 +363,32 @@
         try {
             const response = await fetchAPI(`/api/tasks/${taskId}`, {
                 method: "PUT",
-                body: JSON.stringify({ status: newStatus })
+                body: { status: newStatus }
             });
             if (response && response.ok) {
                 loadTasks();
             }
         } catch (e) {
             console.error("Error actualizando tarea:", e);
+        }
+    }
+
+    async function deleteTask(taskId, event) {
+        if (event) event.stopPropagation();
+        if (!confirm("¿Está seguro de eliminar esta tarea?")) return;
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}`, {
+                method: "DELETE"
+            });
+            if (response && response.status === 204) {
+                showToast("Tarea eliminada correctamente.", "success");
+                loadTasks();
+            } else {
+                showToast("No se pudo eliminar la tarea.", "error");
+            }
+        } catch (e) {
+            console.error("Error eliminando tarea:", e);
+            showToast("Error al conectar con el servidor.", "error");
         }
     }
 
@@ -543,7 +419,7 @@
         try {
             const response = await fetchAPI("/api/tasks", {
                 method: "POST",
-            body: payload
+                body: payload
             });
             if (response && response.ok) {
                 closeNewTaskModal();
@@ -551,7 +427,7 @@
             }
         } catch (error) {
             console.error("Error creando tarea:", error);
-            alert("Error al crear la tarea");
+            showToast("Error al crear la tarea.", "error");
         }
     }
 
@@ -570,7 +446,6 @@
             if (res && res.ok) {
                 const roles = await res.json();
                 select.innerHTML = roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-                // Seleccionar por defecto el rol con mayor id (generalmente "Usuario")
                 if (roles.length > 0) select.value = roles[roles.length - 1].id;
             }
         } catch(e) {
