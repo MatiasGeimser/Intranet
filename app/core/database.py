@@ -3,6 +3,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
 # Determinar si estamos usando SQLite
+print(f"====== DEBUG DATABASE_URL: {repr(settings.DATABASE_URL)} ======")
 is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
 # Configurar argumentos de conexión
