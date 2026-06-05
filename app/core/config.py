@@ -33,15 +33,26 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        validate_default=True
     )
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def validate_database_url(cls, v: Optional[str]) -> str:
+        if isinstance(v, str):
+            v = v.strip()
+            for prefix in ["DATABASE_URL=", "database_url=", "POSTGRES_URL=", "postgres_url="]:
+                if v.lower().startswith(prefix.lower()):
+                    v = v[len(prefix):].strip()
+
         if not v or (isinstance(v, str) and not v.strip()):
             postgres_url = os.environ.get("POSTGRES_URL")
             if postgres_url:
+                postgres_url = postgres_url.strip()
+                for prefix in ["POSTGRES_URL=", "postgres_url=", "DATABASE_URL=", "database_url="]:
+                    if postgres_url.lower().startswith(prefix.lower()):
+                        postgres_url = postgres_url[len(prefix):].strip()
                 v = postgres_url
             else:
                 if os.environ.get("VERCEL"):
