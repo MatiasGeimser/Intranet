@@ -13,10 +13,12 @@ class User(Base):
     avatar_url = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relaciones
     role = relationship("Role", back_populates="users")
+    area = relationship("Area", back_populates="users")
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     credentials = relationship("Credential", back_populates="owner", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="uploader", cascade="all, delete-orphan")

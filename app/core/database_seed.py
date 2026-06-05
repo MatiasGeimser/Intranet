@@ -7,6 +7,7 @@ from app.models.vlan import VLAN  # noqa: F401 — ensures table is created
 from app.models.network_devices import SwitchDevice, SwitchInterface  # noqa: F401
 from app.models.phone_number import PhoneNumber  # noqa: F401 — ensures table is created
 from app.models.note import Note  # noqa: F401 — ensures table is created
+from app.models.area import Area  # noqa: F401 — ensures table is created
 from app.core.security import get_password_hash
 from app.core.config import settings
 
@@ -27,6 +28,57 @@ def seed_database(db: Session):
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (note_id): {e} ======")
+
+    # Se añade la siembra de áreas de trabajo
+    areas_list = [
+        {"name": "Administración", "description": "Gestión general y administración"},
+        {"name": "Tecnología", "description": "Departamento de sistemas y desarrollo"},
+        {"name": "Soporte", "description": "Mesa de ayuda y soporte técnico"},
+        {"name": "Finanzas", "description": "Contabilidad y finanzas"},
+        {"name": "Ventas", "description": "Comercialización y ventas"}
+    ]
+
+    db_areas = {}
+    for area_data in areas_list:
+        db_area = db.query(Area).filter(Area.name == area_data["name"]).first()
+        if not db_area:
+            db_area = Area(name=area_data["name"], description=area_data["description"])
+            db.add(db_area)
+            db.flush()
+        db_areas[area_data["name"]] = db_area
+    db.commit()
+
+    # Migración de llaves foráneas para area_id
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL"))
+        else:
+            db.execute(text("ALTER TABLE users ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (users.area_id): {e} ======")
+
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE notes ADD COLUMN IF NOT EXISTS area_id INTEGER REFERENCES areas(id) ON DELETE CASCADE"))
+        else:
+            db.execute(text("ALTER TABLE notes ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE CASCADE"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (notes.area_id): {e} ======")
+
+    # Asignar área por defecto ("Administración") a usuarios y notas existentes que no tengan asignado área
+    try:
+        admin_area = db_areas["Administración"]
+        db.execute(text(f"UPDATE users SET area_id = {admin_area.id} WHERE area_id IS NULL"))
+        db.execute(text(f"UPDATE notes SET area_id = {admin_area.id} WHERE area_id IS NULL"))
+        db.commit()
+        print("====== MIGRACIÓN DE DATOS (area_id por defecto) APLICADA ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== ERROR AL ACTUALIZAR ÁREAS POR DEFECTO: {e} ======")
 
     # 2. Definir permisos básicos
     permissions_list = [

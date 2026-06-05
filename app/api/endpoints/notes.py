@@ -15,25 +15,27 @@ router = APIRouter()
 @router.get("", response_model=List[NoteOut])
 def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Obtiene las notas creadas por el usuario o en las que tiene tareas asignadas.
+    Obtiene las notas pertenecientes al área del usuario (o todas si es admin).
     """
-    notes = db.query(Note).outerjoin(Note.tasks).filter(
-        or_(
-            Note.created_by_id == current_user.id,
-            Task.assigned_to_user_id == current_user.id,
-            Task.assigned_to_role_id == current_user.role_id
-        )
-    ).distinct().order_by(Note.created_at.desc()).all()
+    if current_user.role.name != "Administrador":
+        notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
+    else:
+        notes = db.query(Note).order_by(Note.created_at.desc()).all()
     return notes
 
 @router.post("", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(note_in: NoteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Crea una nueva nota.
+    Crea una nueva nota asignándole automáticamente el área del creador.
     """
+    area_id = current_user.area_id
+    if current_user.role.name == "Administrador" and note_in.area_id is not None:
+        area_id = note_in.area_id
+
     db_note = Note(
         title=note_in.title,
-        created_by_id=current_user.id
+        created_by_id=current_user.id,
+        area_id=area_id
     )
     db.add(db_note)
     db.commit()

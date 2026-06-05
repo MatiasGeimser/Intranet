@@ -38,6 +38,7 @@
                 <thead>
                     <tr class="border-b border-[#8C8C8C]/15 bg-white/50 text-[10px] font-bold text-grey-main uppercase tracking-wider">
                         <th class="px-6 py-4">Colaborador</th>
+                        <th class="px-6 py-4">Área de Trabajo</th>
                         <th class="px-6 py-4">Rol / Nivel</th>
                         <th class="px-6 py-4">Estado Cuenta</th>
                         <th class="px-6 py-4">Fecha Alta</th>
@@ -130,11 +131,17 @@
                             <option value="">Cargando roles...</option>
                         </select>
                     </div>
-                    
-                    <div class="flex items-center space-x-2.5 pt-6">
-                        <input type="checkbox" id="user-active" checked class="w-4.5 h-4.5 text-blue-corp bg-gray-50 border-gray-300 rounded focus:ring-blue-corp">
-                        <label for="user-active" class="text-xs font-semibold text-black-dark cursor-pointer select-none">Usuario Activo</label>
+                    <div>
+                        <label for="user-area" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Área de Trabajo</label>
+                        <select id="user-area" required class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="">Cargando áreas...</option>
+                        </select>
                     </div>
+                </div>
+                
+                <div class="flex items-center space-x-2.5">
+                    <input type="checkbox" id="user-active" checked class="w-4.5 h-4.5 text-blue-corp bg-gray-50 border-gray-300 rounded focus:ring-blue-corp">
+                    <label for="user-active" class="text-xs font-semibold text-black-dark cursor-pointer select-none">Usuario Activo</label>
                 </div>
                 
                 <div>
@@ -217,6 +224,11 @@
                                     <p class="text-[10px] text-grey-main font-mono">${u.email}</p>
                                 </div>
                             </div>
+                        </td>
+                        <td class="px-6 py-4 font-semibold text-gray-700">
+                            <span class="px-2 py-1 bg-gray-100 rounded-lg text-[10px]">
+                                ${u.area ? u.area.name : 'Sin área'}
+                            </span>
                         </td>
                         <td class="px-6 py-4">
                             <select onchange="updateUserRoleInline(${u.id}, this.value)" class="text-[11px] bg-gray-50 border border-gray-200 rounded-xl px-2 py-1 focus:outline-none focus:border-[#049DD9] font-bold">
@@ -376,6 +388,7 @@
         document.getElementById('user-pw-label').innerText = "Contraseña Inicial (mínimo 6 chars)";
         document.getElementById('user-modal-title').innerText = "Crear Nuevo Colaborador";
         await loadRolesIntoSelect();
+        await loadAreasIntoSelect();
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -390,6 +403,7 @@
         document.getElementById('user-pw-label').innerText = "Modificar Contraseña (dejar en blanco para conservar)";
         document.getElementById('user-modal-title').innerText = "Modificar Colaborador";
         await loadRolesIntoSelect(u.role_id);
+        await loadAreasIntoSelect(u.area_id);
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -402,13 +416,30 @@
                 select.innerHTML = roles.map(r =>
                     `<option value="${r.id}" ${selectedRoleId == r.id ? 'selected' : ''}>${r.name}</option>`
                 ).join('');
-                // Si no hay selección previa, seleccionar el último (usuario estándar suele ser el de mayor id)
                 if (!selectedRoleId && roles.length > 0) {
                     select.value = roles[roles.length - 1].id;
                 }
             }
         } catch(e) {
             select.innerHTML = '<option value="">Error al cargar roles</option>';
+        }
+    }
+
+    async function loadAreasIntoSelect(selectedAreaId = null) {
+        const select = document.getElementById('user-area');
+        try {
+            const res = await fetchAPI('/api/areas');
+            if (res && res.ok) {
+                const areas = await res.json();
+                select.innerHTML = areas.map(a =>
+                    `<option value="${a.id}" ${selectedAreaId == a.id ? 'selected' : ''}>${a.name}</option>`
+                ).join('');
+                if (!selectedAreaId && areas.length > 0) {
+                    select.value = areas[0].id;
+                }
+            }
+        } catch(e) {
+            select.innerHTML = '<option value="">Error al cargar áreas</option>';
         }
     }
 
@@ -422,10 +453,11 @@
         const full_name = document.getElementById('user-name').value;
         const email = document.getElementById('user-email').value;
         const role_id = parseInt(document.getElementById('user-role').value);
+        const area_id = parseInt(document.getElementById('user-area').value);
         const is_active = document.getElementById('user-active').checked;
         const password = document.getElementById('user-password').value;
 
-        const payload = { full_name, role_id, is_active };
+        const payload = { full_name, role_id, area_id, is_active };
         if (password) payload.password = password;
 
         try {

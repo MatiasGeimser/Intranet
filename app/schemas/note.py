@@ -5,6 +5,7 @@ from app.schemas.task import TaskOut
 
 class NoteBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
+    area_id: Optional[int] = None
 
 class NoteCreate(NoteBase):
     pass

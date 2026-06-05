@@ -18,7 +18,9 @@ def get_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(PermissionChecker("users:read"))
 ):
-    """Obtiene la lista completa de usuarios corporativos."""
+    """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
+    if current_user.role.name != "Administrador":
+        return db.query(User).filter(User.area_id == current_user.area_id).all()
     return db.query(User).all()
 
 
@@ -33,7 +35,9 @@ def get_users_minimal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Obtiene la lista minimalista de todos los colaboradores activos para asignación."""
+    """Obtiene la lista minimalista de todos los colaboradores activos para asignación, filtrado por área si no es admin."""
+    if current_user.role.name != "Administrador":
+        return db.query(User).filter(User.is_active == True, User.area_id == current_user.area_id).all()
     return db.query(User).filter(User.is_active == True).all()
 
 
@@ -67,6 +71,7 @@ def create_user(
         hashed_password=hashed_pw,
         full_name=user_data.full_name,
         role_id=user_data.role_id,
+        area_id=user_data.area_id,
         avatar_url=user_data.avatar_url or "/static/images/default-avatar.png",
         is_active=user_data.is_active
     )
@@ -112,6 +117,10 @@ def update_user(
         if not role:
             raise HTTPException(status_code=400, detail="El rol especificado no existe.")
         user.role_id = user_data.role_id
+
+    # Si se actualiza el área
+    if user_data.area_id is not None:
+        user.area_id = user_data.area_id
 
     # Actualizar campos comunes
     if user_data.full_name:
