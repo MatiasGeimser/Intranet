@@ -484,7 +484,16 @@ function renderGrid(creds) {
                     </div>
                     <div class="min-w-0">
                         <p class="font-semibold text-[#262523] text-sm leading-tight truncate" title="${escHtml(cred.title)}">${escHtml(cred.title)}</p>
-                        <p class="text-[10px] text-[#8C8C8C] truncate">${cred.url ? escHtml(cred.url) : 'Sin URL'}</p>
+                        ${cred.url ? `
+                            <a href="${cred.url.match(/^https?:\/\//i) ? escHtml(cred.url) : 'https://' + escHtml(cred.url)}"
+                               target="_blank"
+                               class="text-[10px] text-[#049DD9] hover:underline font-medium truncate block max-w-[150px] sm:max-w-[180px]"
+                               title="Acceder a ${escHtml(cred.url)}">
+                                ${escHtml(cred.url)}
+                            </a>
+                        ` : `
+                            <p class="text-[10px] text-[#8C8C8C] truncate">Sin URL</p>
+                        `}
                     </div>
                 </div>
                 <span class="cat-badge flex-shrink-0" style="background:${conf.bg}; color:${conf.label}">
@@ -501,6 +510,26 @@ function renderGrid(creds) {
                     <i class="fa-regular fa-copy text-xs"></i>
                 </button>
             </div>
+
+            <!-- Enlace/URL -->
+            ${cred.url ? `
+            <div class="flex items-center gap-2 mb-3">
+                <i class="fa-solid fa-globe text-[10px] text-[#8C8C8C]"></i>
+                <span class="text-xs text-[#262523] font-medium truncate flex-1 mr-2" title="${escHtml(cred.url)}">${escHtml(cred.url)}</span>
+                <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+                    <button onclick="copyToClipboard('${escHtml(cred.url)}', 'Enlace copiado')"
+                        class="text-[#8C8C8C] hover:text-[#049DD9] transition-colors p-1 rounded-lg hover:bg-[#049DD9]/5 flex-shrink-0" title="Copiar enlace">
+                        <i class="fa-regular fa-copy text-xs"></i>
+                    </button>
+                    <a href="${cred.url.match(/^https?:\/\//i) ? escHtml(cred.url) : 'https://' + escHtml(cred.url)}"
+                       target="_blank"
+                       class="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#049DD9]/10 text-[#049DD9] hover:bg-[#049DD9] hover:text-white transition-all duration-200"
+                       title="Acceder al sitio">
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                        <span>Acceder</span>
+                    </a>
+                </div>
+            </div>` : ''}
 
             <!-- Contraseña -->
             <div class="flex items-center gap-2 bg-[#F2F2F2] rounded-xl px-3 py-2 mb-3">

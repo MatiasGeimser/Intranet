@@ -29,6 +29,18 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (note_id): {e} ======")
 
+    # Migración dinámica de la columna updated_at en la tabla documents
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE"))
+        else:
+            db.execute(text("ALTER TABLE documents ADD COLUMN updated_at TIMESTAMP"))
+        db.commit()
+        print("====== COLUMNA updated_at VERIFICADA/AÑADIDA EN LA TABLA documents ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (documents.updated_at): {e} ======")
+
     # Se añade la siembra de áreas de trabajo
     areas_list = [
         {"name": "Administración", "description": "Gestión general y administración"},
@@ -154,8 +166,8 @@ def seed_database(db: Session):
 
     db.commit()
 
-    # 5. Crear Administrador Inicial si no existe ningún usuario
-    admin_user = db.query(User).filter(User.email == settings.INITIAL_ADMIN_EMAIL).first()
+    # 5. Crear Administrador Inicial si no existe ningún administrador
+    admin_user = db.query(User).filter(User.role_id == admin_role.id).first()
     if not admin_user:
         hashed_pw = get_password_hash(settings.INITIAL_ADMIN_PASSWORD)
         admin_user = User(

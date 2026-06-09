@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_EMAIL: str = "admin@intranet.local"
     INITIAL_ADMIN_PASSWORD: str = "Admin12345!"
 
+    # SMTP Settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_SENDER: str = "noreply@intranet.local"
+
     # Carpetas para subida de archivos
     UPLOAD_DIR: str = os.path.join("static", "uploads")
 

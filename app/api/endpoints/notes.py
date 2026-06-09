@@ -18,10 +18,28 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
     Obtiene las notas pertenecientes al área del usuario (o todas si es admin).
     """
     if current_user.role.name != "Administrador":
-        notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
+        db_notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
+        notes_out = []
+        for note in db_notes:
+            # Filtrar tareas del usuario (asignadas a él, a su rol o creadas por él)
+            filtered_tasks = [
+                t for t in note.tasks 
+                if t.assigned_to_user_id == current_user.id 
+                or t.assigned_to_role_id == current_user.role_id 
+                or t.created_by_id == current_user.id
+            ]
+            note_dict = {
+                "id": note.id,
+                "title": note.title,
+                "area_id": note.area_id,
+                "created_by_id": note.created_by_id,
+                "created_at": note.created_at,
+                "tasks": filtered_tasks
+            }
+            notes_out.append(note_dict)
+        return notes_out
     else:
-        notes = db.query(Note).order_by(Note.created_at.desc()).all()
-    return notes
+        return db.query(Note).order_by(Note.created_at.desc()).all()
 
 @router.post("", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(note_in: NoteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

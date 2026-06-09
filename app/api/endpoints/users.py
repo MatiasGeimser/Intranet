@@ -193,3 +193,54 @@ def upload_avatar(
     )
 
     return {"avatar_url": relative_web_path}
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+def delete_user(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(PermissionChecker("users:delete"))
+):
+    """Elimina un usuario de forma permanente de la intranet."""
+    if user_id == admin_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puede eliminar su propia cuenta de administrador en sesión."
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado."
+        )
+
+    # Eliminar/Desvincular dependencias no automatizadas por cascade en SQLAlchemy/DB
+    from app.models.task import Task
+    from app.models.note import Note
+    
+    # 1. Eliminar tareas creadas por el usuario
+    db.query(Task).filter(Task.created_by_id == user_id).delete()
+    
+    # 2. Desvincular tareas asignadas al usuario (poner asignado en NULL)
+    db.query(Task).filter(Task.assigned_to_user_id == user_id).update({Task.assigned_to_user_id: None})
+    
+    # 3. Eliminar notas creadas por el usuario
+    db.query(Note).filter(Note.created_by_id == user_id).delete()
+    
+    # Proceder a eliminar al usuario
+    db.delete(user)
+    db.commit()
+
+    # Log de auditoría
+    audit_service.log_action(
+        db=db,
+        user_id=admin_user.id,
+        action="user_delete",
+        ip_address=request.client.host if request.client else None,
+        details=f"Eliminó por completo al usuario {user.full_name} ({user.email})."
+    )
+
+    return {"detail": f"Usuario {user.full_name} eliminado correctamente."}
+

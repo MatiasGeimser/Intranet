@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from app.core.database import Base
 
@@ -13,6 +13,6 @@ class Note(Base):
     area_id = Column(Integer, ForeignKey("areas.id", ondelete="CASCADE"), nullable=True)
 
     # Relationships
-    creator = relationship("User", foreign_keys=[created_by_id], backref="created_notes")
+    creator = relationship("User", foreign_keys=[created_by_id], backref=backref("created_notes", cascade="all, delete-orphan"))
     tasks = relationship("Task", back_populates="note", cascade="all, delete-orphan")
     area = relationship("Area", back_populates="notes")

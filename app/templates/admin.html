@@ -253,6 +253,11 @@
                                 <button onclick="openUserEditModal(${JSON.stringify(u).replace(/"/g, '&quot;')})" class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-blue-corp transition-all" title="Editar">
                                     <i class="fa-solid fa-user-pen text-xs"></i>
                                 </button>
+                                ${u.id !== {{ user.id }} ? `
+                                <button onclick="deleteUser(${u.id}, '${u.full_name.replace(/'/g, "\\'")}')" class="p-2 rounded-xl text-gray-500 hover:bg-red-500/10 hover:text-red-500 transition-all" title="Eliminar">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                                ` : ''}
                             </div>
                         </td>
                     `;
@@ -491,6 +496,28 @@
             }
         } catch (err) {
             showToast("Error de conexión con el servidor.", "error");
+        }
+    }
+
+    async function deleteUser(userId, userName) {
+        if (!confirm(`¿Está seguro de que desea eliminar permanentemente al colaborador "${userName}"? Esta acción borrará todas sus tareas, notas y sesiones activas.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetchAPI(`/api/users/${userId}`, {
+                method: 'DELETE'
+            });
+
+            if (response && response.ok) {
+                showToast(`Colaborador "${userName}" eliminado con éxito.`, "success");
+                loadUsers();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al eliminar colaborador.", "error");
+            }
+        } catch (err) {
+            showToast("Error de conexión con el servidor al intentar eliminar.", "error");
         }
     }
 </script>
