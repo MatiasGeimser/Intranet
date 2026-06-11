@@ -11,7 +11,7 @@ from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.middlewares.csrf_middleware import CSRFMiddleware
 from app.middlewares.rate_limit import RateLimitMiddleware
 
-from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas
+from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones
 
 # Crear Aplicación FastAPI
 app = FastAPI(
@@ -70,7 +70,7 @@ app.include_router(phone_numbers.router, prefix="/api/phone-numbers", tags=["Nú
 app.include_router(tasks.router, prefix="/api/tasks", tags=["Gestión de Tareas Diarias"])
 app.include_router(notes.router, prefix="/api/notes", tags=["Gestión de Notas"])
 app.include_router(areas.router, prefix="/api/areas", tags=["Gestión de Áreas"])
-
+app.include_router(duplicate_phones.router, prefix="/api/duplicate-phones", tags=["Limpieza de Teléfonos"])
 
 # Evento de inicialización de Base de Datos
 @app.on_event("startup")

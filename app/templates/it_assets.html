@@ -99,26 +99,12 @@
 
 <!-- ── BARRA SUPERIOR: filtros + botón ── -->
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-    <!-- Pestañas de tipo -->
-    <div class="flex flex-wrap gap-2" id="type-tabs">
-        <button onclick="filterBy('')"
-            class="tab-btn active px-4 py-2 rounded-2xl text-xs font-semibold border border-transparent transition-all bg-[#049DD9] text-white"
-            data-type="">Todo</button>
-        <button onclick="filterBy('HARDWARE')"
-            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
-            data-type="HARDWARE">
-            <i class="fa-solid fa-desktop mr-1"></i> Hardware
-        </button>
-        <button onclick="filterBy('SOFTWARE')"
-            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
-            data-type="SOFTWARE">
-            <i class="fa-solid fa-code mr-1"></i> Software
-        </button>
-        <button onclick="filterBy('RED')"
-            class="tab-btn px-4 py-2 rounded-2xl text-xs font-semibold border border-gray-200 bg-white text-black-dark hover:bg-gray-50 transition-all"
-            data-type="RED">
-            <i class="fa-solid fa-network-wired mr-1"></i> Redes
-        </button>
+    <!-- Título de la sección de PCs -->
+    <div class="flex items-center gap-2" id="type-tabs">
+        <div class="px-4 py-2 rounded-2xl text-xs font-semibold bg-[#049DD9] text-white flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-desktop"></i>
+            <span>Inventario de PCs y Hardware</span>
+        </div>
     </div>
 
     <button onclick="openCreateModal()"
@@ -189,15 +175,12 @@
                         <input type="text" id="a-name" required placeholder="ej. PC-Recepcion-01"
                             class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
                     </div>
-                    <div>
+                    <div class="hidden">
                         <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Tipo
                             *</label>
                         <select id="a-type" required onchange="updateCategoryOptions()"
                             class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
-                            <option value="">-- Seleccionar --</option>
-                            <option value="HARDWARE">Hardware</option>
-                            <option value="SOFTWARE">Software</option>
-                            <option value="RED">Red</option>
+                            <option value="HARDWARE" selected>Hardware</option>
                         </select>
                     </div>
                 </div>
@@ -281,8 +264,15 @@
                         <label
                             class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Asignado
                             a</label>
-                        <input type="text" id="a-assigned" placeholder="Nombre del usuario o depto."
+                        <select id="a-assigned"
                             class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="">-- Sin asignar --</option>
+                            {% if all_users %}
+                                {% for u in all_users %}
+                                <option value="{{ u.full_name }}">{{ u.full_name }} ({{ u.email }})</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
                     </div>
                     <div>
                         <label
@@ -444,18 +434,14 @@
     }
     /* ─── META ─── */
     const CATEGORY_MAP = {
-        HARDWARE: ['Computador de Escritorio', 'Laptop', 'Servidor', 'Impresora', 'Monitor', 'Tablet', 'Teléfono IP', 'Periférico', 'Otro'],
-        SOFTWARE: ['Sistema Operativo', 'Ofimática', 'ERP / CRM', 'Antivirus / Seguridad', 'Base de Datos', 'Herramienta de Desarrollo', 'Licencia Cloud', 'Otro'],
-        RED: ['Router', 'Switch', 'Access Point', 'Firewall', 'NAS / Storage', 'UPS', 'Cable Estructurado', 'VLAN', 'Otro'],
+        HARDWARE: ['Computador de Escritorio', 'Laptop', 'Servidor', 'Impresora', 'Monitor', 'Tablet', 'Teléfono IP', 'Periférico', 'Otro']
     };
 
     const TYPE_META = {
-        HARDWARE: { icon: 'fa-desktop', cls: 'type-hw', label: 'Hardware' },
-        SOFTWARE: { icon: 'fa-code', cls: 'type-sw', label: 'Software' },
-        RED: { icon: 'fa-network-wired', cls: 'type-net', label: 'Red' },
+        HARDWARE: { icon: 'fa-desktop', cls: 'type-hw', label: 'Hardware' }
     };
 
-    let activeFilter = '';
+    let activeFilter = 'HARDWARE';
 
     /* ─── INIT ─── */
     document.addEventListener('DOMContentLoaded', () => {
@@ -470,12 +456,9 @@
         const s = await res.json();
 
         document.getElementById('stats-row').innerHTML = `
-            ${statCard('fa-layer-group', 'Total Activos', s.total, 'from-[#049DD9] to-[#79F2E6]')}
-            ${statCard('fa-desktop', 'PCs Activos', s.hardware_active, 'from-[#049DD9] to-[#0369A1]')}
-            ${statCard('fa-code', 'Software', s.software_total, 'from-[#79F2E6] to-[#0F766E]')}
-            ${statCard('fa-network-wired', 'Redes', s.network_total, 'from-[#8B5CF6] to-[#6D28D9]')}
-            ${statCard('fa-wrench', 'En Mantenimiento', s.maintenance, 'from-[#F59E0B] to-[#D97706]')}
-            ${statCard('fa-power-off', 'Inactivos', s.inactive, 'from-[#EF4444] to-[#B91C1C]')}
+            ${statCard('fa-desktop', 'PCs Activos', s.hardware_active || 0, 'from-[#049DD9] to-[#0369A1]')}
+            ${statCard('fa-wrench', 'En Mantenimiento', s.maintenance || 0, 'from-[#F59E0B] to-[#D97706]')}
+            ${statCard('fa-power-off', 'Inactivos', s.inactive || 0, 'from-[#EF4444] to-[#B91C1C]')}
         `;
     }
 

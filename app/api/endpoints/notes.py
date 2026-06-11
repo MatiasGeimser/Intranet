@@ -15,19 +15,21 @@ router = APIRouter()
 @router.get("", response_model=List[NoteOut])
 def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Obtiene las notas pertenecientes al área del usuario (o todas si es admin).
+    Obtiene las notas pertenecientes al área del usuario (o todas si es admin) con sus tareas filtradas por rol.
     """
+    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    
     if current_user.role.name != "Administrador":
         db_notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
         notes_out = []
         for note in db_notes:
-            # Filtrar tareas del usuario (asignadas a él, a su rol o creadas por él)
-            filtered_tasks = [
-                t for t in note.tasks 
-                if t.assigned_to_user_id == current_user.id 
-                or t.assigned_to_role_id == current_user.role_id 
-                or t.created_by_id == current_user.id
-            ]
+            if is_management:
+                filtered_tasks = note.tasks
+            else:
+                filtered_tasks = [
+                    t for t in note.tasks 
+                    if t.assigned_to_user_id == current_user.id
+                ]
             note_dict = {
                 "id": note.id,
                 "title": note.title,
@@ -44,8 +46,14 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
 @router.post("", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(note_in: NoteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Crea una nueva nota asignándole automáticamente el área del creador.
+    Crea una nueva nota. Solo permitido para Administradores y Supervisores.
     """
+    if current_user.role.name not in ["Administrador", "Supervisor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Únicamente los administradores o supervisores pueden crear proyectos/notas."
+        )
+        
     area_id = current_user.area_id
     if current_user.role.name == "Administrador" and note_in.area_id is not None:
         area_id = note_in.area_id
@@ -63,14 +71,16 @@ def create_note(note_in: NoteCreate, db: Session = Depends(get_db), current_user
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_note(note_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Elimina una nota. Solo permitido para el creador de la nota.
+    Elimina una nota. Permitido para el creador o Administradores/Supervisores.
     """
     db_note = db.query(Note).filter(Note.id == note_id).first()
     if not db_note:
         raise HTTPException(status_code=404, detail="Nota no encontrada.")
         
-    if db_note.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No autorizado para eliminar esta nota.")
+    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    
+    if not is_management and db_note.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado para eliminar este proyecto/nota.")
         
     db.delete(db_note)
     db.commit()

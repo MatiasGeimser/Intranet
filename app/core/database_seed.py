@@ -41,6 +41,16 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (documents.updated_at): {e} ======")
 
+    # Migración de estados antiguos de tareas a los estados del tablero Scrum (todo, done)
+    try:
+        db.execute(text("UPDATE tasks SET status = 'todo' WHERE status = 'pending'"))
+        db.execute(text("UPDATE tasks SET status = 'done' WHERE status = 'completed'"))
+        db.commit()
+        print("====== ESTADOS DE TAREAS ACTUALIZADOS (todo, done) ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO ACTUALIZACIÓN ESTADOS DE TAREAS: {e} ======")
+
     # Se añade la siembra de áreas de trabajo
     areas_list = [
         {"name": "Administración", "description": "Gestión general y administración"},
@@ -106,8 +116,11 @@ def seed_database(db: Session):
         
         # Módulos Internos
         {"code": "credentials:manage", "description": "Gestionar credenciales en el gestor de contraseñas"},
+        {"code": "credentials:read", "description": "Ver credenciales en el gestor de contraseñas"},
         {"code": "events:manage", "description": "Gestionar eventos en el calendario corporativo"},
+        {"code": "events:read", "description": "Ver eventos en el calendario corporativo"},
         {"code": "documents:manage", "description": "Gestionar archivos en el gestor documental"},
+        {"code": "documents:read", "description": "Ver y descargar archivos en el gestor documental"},
         {"code": "news:manage", "description": "Gestionar artículos y comentarios de noticias"},
         {"code": "it:manage", "description": "Gestionar el inventario de activos IT (Software, Hardware, Redes)"},
     ]
@@ -149,18 +162,21 @@ def seed_database(db: Session):
     supervisor_permissions = [
         db_permissions["users:read"],
         db_permissions["credentials:manage"],
+        db_permissions["credentials:read"],
         db_permissions["events:manage"],
+        db_permissions["events:read"],
         db_permissions["documents:manage"],
+        db_permissions["documents:read"],
         db_permissions["news:manage"]
     ]
     supervisor_role.permissions = supervisor_permissions
 
-    # Usuario estándar tiene permisos en los módulos operativos básicos
+    # Usuario estándar tiene permisos en los módulos operativos básicos de solo lectura (observar)
     usuario_role = db_roles["Usuario"]
     usuario_permissions = [
-        db_permissions["credentials:manage"],
-        db_permissions["events:manage"],
-        db_permissions["documents:manage"]
+        db_permissions["credentials:read"],
+        db_permissions["events:read"],
+        db_permissions["documents:read"]
     ]
     usuario_role.permissions = usuario_permissions
 

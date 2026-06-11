@@ -74,7 +74,7 @@ def passwords_view(request: Request, db: Session = Depends(get_db)):
         
     # Verificar si el rol tiene permiso
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name != "Administrador" and "credentials:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario"] and "credentials:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="passwords.html", context={
@@ -110,7 +110,7 @@ def calendar_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name != "Administrador" and "events:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario"] and "events:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="calendar.html", context={
@@ -128,7 +128,7 @@ def documents_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name != "Administrador" and "documents:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="documents.html", context={
@@ -146,7 +146,7 @@ def news_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name != "Administrador" and "news:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario"] and "news:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="news.html", context={
@@ -167,8 +167,11 @@ def it_assets_view(request: Request, db: Session = Depends(get_db)):
     if user.role.name != "Administrador" and "it:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
 
+    all_users = db.query(User).filter(User.is_active == True).all()
+
     return templates.TemplateResponse(request=request, name="it_assets.html", context={
         "user": user,
+        "all_users": all_users,
         "active_page": "it-assets",
         "project_name": settings.PROJECT_NAME
     })
@@ -255,3 +258,19 @@ def excel_converter_view(request: Request, db: Session = Depends(get_db)):
         "project_name": settings.PROJECT_NAME
     })
 
+@router.get("/duplicate-phones", response_class=HTMLResponse)
+def duplicate_phones_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el módulo para eliminar teléfonos duplicados de un Excel."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+
+    permissions = [p.code for p in user.role.permissions]
+    if user.role.name != "Administrador" and "it:manage" not in permissions:
+        return RedirectResponse(url="/dashboard")
+
+    return templates.TemplateResponse(request=request, name="duplicate_phones.html", context={
+        "user": user,
+        "active_page": "duplicate-phones",
+        "project_name": settings.PROJECT_NAME
+    })

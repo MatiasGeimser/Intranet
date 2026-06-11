@@ -15,14 +15,17 @@ router = APIRouter()
 def get_credentials(
     category: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Obtiene la bóveda de contraseñas filtradas por categoría (si se especifica)."""
     query = db.query(Credential)
     
-    # Si no es Administrador, solo puede ver sus propias credenciales
+    # Solo el Administrador puede visualizar la bóveda
     if current_user.role.name != "Administrador":
-        query = query.filter(Credential.owner_id == current_user.id)
+        raise HTTPException(
+            status_code=403, 
+            detail="Acceso denegado. Solo el Administrador puede ver la bóveda de credenciales."
+        )
         
     if category:
         query = query.filter(Credential.category == category)
@@ -69,18 +72,18 @@ def decrypt_credential_password(
     cred_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Desencripta de forma segura una credencial y registra obligatoriamente la auditoría de acceso."""
     cred = db.query(Credential).filter(Credential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    # Verificar propiedad (solo administradores pueden saltarse esto)
-    if current_user.role.name != "Administrador" and cred.owner_id != current_user.id:
+    # Solo el Administrador puede visualizar credenciales
+    if current_user.role.name != "Administrador":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permiso para acceder a esta credencial de seguridad."
+            detail="Acceso denegado. Solo el Administrador puede ver esta credencial."
         )
 
     # Desencriptar e inyectar auditoría

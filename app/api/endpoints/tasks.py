@@ -14,22 +14,27 @@ router = APIRouter()
 @router.get("/", response_model=List[TaskOut])
 def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Retrieve tasks assigned to the current user OR to the user's role.
+    Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
-    tasks = db.query(Task).filter(
-        or_(
-            Task.assigned_to_user_id == current_user.id,
-            Task.assigned_to_role_id == current_user.role_id,
-            Task.created_by_id == current_user.id
-        )
-    ).order_by(Task.created_at.desc()).all()
+    if current_user.role.name in ["Administrador", "Supervisor"]:
+        tasks = db.query(Task).order_by(Task.created_at.desc()).all()
+    else:
+        tasks = db.query(Task).filter(
+            Task.assigned_to_user_id == current_user.id
+        ).order_by(Task.created_at.desc()).all()
     return tasks
 
 @router.post("/", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
 def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Create a new task.
+    Create a new task. Restricted to Admins and Supervisors.
     """
+    if current_user.role.name not in ["Administrador", "Supervisor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Únicamente los administradores o supervisores pueden crear tareas."
+        )
+
     db_task = Task(
         **task_in.dict(),
         created_by_id=current_user.id
@@ -58,23 +63,29 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
 @router.put("/{task_id}", response_model=TaskOut)
 def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Update a task (e.g. mark as completed).
+    Update a task. Standard users can only update the task status if it is assigned to them.
+    Admins and Supervisors can update any task fields.
     """
     db_task = db.query(Task).filter(Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    # Check permissions: only creator, assignee, or role assignee can update (or Administrator)
-    if current_user.role.name != "Administrador" and \
-       db_task.created_by_id != current_user.id and \
-       db_task.assigned_to_user_id != current_user.id and \
-       db_task.assigned_to_role_id != current_user.role_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access or update this task")
+    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    
+    # Check permissions
+    if not is_management and db_task.assigned_to_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes autorización para acceder o actualizar esta tarea")
         
     old_assignee_id = db_task.assigned_to_user_id
     
     # Just update the fields
     update_data = task_in.dict(exclude_unset=True)
+    
+    # Standard user can ONLY change the status of the task
+    if not is_management:
+        allowed_fields = {"status"}
+        update_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+        
     for field, value in update_data.items():
         setattr(db_task, field, value)
         
@@ -82,8 +93,8 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_task)
     
-    # Enviar correo si el asignado cambió y no es nulo
-    if db_task.assigned_to_user_id and db_task.assigned_to_user_id != old_assignee_id:
+    # Enviar correo si el asignado cambió y no es nulo (solo gestionado por admin/supervisor)
+    if is_management and db_task.assigned_to_user_id and db_task.assigned_to_user_id != old_assignee_id:
         recipient = db.query(User).filter(User.id == db_task.assigned_to_user_id).first()
         if recipient:
             from app.models.note import Note
@@ -102,15 +113,17 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Delete a task.
+    Delete a task. Restricted to the creator, Admins, and Supervisors.
     """
     db_task = db.query(Task).filter(Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Only creator can delete
-    if db_task.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this task")
+    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    
+    # Creator or Admins/Supervisors can delete
+    if not is_management and db_task.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         
     db.delete(db_task)
     db.commit()

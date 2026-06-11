@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Limpiar Teléfonos Duplicados{% endblock %}
+{% block page_title %}Mantenimiento de Excel — Limpieza de Teléfonos Duplicados{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       DUPLICATE PHONES MODULE — STYLES
+       ===================================================== */
+    .drop-zone {
+        border: 2px dashed rgba(4, 157, 217, 0.3);
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 20px;
+        transition: all 0.25s ease;
+        cursor: pointer;
+        position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: #049DD9;
+        background: rgba(4, 157, 217, 0.04);
+        box-shadow: 0 8px 24px rgba(4, 157, 217, 0.08);
+    }
+    
+    .loading-spinner {
+        border: 4px solid rgba(4, 157, 217, 0.1);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border-left-color: #049DD9;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- HEADER -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-[#262523] flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#049DD9] to-[#79F2E6] flex items-center justify-center shadow-lg shadow-[#049DD9]/25">
+                <i class="fa-solid fa-phone-slash text-white text-base"></i>
+            </span>
+            Limpiar Teléfonos Duplicados
+        </h1>
+        <p class="text-xs text-[#8C8C8C] mt-1 ml-13">Sube un Excel, el sistema recorrerá todas las hojas y números telefónicos, y generará un archivo sin duplicados.</p>
+    </div>
+</div>
+
+<!-- PASO 1: SUBIDA DE ARCHIVO -->
+<div id="section-upload" class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-6 md:p-8 space-y-6">
+    <div class="max-w-xl mx-auto text-center space-y-4">
+        <h3 class="text-base font-semibold text-[#262523]">Paso 1: Sube tu archivo Excel (.xlsx)</h3>
+        
+        <div id="drop-zone" class="drop-zone p-8 flex flex-col items-center justify-center min-h-[220px]"
+             onclick="document.getElementById('excel-file-input').click()">
+            
+            <input type="file" id="excel-file-input" class="hidden" accept=".xlsx" onchange="handleFileSelect(event)">
+            
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#049DD9]/10 to-[#79F2E6]/10 flex items-center justify-center text-[#049DD9] mb-4">
+                <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+            </div>
+            
+            <p class="text-sm font-semibold text-[#262523]">Arrastra tu archivo aquí o haz clic para explorar</p>
+            <p class="text-xs text-[#8C8C8C] mt-1">Soporta el formato Excel standard .xlsx</p>
+        </div>
+    </div>
+</div>
+
+<!-- ESTADO: CARGANDO -->
+<div id="section-loading" class="hidden bg-white border border-[#8C8C8C]/12 rounded-2xl p-12 text-center space-y-4">
+    <div class="loading-spinner"></div>
+    <h3 class="text-base font-semibold text-[#262523]">Analizando archivo...</h3>
+    <p class="text-xs text-[#8C8C8C]">Recorriendo todas las filas y validando números de teléfono. Por favor, espera.</p>
+</div>
+
+<!-- PASO 2: RESULTADOS Y DESCARGA -->
+<div id="section-result" class="hidden bg-white border border-[#8C8C8C]/12 rounded-2xl p-6 md:p-8 space-y-6 text-center max-w-2xl mx-auto mt-8">
+    <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center text-green-500 mx-auto mb-4">
+        <i class="fa-solid fa-check text-3xl"></i>
+    </div>
+    
+    <h3 class="text-xl font-bold text-[#262523]">¡Archivo procesado con éxito!</h3>
+    
+    <div class="bg-[#F2F2F2] p-4 rounded-xl border border-[#8C8C8C]/20 inline-block mx-auto mb-4">
+        <p class="text-sm text-[#262523] font-medium">Se eliminaron <span id="deleted-count-badge" class="font-bold text-red-500 text-lg mx-1">0</span> registros duplicados.</p>
+        <p class="text-xs text-[#8C8C8C] mt-1">Estos números ya no estarán en el nuevo archivo.</p>
+    </div>
+    
+    <div class="pt-4 flex justify-center gap-4">
+        <button onclick="resetProcessor()" class="px-6 py-3 rounded-xl bg-white border border-[#8C8C8C]/30 text-[#262523] text-sm font-bold hover:bg-gray-50 transition-all duration-200">
+            Limpiar Otro Archivo
+        </button>
+        <a id="download-btn" href="#" class="px-6 py-3 rounded-xl bg-gradient-to-r from-[#049DD9] to-[#79F2E6] text-white text-sm font-bold hover:shadow-lg hover:shadow-[#049DD9]/20 transition-all duration-200 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-download text-base"></i>
+            Descargar Excel Limpio
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // =============================================================================
+    // GESTIÓN DE EVENTOS DE ARCHIVO / DRAG & DROP
+    // =============================================================================
+    const dropZone = document.getElementById('drop-zone');
+    
+    // Prevenir comportamientos por defecto del navegador para drag and drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Efecto visual al arrastrar archivo sobre la zona
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.add('dragover');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.remove('dragover');
+        }, false);
+    });
+
+    // Manejar el archivo soltado
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            uploadFile(files[0]);
+        }
+    });
+
+    // Manejar el archivo seleccionado mediante explorador
+    function handleFileSelect(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            uploadFile(files[0]);
+        }
+    }
+
+    // =============================================================================
+    // SUBIDA Y PROCESAMIENTO
+    // =============================================================================
+    async function uploadFile(file) {
+        // Validar extensión
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext !== 'xlsx') {
+            showToast('Por favor, selecciona un archivo válido de Excel (.xlsx)', 'error');
+            return;
+        }
+
+        // Mostrar loading
+        document.getElementById('section-upload').classList.add('hidden');
+        document.getElementById('section-result').classList.add('hidden');
+        document.getElementById('section-loading').classList.remove('hidden');
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            // Reutilizar la función fetchAPI de base.html
+            const response = await fetchAPI('/api/duplicate-phones/process', {
+                method: 'POST',
+                // Importante: Al enviar FormData, NO se debe establecer Content-Type, 
+                // el navegador lo hace automáticamente incluyendo el boundary.
+                // fetchAPI se da cuenta de que no es un objeto simple y no lo sobreescribe si lo dejamos sin header
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error desconocido al procesar el archivo');
+            }
+
+            const data = await response.json();
+            
+            // Ocultar loading y mostrar resultados
+            document.getElementById('section-loading').classList.add('hidden');
+            document.getElementById('section-result').classList.remove('hidden');
+            
+            // Actualizar interfaz
+            document.getElementById('deleted-count-badge').textContent = data.deleted_count;
+            document.getElementById('download-btn').href = '/api/duplicate-phones/download/' + data.download_id;
+            
+            showToast(data.message, 'success');
+
+        } catch (error) {
+            console.error("Error al subir archivo:", error);
+            showToast(`Ocurrió un error: ${error.message}`, 'error');
+            resetProcessor();
+        }
+    }
+
+    function resetProcessor() {
+        document.getElementById('excel-file-input').value = '';
+        document.getElementById('section-loading').classList.add('hidden');
+        document.getElementById('section-result').classList.add('hidden');
+        document.getElementById('section-upload').classList.remove('hidden');
+    }
+</script>
+{% endblock %}

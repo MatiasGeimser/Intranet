@@ -3,50 +3,186 @@
 {% block title %}Dashboard Principal{% endblock %}
 {% block page_title %}Dashboard Principal{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Transición suave para columnas y tarjetas */
+    .kanban-col {
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .kanban-card {
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .kanban-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+    }
+    
+    /* Animación de spin lento */
+    @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .spin-slow {
+        animation: spin-slow 10s linear infinite;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<!-- FILA PRINCIPAL: TAREAS (NOTAS) Y AUDITORÍA -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <!-- Gestor de Notas y Tareas Colaborativo - Ocupa 2/3 en pantallas grandes -->
-    <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[500px]">
-        <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-3 flex-shrink-0">
-            <div>
-                <h4 class="text-sm font-bold text-black-dark">Notas y Tareas Colaborativas</h4>
-                <p class="text-[10px] text-grey-main">Organiza tus proyectos y asigna tareas a colaboradores</p>
-            </div>
-            <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
-                <i class="fa-solid fa-folder-plus"></i>
-                <span>Nueva Nota</span>
-            </button>
+<!-- FILA PRINCIPAL: TABLERO SCRUM ESTILO JIRA (ANCHO COMPLETO) -->
+<div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col min-h-[600px] w-full">
+    
+    <!-- Encabezado del Tablero Scrum -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-4 mb-4 gap-4">
+        <div>
+            <h4 class="text-sm font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-square-poll-horizontal text-blue-corp text-lg"></i>
+                <span>Tablero de Tareas Ágiles (Scrum Board)</span>
+            </h4>
+            <p class="text-[10px] text-grey-main">Gestiona las tareas asignadas internamente y el progreso en tiempo real</p>
         </div>
-
-        <!-- Cuerpo del Split Screen -->
-        <div class="flex flex-1 min-h-0 divide-x divide-gray-100">
-            <!-- Sidebar Izquierdo: Lista de Notas -->
-            <div class="w-1/3 pr-4 flex flex-col h-full overflow-y-auto space-y-2" id="dashboard-notes-list">
-                <p class="text-xs text-grey-main italic text-center py-8">Cargando notas...</p>
+        
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Filtro de Proyecto (Notas) -->
+            <div class="flex items-center space-x-1.5">
+                <span class="text-[10px] font-bold text-grey-main uppercase tracking-wider">Proyecto:</span>
+                <select id="project-board-filter" onchange="filterBoardByProject()" class="text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 outline-none font-medium focus:ring-1 focus:ring-blue-corp/30">
+                    <option value="all">Todos los proyectos</option>
+                </select>
+                <!-- Botón eliminar proyecto activo (solo Admin/Supervisor) -->
+                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                <button id="delete-project-btn" onclick="handleDeleteProject()" class="hidden w-7 h-7 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center" title="Eliminar este proyecto y sus tareas">
+                    <i class="fa-regular fa-trash-can text-xs"></i>
+                </button>
+                {% endif %}
             </div>
-
-            <!-- Panel Derecho: Detalle de Nota y Tareas -->
-            <div class="w-2/3 pl-4 flex flex-col h-full min-h-0" id="note-detail-panel">
-                <div class="flex-1 flex flex-col items-center justify-center text-center text-grey-main space-y-2 py-10">
-                    <i class="fa-regular fa-clipboard text-3xl text-gray-300"></i>
-                    <p class="text-xs italic">Selecciona una nota para gestionar sus tareas</p>
-                </div>
+            
+            <div class="flex items-center space-x-2">
+                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
+                    <i class="fa-solid fa-folder-plus text-[10px]"></i>
+                    <span>Nuevo Proyecto</span>
+                </button>
+                <button onclick="openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                    <span>Nueva Tarea</span>
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Feed de Actividad Reciente / Auditoría - Ocupa 1/3 -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[500px]">
-        <div>
-            <h4 class="text-sm font-bold text-black-dark">Actividad de Auditoría Reciente</h4>
-            <p class="text-[11px] text-grey-main mb-4">Registro en tiempo real de accesos y seguridad</p>
+    <!-- Kanban Column Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 flex-1 min-h-0">
+        
+        <!-- Column: Por hacer -->
+        <div class="flex flex-col h-full bg-gray-50/60 p-4 rounded-2xl border border-gray-200/40">
+            <div class="flex items-center justify-between mb-3.5 px-1 flex-shrink-0">
+                <span class="text-xs font-bold text-gray-500 flex items-center space-x-1.5 uppercase tracking-wider">
+                    <i class="fa-regular fa-circle text-gray-400 text-[10px]"></i>
+                    <span>Por hacer</span>
+                </span>
+                <span id="count-todo" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-200/80 text-gray-600">0</span>
+            </div>
+            <div id="col-todo" class="kanban-col flex-1 space-y-3 overflow-y-auto pr-1 min-h-[300px] rounded-xl border-2 border-transparent" ondragover="allowDrop(event)" ondrop="dropTask(event, 'todo')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
         </div>
 
-        <div id="recent-activity-list" class="flex-1 space-y-4 overflow-y-auto pr-2">
-            <!-- Skeleton loaders en lo que carga de la API -->
+        <!-- Column: En curso -->
+        <div class="flex flex-col h-full bg-amber-50/25 p-4 rounded-2xl border border-amber-500/10">
+            <div class="flex items-center justify-between mb-3.5 px-1 flex-shrink-0">
+                <span class="text-xs font-bold text-amber-600 flex items-center space-x-1.5 uppercase tracking-wider">
+                    <i class="fa-solid fa-circle-play text-amber-500 text-[10px]"></i>
+                    <span>En curso</span>
+                </span>
+                <span id="count-inprogress" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700">0</span>
+            </div>
+            <div id="col-inprogress" class="kanban-col flex-1 space-y-3 overflow-y-auto pr-1 min-h-[300px] rounded-xl border-2 border-transparent" ondragover="allowDrop(event)" ondrop="dropTask(event, 'inprogress')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+        </div>
+
+        <!-- Column: En revisión -->
+        <div class="flex flex-col h-full bg-indigo-50/20 p-4 rounded-2xl border border-indigo-500/10">
+            <div class="flex items-center justify-between mb-3.5 px-1 flex-shrink-0">
+                <span class="text-xs font-bold text-indigo-600 flex items-center space-x-1.5 uppercase tracking-wider">
+                    <i class="fa-solid fa-circle-notch spin-slow text-indigo-500 text-[10px]"></i>
+                    <span>En revisión</span>
+                </span>
+                <span id="count-inreview" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700">0</span>
+            </div>
+            <div id="col-inreview" class="kanban-col flex-1 space-y-3 overflow-y-auto pr-1 min-h-[300px] rounded-xl border-2 border-transparent" ondragover="allowDrop(event)" ondrop="dropTask(event, 'inreview')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+        </div>
+
+        <!-- Column: Finalizado -->
+        <div class="flex flex-col h-full bg-emerald-50/20 p-4 rounded-2xl border border-emerald-500/10">
+            <div class="flex items-center justify-between mb-3.5 px-1 flex-shrink-0">
+                <span class="text-xs font-bold text-emerald-600 flex items-center space-x-1.5 uppercase tracking-wider">
+                    <i class="fa-regular fa-circle-check text-emerald-500 text-[10px]"></i>
+                    <span>Finalizado</span>
+                </span>
+                <span id="count-done" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700">0</span>
+            </div>
+            <div id="col-done" class="kanban-col flex-1 space-y-3 overflow-y-auto pr-1 min-h-[300px] rounded-xl border-2 border-transparent" ondragover="allowDrop(event)" ondrop="dropTask(event, 'done')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+        </div>
+    </div>
+</div>
+
+<!-- FILA SECUNDARIA: ACCESOS RÁPIDOS, EVENTOS Y AUDITORÍA -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+    
+    <!-- Accesos Rápidos Premium -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px]">
+        <div>
+            <h4 class="text-sm font-bold text-black-dark">Accesos Rápidos a Módulos</h4>
+            <p class="text-[10px] text-grey-main mb-4">Abre formularios y operaciones directas</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3 flex-1 overflow-y-auto pr-1">
+            {% if user.role.name == 'Administrador' %}
+            <button onclick="openUserCreateModal()" class="p-3 bg-indigo-500/5 hover:bg-indigo-500/10 rounded-2xl border border-indigo-500/10 hover:border-indigo-500/35 transition-all text-left group">
+                <i class="fa-solid fa-user-plus text-indigo-500 text-base mb-1.5"></i>
+                <h5 class="text-[11px] font-bold text-black-dark group-hover:text-indigo-500 transition-colors">Nuevo Colaborador</h5>
+                <p class="text-[9px] text-grey-main">Añadir usuario</p>
+            </button>
+            {% endif %}
+            <a href="/passwords" class="p-3 bg-blue-corp/5 hover:bg-blue-corp/10 rounded-2xl border border-blue-corp/10 hover:border-blue-corp/35 transition-all text-left group">
+                <i class="fa-solid fa-key text-blue-corp text-base mb-1.5"></i>
+                <h5 class="text-[11px] font-bold text-black-dark group-hover:text-blue-corp transition-colors">Nueva Credencial</h5>
+                <p class="text-[9px] text-grey-main">Añadir clave segura</p>
+            </a>
+            <a href="/documents" class="p-3 bg-amber-500/5 hover:bg-amber-500/10 rounded-2xl border border-amber-500/10 hover:border-amber-500/35 transition-all text-left group">
+                <i class="fa-solid fa-cloud-arrow-up text-amber-500 text-base mb-1.5"></i>
+                <h5 class="text-[11px] font-bold text-black-dark group-hover:text-amber-500 transition-colors">Subir Archivo</h5>
+                <p class="text-[9px] text-grey-main">Compartir documentos</p>
+            </a>
+            <a href="/calendar" class="p-3 bg-[#79F2E6]/10 hover:bg-[#79F2E6]/20 rounded-2xl border border-[#79F2E6]/30 hover:border-[#79F2E6]/50 transition-all text-left group">
+                <i class="fa-solid fa-calendar-plus text-blue-corp text-base mb-1.5"></i>
+                <h5 class="text-[11px] font-bold text-black-dark group-hover:text-blue-corp transition-colors">Crear Evento</h5>
+                <p class="text-[9px] text-grey-main">Agendar reuniones</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- Calendario Rápido y Próximos Eventos -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px]">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h4 class="text-sm font-bold text-black-dark">Alertas y Eventos</h4>
+                <p class="text-[10px] text-grey-main">Próximos compromisos y cumpleaños</p>
+            </div>
+            <a href="/calendar" class="text-[10px] text-blue-corp font-bold hover:underline uppercase">Ver completo</a>
+        </div>
+        <div id="dashboard-events-list" class="flex-1 space-y-3 overflow-y-auto pr-1">
+            <p class="text-xs text-grey-main italic text-center py-12">Cargando próximos eventos...</p>
+        </div>
+    </div>
+
+    <!-- Actividad de Auditoría Reciente -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px] col-span-1 md:col-span-2 lg:col-span-1">
+        <div>
+            <h4 class="text-sm font-bold text-black-dark">Actividad de Auditoría</h4>
+            <p class="text-[10px] text-grey-main mb-3.5">Registro en tiempo real de accesos y seguridad</p>
+        </div>
+        <div id="recent-activity-list" class="flex-1 space-y-3.5 overflow-y-auto pr-1">
+            <!-- Loader Skeletons -->
             <div class="animate-pulse flex items-start space-x-3">
                 <div class="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
                 <div class="flex-1 space-y-1.5">
@@ -54,105 +190,94 @@
                     <div class="h-2 bg-gray-300 rounded-sm w-1/2"></div>
                 </div>
             </div>
-            <div class="animate-pulse flex items-start space-x-3 pt-2">
-                <div class="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
-                <div class="flex-1 space-y-1.5">
-                    <div class="h-2.5 bg-gray-300 rounded-sm w-5/6"></div>
-                    <div class="h-2 bg-gray-300 rounded-sm w-1/3"></div>
-                </div>
-            </div>
         </div>
     </div>
 
 </div>
 
-<!-- FILA SECUNDARIA: ACCESOS RÁPIDOS Y EVENTOS -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-
-    <!-- Accesos Rápidos Premium - Ocupa 2/3 -->
-    <div class="lg:col-span-2 glass-card p-6 rounded-3xl shadow-sm space-y-4">
-        <h4 class="text-sm font-bold text-black-dark">Accesos Rápidos a Módulos</h4>
-        <p class="text-[11px] text-grey-main mb-4">Abre formularios y operaciones directas en segundos</p>
-
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-
-            {% if user.role.name == 'Administrador' %}
-            <button onclick="openUserCreateModal()"
-                class="p-4 bg-indigo-500/5 hover:bg-indigo-500/10 rounded-2xl border border-indigo-500/10 hover:border-indigo-500/35 transition-all text-left group w-full">
-                <i class="fa-solid fa-user-plus text-indigo-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-indigo-500 transition-colors">Nuevo Colaborador</h5>
-                <p class="text-[10px] text-grey-main">Añadir usuario al sistema</p>
-            </button>
-            {% endif %}
-
-            <a href="/passwords"
-                class="p-4 bg-blue-corp/5 hover:bg-blue-corp/10 rounded-2xl border border-blue-corp/10 hover:border-blue-corp/35 transition-all text-left group">
-                <i class="fa-solid fa-key text-blue-corp text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-blue-corp transition-colors">Nueva Credencial</h5>
-                <p class="text-[10px] text-grey-main">Añadir clave segura AES</p>
-            </a>
-
-            <a href="/documents"
-                class="p-4 bg-amber-500/5 hover:bg-amber-500/10 rounded-2xl border border-amber-500/10 hover:border-amber-500/35 transition-all text-left group">
-                <i class="fa-solid fa-cloud-arrow-up text-amber-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-amber-500 transition-colors">Subir Archivo</h5>
-                <p class="text-[10px] text-grey-main">Compartir documentos</p>
-            </a>
-
-            <a href="/calendar"
-                class="p-4 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-2xl border border-emerald-500/10 hover:border-emerald-500/35 transition-all text-left group">
-                <i class="fa-solid fa-calendar-plus text-emerald-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-emerald-500 transition-colors">Crear Evento</h5>
-                <p class="text-[10px] text-grey-main">Agendar reuniones</p>
-            </a>
-
-            <a href="/news"
-                class="p-4 bg-purple-500/5 hover:bg-purple-500/10 rounded-2xl border border-purple-500/10 hover:border-purple-500/35 transition-all text-left group">
-                <i class="fa-solid fa-bullhorn text-purple-500 text-lg mb-2"></i>
-                <h5 class="text-xs font-bold text-black-dark group-hover:text-purple-500 transition-colors">Publicar Comunicado</h5>
-                <p class="text-[10px] text-grey-main">Lanzar noticias corporativas</p>
-            </a>
-
-        </div>
-    </div>
-
-    <!-- Calendario Rápido y Próximos Eventos - Ocupa 1/3 -->
-    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-full min-h-[260px]">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h4 class="text-sm font-bold text-black-dark">Alertas y Eventos</h4>
-                <p class="text-[11px] text-grey-main">Próximos compromisos y cumpleaños</p>
-            </div>
-            <a href="/calendar" class="text-xs text-blue-corp font-semibold hover:underline">Ver completo</a>
-        </div>
-
-        <div id="dashboard-events-list" class="flex-1 space-y-3 overflow-y-auto max-h-[180px]">
-            <p class="text-xs text-grey-main italic text-center py-8">Cargando próximos eventos...</p>
-        </div>
-    </div>
-
-</div>
-
-<!-- Modal Nueva Nota -->
+<!-- Modal Nuevo Proyecto / Nota -->
 <div id="newNoteModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
     <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform duration-300">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-base font-bold text-black-dark">Nueva Nota / Proyecto</h3>
+            <h3 class="text-base font-bold text-black-dark">Nuevo Proyecto / Tablero</h3>
             <button onclick="closeNewNoteModal()" class="text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
         <form id="newNoteForm" onsubmit="handleNewNoteSubmit(event)" class="space-y-4">
             <div>
-                <label class="block text-xs font-bold text-grey-main uppercase mb-1">Título de la nota</label>
-                <input type="text" id="noteTitle" required placeholder="ej. Mantenimiento Web, Compras" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none">
+                <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Nombre del Proyecto</label>
+                <input type="text" id="noteTitle" required placeholder="ej. Rediseño Web, Campaña Marketing" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none">
             </div>
             <button type="submit" class="w-full bg-blue-corp text-white rounded-xl py-2.5 font-bold text-xs hover:bg-[#0385B8] transition-colors shadow-lg shadow-blue-corp/30">
-                Crear Nota
+                Crear Proyecto
             </button>
         </form>
     </div>
 </div>
+
+<!-- Modal Nueva Tarea (Solo Admin/Supervisor) -->
+{% if user.role.name in ['Administrador', 'Supervisor'] %}
+<div id="newTaskModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl transform scale-95 transition-transform duration-300">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-list-check text-emerald-500"></i>
+                <span>Crear Nueva Tarea (Scrum)</span>
+            </h3>
+            <button onclick="closeNewTaskModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <form id="newTaskForm" onsubmit="handleNewTaskSubmit(event)" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Título de la Tarea</label>
+                <input type="text" id="taskTitle" required placeholder="ej. Corregir error en checkout" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none">
+            </div>
+            
+            <div>
+                <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Descripción / Notas</label>
+                <textarea id="taskDescription" placeholder="Detalles de la tarea..." rows="3" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none resize-none"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Proyecto</label>
+                    <select id="taskProject" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
+                        <option value="">Seleccionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Encargado (Asignar a)</label>
+                    <select id="taskAssignee" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
+                        <option value="">Sin asignar</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Estado Inicial</label>
+                    <select id="taskInitialStatus" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
+                        <option value="todo">Por hacer</option>
+                        <option value="inprogress">En curso</option>
+                        <option value="inreview">En revisión</option>
+                        <option value="done">Finalizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Fecha de Vencimiento</label>
+                    <input type="date" id="taskDueDate" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none">
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-500 text-white rounded-xl py-2.5 font-bold text-xs hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30">
+                Crear Tarea
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <!-- Modal Nuevo Colaborador -->
 <div id="newUserModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
@@ -170,7 +295,6 @@
             </div>
 
             <form id="dash-user-form" onsubmit="saveNewUser(event)" class="space-y-4">
-
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nombre Completo</label>
                     <input type="text" id="dash-user-name" required placeholder="ej. Carlos Mendoza"
@@ -235,20 +359,42 @@
 
 {% block extra_js %}
 <script>
+    // Variables globales para la gestión del tablero
+    const currentUserId = {{ user.id }};
+    const userRole = "{{ user.role.name }}";
+    let activeProjectId = "all"; // ID del filtro activo o "all"
+    let notesList = []; // Lista de Proyectos (Notes)
+    let tasksList = []; // Lista de todas las tareas
+    let usersList = []; // Lista de usuarios (colaboradores)
+    const usersMap = {}; // Caché mapeado de usuarios
+
     document.addEventListener("DOMContentLoaded", async () => {
-        // Cargar estadísticas y actividad
+        // Cargar actividad de auditoría reciente
+        await loadAuditFeed();
+
+        // Cargar eventos del calendario
+        await loadCalendarEvents();
+
+        // Cargar caché de colaboradores
+        await loadUsersCache();
+
+        // Cargar proyectos y tareas del tablero
+        await loadProjectsAndTasks();
+    });
+
+    // Cargar auditoría reciente
+    async function loadAuditFeed() {
         try {
             const response = await fetchAPI("/api/dashboard");
             if (!response) return;
             const data = await response.json();
 
-            // Inyectar lista de actividad reciente
             const feed = document.getElementById("recent-activity-list");
             feed.innerHTML = "";
-            if (data.recent_activity.length === 0) {
-                feed.innerHTML = `<p class="text-xs text-grey-main italic text-center py-6">No hay actividad registrada.</p>`;
+            if (!data.recent_activity || data.recent_activity.length === 0) {
+                feed.innerHTML = `<p class="text-xs text-grey-main italic text-center py-12">No hay actividad registrada.</p>`;
             } else {
-                data.recent_activity.forEach(log => {
+                data.recent_activity.slice(0, 5).forEach(log => {
                     let dotColor = "bg-[#049DD9]";
                     if (log.action.includes("failed") || log.action.includes("delete")) {
                         dotColor = "bg-red-500";
@@ -259,20 +405,22 @@
                     const div = document.createElement("div");
                     div.className = "flex items-start space-x-3 text-xs";
                     div.innerHTML = `
-                        <span class="w-2.5 h-2.5 rounded-full ${dotColor} mt-1 flex-shrink-0"></span>
+                        <span class="w-2 h-2 rounded-full ${dotColor} mt-1.5 flex-shrink-0"></span>
                         <div class="flex-1 min-w-0">
                             <p class="font-semibold text-black-dark leading-relaxed">${log.details}</p>
-                            <p class="text-[10px] text-grey-main mt-0.5">${log.user_name} • ${log.time}</p>
+                            <p class="text-[9px] text-grey-main mt-0.5">${log.user_name} • ${log.time}</p>
                         </div>
                     `;
                     feed.appendChild(div);
                 });
             }
         } catch (e) {
-            console.error("Error al cargar dashboard stats:", e);
+            console.error("Error al cargar auditoría:", e);
         }
+    }
 
-        // Cargar Eventos rápidos
+    // Cargar eventos del calendario
+    async function loadCalendarEvents() {
         try {
             const response = await fetchAPI("/api/events");
             if (response && response.ok) {
@@ -280,7 +428,6 @@
                 const list = document.getElementById("dashboard-events-list");
                 list.innerHTML = "";
 
-                // Filtrar eventos futuros o de hoy
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
@@ -290,7 +437,7 @@
                     .slice(0, 3);
 
                 if (upcoming.length === 0) {
-                    list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No hay próximos eventos agendados.</p>`;
+                    list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-12">No hay próximos eventos.</p>`;
                 } else {
                     upcoming.forEach(e => {
                         let badgeColor = "bg-blue-corp/10 text-blue-corp";
@@ -300,39 +447,29 @@
                         const dateStr = new Date(e.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
                         const div = document.createElement("div");
-                        div.className = "flex items-center justify-between p-3 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-colors";
+                        div.className = "flex items-center justify-between p-2.5 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-colors";
                         div.innerHTML = `
-                            <div class="flex items-center space-x-3 min-w-0">
-                                <span class="text-xs font-bold px-2 py-1 rounded-lg ${badgeColor} uppercase tracking-wider text-[9px]">
+                            <div class="flex items-center space-x-2.5 min-w-0">
+                                <span class="text-[8px] font-bold px-2 py-0.5 rounded-lg ${badgeColor} uppercase tracking-wider">
                                     ${e.event_type}
                                 </span>
                                 <div class="truncate">
                                     <h5 class="text-xs font-bold text-black-dark truncate">${e.title}</h5>
-                                    <p class="text-[10px] text-grey-main">${dateStr}</p>
+                                    <p class="text-[9px] text-grey-main">${dateStr}</p>
                                 </div>
                             </div>
-                            <i class="fa-solid fa-chevron-right text-gray-300 text-[10px] pr-2"></i>
+                            <i class="fa-solid fa-chevron-right text-gray-300 text-[9px] pr-2"></i>
                         `;
                         list.appendChild(div);
                     });
                 }
             }
         } catch (e) {
-            console.error("Error al cargar eventos del dashboard:", e);
+            console.error("Error al cargar eventos:", e);
         }
+    }
 
-        // Cargar Tareas y Notas
-        await loadUsersCache();
-        await loadNotes();
-    });
-
-    // Variables globales
-    const currentUserId = {{ user.id }};
-    let activeNoteId = null;
-    let usersList = [];
-    const usersMap = {};
-
-    // Cargar colaboradores en cache
+    // Cargar colaboradores en caché
     async function loadUsersCache() {
         try {
             const response = await fetchAPI("/api/users/list-minimal");
@@ -347,195 +484,265 @@
         }
     }
 
-    async function loadNotes(selectNoteId = null) {
+    // Cargar proyectos (notas) y tareas
+    async function loadProjectsAndTasks() {
         try {
-            const response = await fetchAPI("/api/notes");
-            if (!response || !response.ok) return;
-            const notes = await response.json();
-            const sidebar = document.getElementById("dashboard-notes-list");
-            sidebar.innerHTML = "";
+            // 1. Obtener proyectos (notas)
+            const notesResponse = await fetchAPI("/api/notes");
+            if (notesResponse && notesResponse.ok) {
+                notesList = await notesResponse.json();
+                populateProjectSelector();
+            }
 
-            if (notes.length === 0) {
-                sidebar.innerHTML = `<p class="text-xs text-grey-main italic text-center py-8">No hay notas creadas.</p>`;
-                document.getElementById("note-detail-panel").innerHTML = `
-                    <div class="flex-1 flex flex-col items-center justify-center text-center text-grey-main space-y-2 py-10">
-                        <i class="fa-regular fa-clipboard text-3xl text-gray-300"></i>
-                        <p class="text-xs italic">Crea una nota para empezar a organizar tus tareas.</p>
+            // 2. Obtener tareas
+            const tasksResponse = await fetchAPI("/api/tasks");
+            if (tasksResponse && tasksResponse.ok) {
+                tasksList = await tasksResponse.json();
+                renderScrumBoard();
+            }
+        } catch (e) {
+            console.error("Error cargando datos del tablero ágil:", e);
+        }
+    }
+
+    // Poblar los selectores de proyectos
+    function populateProjectSelector() {
+        const filterSelect = document.getElementById("project-board-filter");
+        
+        // Guardar selección previa
+        const prevSelected = filterSelect.value;
+        
+        filterSelect.innerHTML = '<option value="all">Todos los proyectos</option>';
+        notesList.forEach(project => {
+            const opt = document.createElement("option");
+            opt.value = project.id;
+            opt.textContent = project.title;
+            filterSelect.appendChild(opt);
+        });
+
+        // Restaurar selección previa si aún existe
+        if (notesList.some(n => n.id.toString() === prevSelected)) {
+            filterSelect.value = prevSelected;
+            activeProjectId = prevSelected;
+        } else {
+            filterSelect.value = "all";
+            activeProjectId = "all";
+        }
+
+        updateDeleteProjectButtonVisibility();
+    }
+
+    // Mostrar/ocultar botón de eliminar proyecto activo
+    function updateDeleteProjectButtonVisibility() {
+        const deleteBtn = document.getElementById("delete-project-btn");
+        if (!deleteBtn) return;
+        
+        if (activeProjectId !== "all" && (userRole === "Administrador" || userRole === "Supervisor")) {
+            deleteBtn.classList.remove("hidden");
+        } else {
+            deleteBtn.classList.add("hidden");
+        }
+    }
+
+    // Manejar filtrado al cambiar selector de proyecto
+    function filterBoardByProject() {
+        const filterSelect = document.getElementById("project-board-filter");
+        activeProjectId = filterSelect.value;
+        updateDeleteProjectButtonVisibility();
+        renderScrumBoard();
+    }
+
+    // Renderizar tablero Scrum
+    function renderScrumBoard() {
+        const columns = {
+            todo: document.getElementById("col-todo"),
+            inprogress: document.getElementById("col-inprogress"),
+            inreview: document.getElementById("col-inreview"),
+            done: document.getElementById("col-done")
+        };
+
+        const counts = {
+            todo: document.getElementById("count-todo"),
+            inprogress: document.getElementById("count-inprogress"),
+            inreview: document.getElementById("count-inreview"),
+            done: document.getElementById("count-done")
+        };
+
+        // Limpiar todas las columnas
+        Object.keys(columns).forEach(k => {
+            columns[k].innerHTML = "";
+            counts[k].textContent = "0";
+        });
+
+        // Filtrar tareas por proyecto activo
+        let filteredTasks = tasksList;
+        if (activeProjectId !== "all") {
+            const pid = parseInt(activeProjectId);
+            filteredTasks = tasksList.filter(t => t.note_id === pid);
+        }
+
+        // Distribuir tareas en columnas
+        const colCounters = { todo: 0, inprogress: 0, inreview: 0, done: 0 };
+
+        filteredTasks.forEach(task => {
+            // Mapear estados viejos para compatibilidad
+            let status = task.status;
+            if (status === 'pending') status = 'todo';
+            else if (status === 'completed') status = 'done';
+
+            if (columns[status]) {
+                const cardHtml = getTaskCardHtml(task);
+                columns[status].insertAdjacentHTML("beforeend", cardHtml);
+                colCounters[status]++;
+            }
+        });
+
+        // Actualizar los contadores visuales
+        Object.keys(counts).forEach(k => {
+            counts[k].textContent = colCounters[k];
+            
+            // Agregar mensaje si la columna está vacía
+            if (colCounters[k] === 0) {
+                columns[k].innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-16 text-center text-gray-300 border border-dashed border-gray-200/40 rounded-2xl bg-white/40">
+                        <i class="fa-regular fa-clipboard text-xl mb-1.5 opacity-60"></i>
+                        <span class="text-[9px] font-semibold uppercase tracking-wider">Vacío</span>
                     </div>
                 `;
-                activeNoteId = null;
-                return;
             }
+        });
+    }
 
-            // Seleccionar nota activa por defecto
-            if (selectNoteId) {
-                activeNoteId = selectNoteId;
-            } else if (!activeNoteId || !notes.find(n => n.id === activeNoteId)) {
-                activeNoteId = notes[0].id;
-            }
+    // Obtener HTML estructurado de la tarjeta de tarea
+    function getTaskCardHtml(task) {
+        // Asignar encargado
+        const assignee = usersMap[task.assigned_to_user_id];
+        const assigneeName = assignee ? assignee.full_name : "Sin asignar";
+        const assigneeAvatar = assignee ? (assignee.avatar_url || '/static/images/default-avatar.png') : '/static/images/default-avatar.png';
+        
+        // Asignar proyecto
+        const project = notesList.find(n => n.id === task.note_id);
+        const projectName = project ? project.title : "General";
 
-            notes.forEach(note => {
-                const isActive = note.id === activeNoteId;
-                const activeClasses = isActive ? "bg-blue-corp/5 border-blue-corp/30 text-blue-corp font-bold" : "bg-white/60 hover:bg-white border-gray-100 text-black-dark";
-                const totalTasks = note.tasks.length;
-                const completedTasks = note.tasks.filter(t => t.status === 'completed').length;
-                
-                const div = document.createElement("div");
-                div.className = `flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${activeClasses} group shadow-xs`;
-                div.onclick = () => selectNote(note.id);
-                
-                div.innerHTML = `
-                    <div class="min-w-0 flex-1 pr-2">
-                        <h5 class="text-xs font-bold truncate">${note.title}</h5>
-                        <p class="text-[9px] text-grey-main mt-0.5">${completedTasks}/${totalTasks} tareas</p>
-                    </div>
-                    ${note.created_by_id === currentUserId ? `
-                        <button onclick="deleteNote(${note.id}, event)" class="w-6 h-6 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" title="Eliminar Nota">
-                            <i class="fa-regular fa-trash-can text-[11px]"></i>
+        // Fecha de vencimiento
+        let dueDateHtml = "";
+        if (task.due_date) {
+            const d = new Date(task.due_date);
+            const isOverdue = d < new Date() && task.status !== 'done' && task.status !== 'completed';
+            const dateColor = isOverdue ? 'text-red-500 bg-red-50 border-red-200' : 'text-gray-500 bg-gray-50 border-gray-200/50';
+            dueDateHtml = `
+                <span class="text-[8px] font-bold px-2 py-0.5 rounded-lg border flex items-center space-x-1 ${dateColor}">
+                    <i class="fa-regular fa-clock text-[9px]"></i>
+                    <span>${d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                </span>
+            `;
+        }
+
+        const isManagement = userRole === 'Administrador' || userRole === 'Supervisor';
+
+        return `
+            <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 cursor-grab active:cursor-grabbing bg-white/95" draggable="true" ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)">
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 bg-blue-corp/5 text-blue-corp rounded-lg border border-blue-corp/10 truncate max-w-[130px]" title="${projectName}">
+                        ${projectName}
+                    </span>
+                    ${isManagement || task.created_by_id === currentUserId ? `
+                        <button onclick="deleteTask(${task.id}, event)" class="w-5 h-5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-all flex-shrink-0" title="Eliminar Tarea">
+                            <i class="fa-regular fa-trash-can text-[10px]"></i>
                         </button>
                     ` : ''}
-                `;
-                sidebar.appendChild(div);
-
-                if (isActive) {
-                    renderNoteDetail(note);
-                }
-            });
-        } catch (e) {
-            console.error("Error cargando notas:", e);
-        }
-    }
-
-    function selectNote(noteId) {
-        activeNoteId = noteId;
-        loadNotes(noteId);
-    }
-
-    function renderNoteDetail(note) {
-        const panel = document.getElementById("note-detail-panel");
-        const total = note.tasks.length;
-        const completed = note.tasks.filter(t => t.status === 'completed').length;
-        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-        // Construir opciones de colaboradores
-        const userOptions = usersList.map(u => `<option value="${u.id}">${u.full_name}</option>`).join('');
-
-        // Construir items de tareas
-        let tasksHtml = "";
-        if (note.tasks.length === 0) {
-            tasksHtml = `<p class="text-xs text-grey-main italic text-center py-12">No hay tareas en esta nota.</p>`;
-        } else {
-            tasksHtml = note.tasks.map(t => {
-                const isCompleted = t.status === 'completed';
-                const checkIcon = isCompleted ? 'fa-check-circle text-emerald-500' : 'fa-circle text-gray-300';
-                const textClass = isCompleted ? 'line-through text-gray-400 font-normal' : 'text-black-dark font-medium';
+                </div>
                 
-                // Buscar usuario asignado
-                let assigneeHtml = "";
-                if (t.assigned_to_user_id && usersMap[t.assigned_to_user_id]) {
-                    const u = usersMap[t.assigned_to_user_id];
-                    assigneeHtml = `
-                        <div class="flex items-center space-x-1 bg-gray-100/80 px-2 py-0.5 rounded-xl border border-gray-200/50" title="Asignado a ${u.full_name}">
-                            <img src="${u.avatar_url || '/static/images/default-avatar.png'}" class="w-3.5 h-3.5 rounded-full object-cover">
-                            <span class="text-[9px] font-semibold text-gray-600 truncate max-w-[60px]">${u.full_name.split(' ')[0]}</span>
-                        </div>
-                    `;
-                } else {
-                    assigneeHtml = `
-                        <span class="text-[9px] text-grey-main italic">Sin asignar</span>
-                    `;
-                }
-
-                return `
-                    <div class="flex items-center justify-between p-2.5 bg-white/60 hover:bg-white rounded-xl border border-gray-100 transition-all group cursor-pointer shadow-xs">
-                        <div onclick="toggleTask(${t.id}, '${t.status}', ${note.id})" class="flex items-center space-x-2.5 min-w-0 flex-1">
-                            <i class="fa-regular ${checkIcon} text-base flex-shrink-0 group-hover:text-blue-corp transition-colors"></i>
-                            <span class="text-xs ${textClass} truncate">${t.title}</span>
-                        </div>
-                        <div class="flex items-center space-x-2 ml-2 flex-shrink-0">
-                            ${assigneeHtml}
-                            <button onclick="deleteTask(${t.id}, ${note.id}, event)" class="w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" title="Eliminar Tarea">
-                                <i class="fa-regular fa-trash-can text-xs"></i>
-                            </button>
-                        </div>
+                <div class="min-w-0">
+                    <h5 class="text-xs font-bold text-black-dark leading-snug break-words">${task.title}</h5>
+                    ${task.description ? `<p class="text-[10px] text-grey-main mt-1 line-clamp-2 leading-relaxed break-words">${task.description}</p>` : ''}
+                </div>
+                
+                <div class="flex items-center justify-between border-t border-gray-100/80 pt-2.5 mt-0.5">
+                    ${dueDateHtml || '<span class="flex-1"></span>'}
+                    
+                    <div class="flex items-center space-x-1.5 ml-auto" title="Encargado: ${assigneeName}">
+                        <img src="${assigneeAvatar}" class="w-4.5 h-4.5 rounded-full object-cover border border-gray-200">
+                        <span class="text-[9px] font-bold text-gray-500 max-w-[70px] truncate">${assigneeName.split(' ')[0]}</span>
                     </div>
-                `;
-            }).join('');
-        }
-
-        panel.innerHTML = `
-            <div class="flex justify-between items-start mb-2 flex-shrink-0">
-                <div>
-                    <h5 class="text-xs font-bold text-black-dark uppercase tracking-wider">${note.title}</h5>
-                    <p class="text-[9px] text-grey-main mt-0.5">Gestión de tareas de esta nota</p>
                 </div>
             </div>
-
-            <!-- Barra de progreso -->
-            <div class="mb-3 bg-white/40 p-2.5 rounded-xl border border-gray-100 flex-shrink-0">
-                <div class="flex justify-between items-center text-[10px] text-grey-main mb-1">
-                    <span class="font-medium">Progreso: ${completed}/${total} completadas</span>
-                    <span class="font-bold text-blue-corp">${percent}%</span>
-                </div>
-                <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
-                    <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${percent}%"></div>
-                </div>
-            </div>
-
-            <!-- Lista de Tareas scrollable -->
-            <div class="flex-1 overflow-y-auto space-y-2 pr-1 mb-2 min-h-0">
-                ${tasksHtml}
-            </div>
-
-            <!-- Formulario Inline para Añadir Tarea -->
-            <form onsubmit="handleNewTaskSubmit(event, ${note.id})" class="flex items-center space-x-2 border-t border-gray-100 pt-3 flex-shrink-0">
-                <input type="text" id="newTaskTitle" required placeholder="Escribe una nueva tarea..." class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-blue-corp/30 outline-none">
-                <select id="newTaskAssignee" class="w-32 text-xs bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 outline-none">
-                    <option value="">Sin asignar</option>
-                    ${userOptions}
-                </select>
-                <button type="submit" class="w-8 h-8 rounded-xl bg-blue-corp text-white flex items-center justify-center hover:bg-[#0385B8] transition-colors flex-shrink-0 shadow-sm" title="Añadir Tarea">
-                    <i class="fa-solid fa-plus text-xs"></i>
-                </button>
-            </form>
         `;
     }
 
-    async function toggleTask(taskId, currentStatus, noteId) {
-        const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    // ============================================================
+    // MECANICAS DRAG AND DROP (SCRUM BOARD)
+    // ============================================================
+    let draggedTaskId = null;
+
+    function dragStart(event, taskId) {
+        draggedTaskId = taskId;
+        event.dataTransfer.setData("text/plain", taskId);
+        setTimeout(() => {
+            const card = document.getElementById(`task-${taskId}`);
+            if (card) card.classList.add("opacity-40");
+        }, 0);
+    }
+
+    function dragEnd(event) {
+        event.target.classList.remove("opacity-40");
+    }
+
+    function allowDrop(event) {
+        event.preventDefault();
+    }
+
+    function dragEnter(event) {
+        event.preventDefault();
+        const col = event.currentTarget;
+        col.classList.add("border-blue-corp/30", "bg-blue-corp/5");
+    }
+
+    function dragLeave(event) {
+        const col = event.currentTarget;
+        // Evitar desparpadeo al moverse sobre elementos hijos
+        if (event.relatedTarget && col.contains(event.relatedTarget)) return;
+        col.classList.remove("border-blue-corp/30", "bg-blue-corp/5");
+    }
+
+    async function dropTask(event, targetStatus) {
+        event.preventDefault();
+        const col = event.currentTarget;
+        col.classList.remove("border-blue-corp/30", "bg-blue-corp/5");
+
+        const taskId = draggedTaskId || event.dataTransfer.getData("text/plain");
+        if (!taskId) return;
+
         try {
             const response = await fetchAPI(`/api/tasks/${taskId}`, {
                 method: "PUT",
-                body: { status: newStatus }
+                body: { status: targetStatus }
             });
+
             if (response && response.ok) {
-                loadNotes(noteId);
-            }
-        } catch (e) {
-            console.error("Error actualizando tarea:", e);
-        }
-    }
-
-    async function deleteTask(taskId, noteId, event) {
-        if (event) event.stopPropagation();
-        if (!confirm("¿Está seguro de eliminar esta tarea?")) return;
-        try {
-            const response = await fetchAPI(`/api/tasks/${taskId}`, {
-                method: "DELETE"
-            });
-            if (response && response.status === 204) {
-                showToast("Tarea eliminada correctamente.", "success");
-                loadNotes(noteId);
+                showToast("Estado de la tarea actualizado con éxito.", "success");
+                
+                // Actualizar localmente la lista de tareas y refrescar tablero
+                const updatedTask = await response.json();
+                const idx = tasksList.findIndex(t => t.id === updatedTask.id);
+                if (idx !== -1) {
+                    tasksList[idx] = updatedTask;
+                }
+                renderScrumBoard();
             } else {
-                showToast("No se pudo eliminar la tarea.", "error");
+                showToast("No tienes autorización para mover esta tarea.", "error");
             }
         } catch (e) {
-            console.error("Error eliminando tarea:", e);
-            showToast("Error al conectar con el servidor.", "error");
+            console.error("Error al mover tarea:", e);
+            showToast("Error de conexión al mover la tarea.", "error");
+        } finally {
+            draggedTaskId = null;
         }
     }
 
-    // Modal Nota
+    // ============================================================
+    // GESTIÓN DE PROYECTOS / NOTAS
+    // ============================================================
     function openNewNoteModal() {
         const modal = document.getElementById('newNoteModal');
         const content = modal.querySelector('.transform');
@@ -574,66 +781,179 @@
             if (response && response.ok) {
                 const note = await response.json();
                 closeNewNoteModal();
-                showToast("Nota creada correctamente.", "success");
-                loadNotes(note.id);
+                showToast("Proyecto / Tablero creado correctamente.", "success");
+                
+                // Recargar proyectos y seleccionar el recién creado
+                await loadProjectsAndTasks();
+                const filterSelect = document.getElementById("project-board-filter");
+                filterSelect.value = note.id;
+                activeProjectId = note.id.toString();
+                updateDeleteProjectButtonVisibility();
+                renderScrumBoard();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al crear el proyecto.", "error");
             }
         } catch (error) {
             console.error("Error creando nota:", error);
-            showToast("Error al crear la nota.", "error");
+            showToast("Error al crear el proyecto.", "error");
         }
     }
 
-    async function deleteNote(noteId, event) {
-        if (event) event.stopPropagation();
-        if (!confirm("¿Está seguro de eliminar esta nota? Se eliminarán todas sus tareas asociadas.")) return;
+    async function handleDeleteProject() {
+        if (activeProjectId === "all") return;
+        if (!confirm("¿Está seguro de eliminar este proyecto? Se eliminarán todas las tareas asociadas permanentemente.")) return;
+        
         try {
-            const response = await fetchAPI(`/api/notes/${noteId}`, {
+            const response = await fetchAPI(`/api/notes/${activeProjectId}`, {
                 method: "DELETE"
             });
             if (response && response.status === 204) {
-                showToast("Nota eliminada correctamente.", "success");
-                loadNotes();
+                showToast("Proyecto eliminado con éxito.", "success");
+                
+                // Restablecer filtro a todos y recargar
+                activeProjectId = "all";
+                await loadProjectsAndTasks();
             } else {
-                showToast("No se pudo eliminar la nota.", "error");
+                showToast("No se pudo eliminar el proyecto.", "error");
             }
         } catch (e) {
-            console.error("Error eliminando nota:", e);
-            showToast("Error al conectar con el servidor.", "error");
+            console.error("Error eliminando proyecto:", e);
+            showToast("Error de conexión con el servidor.", "error");
         }
     }
 
-    async function handleNewTaskSubmit(e, noteId) {
+    // ============================================================
+    // GESTIÓN DE TAREAS (CREACIÓN / ELIMINACIÓN)
+    // ============================================================
+    {% if user.role.name in ['Administrador', 'Supervisor'] %}
+    function openNewTaskModal() {
+        document.getElementById('newTaskForm').reset();
+        
+        const modal = document.getElementById('newTaskModal');
+        const content = modal.querySelector('.transform');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            if (content) {
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }
+        }, 10);
+
+        // Poblar selector de proyectos en el modal
+        const projectSelect = document.getElementById("taskProject");
+        projectSelect.innerHTML = '<option value="">Seleccionar Proyecto...</option>';
+        notesList.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = p.title;
+            projectSelect.appendChild(opt);
+        });
+        
+        // Auto-seleccionar el proyecto actualmente filtrado si aplica
+        if (activeProjectId !== "all") {
+            projectSelect.value = activeProjectId;
+        }
+
+        // Poblar selector de encargados en el modal
+        const assigneeSelect = document.getElementById("taskAssignee");
+        assigneeSelect.innerHTML = '<option value="">Sin asignar / Libre</option>';
+        usersList.forEach(u => {
+            const opt = document.createElement("option");
+            opt.value = u.id;
+            opt.textContent = `${u.full_name} (${u.role_name})`;
+            assigneeSelect.appendChild(opt);
+        });
+    }
+
+    function closeNewTaskModal() {
+        const modal = document.getElementById('newTaskModal');
+        const content = modal.querySelector('.transform');
+        modal.classList.add('opacity-0');
+        if (content) {
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+        }
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            document.getElementById('newTaskForm').reset();
+        }, 300);
+    }
+
+    async function handleNewTaskSubmit(e) {
         e.preventDefault();
-        const title = document.getElementById('newTaskTitle').value;
-        const assigneeId = document.getElementById('newTaskAssignee').value;
+        const title = document.getElementById('taskTitle').value;
+        const description = document.getElementById('taskDescription').value;
+        const noteId = document.getElementById('taskProject').value;
+        const assigneeId = document.getElementById('taskAssignee').value;
+        const initialStatus = document.getElementById('taskInitialStatus').value;
+        const dueDate = document.getElementById('taskDueDate').value;
+
         const payload = {
             title: title,
-            note_id: noteId
+            description: description || null,
+            status: initialStatus,
+            note_id: noteId ? parseInt(noteId) : null,
+            assigned_to_user_id: assigneeId ? parseInt(assigneeId) : null,
+            due_date: dueDate ? new Date(dueDate).toISOString() : null
         };
-        if (assigneeId) payload.assigned_to_user_id = parseInt(assigneeId);
 
         try {
             const response = await fetchAPI("/api/tasks", {
                 method: "POST",
                 body: payload
             });
+            
             if (response && response.ok) {
-                loadNotes(noteId);
+                closeNewTaskModal();
+                showToast("Tarea creada e insertada en el tablero.", "success");
+                
+                // Recargar proyectos y tareas
+                await loadProjectsAndTasks();
+            } else {
+                const data = await response.json();
+                showToast(data.detail || "Error al crear la tarea.", "error");
             }
         } catch (error) {
             console.error("Error creando tarea:", error);
-            showToast("Error al crear la tarea.", "error");
+            showToast("Error de conexión al crear la tarea.", "error");
+        }
+    }
+    {% endif %}
+
+    async function deleteTask(taskId, event) {
+        if (event) event.stopPropagation();
+        if (!confirm("¿Está seguro de eliminar esta tarea permanentemente?")) return;
+        
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}`, {
+                method: "DELETE"
+            });
+            if (response && response.status === 204) {
+                showToast("Tarea eliminada correctamente.", "success");
+                
+                // Remover de la lista local y refrescar tablero
+                tasksList = tasksList.filter(t => t.id !== taskId);
+                renderScrumBoard();
+            } else {
+                showToast("No se pudo eliminar la tarea.", "error");
+            }
+        } catch (e) {
+            console.error("Error eliminando tarea:", e);
+            showToast("Error de conexión con el servidor.", "error");
         }
     }
 
     // ============================================================
-    // MODAL NUEVO COLABORADOR
+    // MODAL NUEVO COLABORADOR (AJUSTES SIDEBAR RÁPIDO)
     // ============================================================
     async function openUserCreateModal() {
         document.getElementById('dash-user-form').reset();
         const modal = document.getElementById('newUserModal');
         modal.classList.remove('hidden');
         setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        
         // Cargar roles desde la API
         const select = document.getElementById('dash-user-role');
         try {
@@ -646,6 +966,7 @@
         } catch(e) {
             select.innerHTML = '<option value="">Error al cargar roles</option>';
         }
+        
         // Cargar áreas desde la API
         const areaSelect = document.getElementById('dash-user-area');
         try {
@@ -700,6 +1021,8 @@
             if (response && response.ok) {
                 closeUserModal();
                 showToast('Colaborador creado con éxito.', 'success');
+                // Refrescar caché de colaboradores
+                await loadUsersCache();
             } else {
                 const data = await response.json();
                 showToast(data.detail || 'Error al crear colaborador.', 'error');
