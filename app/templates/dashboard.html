@@ -31,6 +31,7 @@
 {% block content %}
 
 <!-- FILA PRINCIPAL: TABLERO SCRUM ESTILO JIRA (ANCHO COMPLETO) -->
+{% if user.role.name != 'Usuario' %}
 <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col min-h-[600px] w-full">
     
     <!-- Encabezado del Tablero Scrum -->
@@ -67,6 +68,10 @@
                 <button onclick="openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-plus text-[10px]"></i>
                     <span>Nueva Tarea</span>
+                </button>
+                <button onclick="openDailyTasksModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 hover:bg-purple-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
+                    <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
+                    <span>Tareas Diarias</span>
                 </button>
                 {% endif %}
             </div>
@@ -125,6 +130,21 @@
         </div>
     </div>
 </div>
+{% else %}
+<!-- TABLERO ALTERNATIVO PARA USUARIOS -->
+<div class="glass-card p-8 rounded-3xl shadow-sm flex flex-col items-center justify-center min-h-[400px] w-full bg-gradient-to-br from-blue-50 to-white text-center border border-blue-100">
+    <div class="w-24 h-24 bg-blue-100/50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+        <i class="fa-solid fa-broom text-4xl text-blue-corp"></i>
+    </div>
+    <h3 class="text-2xl font-bold text-black-dark mb-2">¡Hola, {{ user.full_name }}!</h3>
+    <p class="text-gray-500 max-w-md text-sm mb-6">Esperamos que estés teniendo un excelente día. Recuerda mantener organizado tu espacio de trabajo.</p>
+    <div class="px-6 py-3 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 hover:shadow-md transition-shadow">
+        <i class="fa-solid fa-sparkles text-amber-400"></i>
+        <span class="font-bold text-gray-700 text-sm tracking-wide">Limpia tu puesto :)</span>
+        <i class="fa-solid fa-sparkles text-amber-400"></i>
+    </div>
+</div>
+{% endif %}
 
 <!-- FILA SECUNDARIA: ACCESOS RÁPIDOS, EVENTOS Y AUDITORÍA -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
@@ -190,6 +210,35 @@
                     <div class="h-2 bg-gray-300 rounded-sm w-1/2"></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Noticias Corporativas -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px]">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h4 class="text-sm font-bold text-black-dark">Noticias Recientes</h4>
+                <p class="text-[10px] text-grey-main">Comunicados corporativos</p>
+            </div>
+            <a href="/news" class="text-[10px] text-blue-corp font-bold hover:underline uppercase">Ver todo</a>
+        </div>
+        <div id="dashboard-news-list" class="flex-1 space-y-3 overflow-y-auto pr-1">
+            <p class="text-xs text-grey-main italic text-center py-12">Cargando noticias...</p>
+        </div>
+    </div>
+
+    <!-- Cumpleaños del Mes -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px] bg-gradient-to-b from-white to-pink-50/30">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h4 class="text-sm font-bold text-black-dark flex items-center gap-2">
+                    <i class="fa-solid fa-cake-candles text-pink-500"></i> Cumpleaños del Mes
+                </h4>
+                <p class="text-[10px] text-grey-main">¡Celebra con tu equipo!</p>
+            </div>
+        </div>
+        <div id="dashboard-birthdays-list" class="flex-1 space-y-3 overflow-y-auto pr-1">
+            <p class="text-xs text-grey-main italic text-center py-12">Cargando cumpleaños...</p>
         </div>
     </div>
 
@@ -275,6 +324,62 @@
                 Crear Tarea
             </button>
         </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal Tareas Diarias (Solo Admin/Supervisor) -->
+{% if user.role.name in ['Administrador', 'Supervisor'] %}
+<div id="dailyTasksModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl transform scale-95 transition-transform duration-300 max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-black-dark flex items-center space-x-2">
+                <i class="fa-solid fa-clock-rotate-left text-purple-500"></i>
+                <span>Gestión de Tareas Diarias</span>
+            </h3>
+            <button onclick="closeDailyTasksModal()" class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto mb-4 border-b border-gray-100 pb-4">
+            <div id="dailyTasksList" class="space-y-3">
+                <p class="text-xs text-grey-main italic text-center py-4">Cargando tareas diarias...</p>
+            </div>
+        </div>
+
+        <div>
+            <h4 class="text-sm font-bold text-black-dark mb-3">Crear Nueva Tarea Diaria</h4>
+            <form id="newDailyTaskForm" onsubmit="handleNewDailyTaskSubmit(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Título</label>
+                        <input type="text" id="dailyTaskTitle" required placeholder="Revisar Logs" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-purple-500/50 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Encargado</label>
+                        <select id="dailyTaskAssignee" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-purple-500/50">
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Descripción</label>
+                    <input type="text" id="dailyTaskDesc" placeholder="Detalles de la rutina..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-purple-500/50 outline-none">
+                </div>
+
+                <div class="flex items-end gap-4">
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Hora de Ejecución (HH:MM)</label>
+                        <input type="time" id="dailyTaskTime" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-purple-500/50 outline-none">
+                    </div>
+                    <button type="submit" class="bg-purple-500 text-white rounded-xl py-2 px-6 font-bold text-xs hover:bg-purple-600 transition-colors shadow-lg shadow-purple-500/30">
+                        Añadir Rutina
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endif %}
@@ -365,6 +470,7 @@
     let activeProjectId = "all"; // ID del filtro activo o "all"
     let notesList = []; // Lista de Proyectos (Notes)
     let tasksList = []; // Lista de todas las tareas
+    let dailyTasksList = []; // Lista de tareas diarias
     let usersList = []; // Lista de usuarios (colaboradores)
     const usersMap = {}; // Caché mapeado de usuarios
 
@@ -380,7 +486,85 @@
 
         // Cargar proyectos y tareas del tablero
         await loadProjectsAndTasks();
+
+        // Cargar Noticias y Cumpleaños
+        await loadDashboardNews();
+        await loadDashboardBirthdays();
     });
+
+    // Cargar Noticias Recientes
+    async function loadDashboardNews() {
+        try {
+            const list = document.getElementById("dashboard-news-list");
+            if (!list) return;
+            const response = await fetchAPI("/api/news");
+            if (response && response.ok) {
+                const news = await response.json();
+                list.innerHTML = "";
+                const recent = news.slice(0, 3);
+                if (recent.length === 0) {
+                    list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-12">No hay noticias recientes.</p>`;
+                } else {
+                    recent.forEach(n => {
+                        const dateStr = new Date(n.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                        const div = document.createElement("div");
+                        div.className = "flex items-center justify-between p-3 bg-white/60 hover:bg-white rounded-2xl border border-gray-100 transition-colors";
+                        div.innerHTML = `
+                            <div class="flex items-center space-x-3 min-w-0">
+                                <div class="w-8 h-8 rounded-xl bg-blue-corp/10 flex items-center justify-center flex-shrink-0">
+                                    <i class="fa-regular fa-newspaper text-blue-corp text-xs"></i>
+                                </div>
+                                <div class="truncate">
+                                    <h5 class="text-xs font-bold text-black-dark truncate">${n.title}</h5>
+                                    <p class="text-[9px] text-grey-main">${dateStr} • ${n.category}</p>
+                                </div>
+                            </div>
+                        `;
+                        list.appendChild(div);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Error al cargar noticias:", e);
+        }
+    }
+
+    // Cargar Cumpleaños
+    async function loadDashboardBirthdays() {
+        try {
+            const list = document.getElementById("dashboard-birthdays-list");
+            if (!list) return;
+            const response = await fetchAPI("/api/users/birthdays");
+            if (response && response.ok) {
+                const birthdays = await response.json();
+                list.innerHTML = "";
+                if (birthdays.length === 0) {
+                    list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-12">No hay cumpleaños este mes.</p>`;
+                } else {
+                    birthdays.forEach(u => {
+                        const dateObj = new Date(u.birth_date);
+                        // Añadir la zona horaria UTC para evitar desfasaje de días
+                        const dateStr = new Date(dateObj.getTime() + dateObj.getTimezoneOffset() * 60000).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+                        const div = document.createElement("div");
+                        div.className = "flex items-center justify-between p-3 bg-white hover:bg-pink-50 rounded-2xl border border-pink-100 transition-colors group";
+                        div.innerHTML = `
+                            <div class="flex items-center space-x-3 min-w-0">
+                                <img src="${u.avatar_url || '/static/images/default-avatar.png'}" class="w-8 h-8 rounded-xl object-cover border border-pink-200">
+                                <div class="truncate">
+                                    <h5 class="text-xs font-bold text-black-dark truncate group-hover:text-pink-600 transition-colors">${u.full_name}</h5>
+                                    <p class="text-[9px] text-pink-400 font-semibold">${dateStr}</p>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-gift text-pink-300 group-hover:text-pink-500 transition-colors mr-2"></i>
+                        `;
+                        list.appendChild(div);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Error al cargar cumpleaños:", e);
+        }
+    }
 
     // Cargar auditoría reciente
     async function loadAuditFeed() {
@@ -638,6 +822,18 @@
             `;
         }
 
+        // Fecha de completado (Historial)
+        let completedHtml = "";
+        if (task.status === 'done' && task.completed_at) {
+            const compD = new Date(task.completed_at);
+            completedHtml = `
+                <span class="text-[8px] font-bold px-2 py-0.5 rounded-lg border flex items-center space-x-1 text-emerald-600 bg-emerald-50 border-emerald-200" title="Finalizado el ${compD.toLocaleDateString()} a las ${compD.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}">
+                    <i class="fa-solid fa-check-double text-[9px]"></i>
+                    <span>${compD.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} (${compD.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})</span>
+                </span>
+            `;
+        }
+
         const isManagement = userRole === 'Administrador' || userRole === 'Supervisor';
 
         return `
@@ -659,7 +855,7 @@
                 </div>
                 
                 <div class="flex items-center justify-between border-t border-gray-100/80 pt-2.5 mt-0.5">
-                    ${dueDateHtml || '<span class="flex-1"></span>'}
+                    ${completedHtml ? completedHtml : (dueDateHtml || '<span class="flex-1"></span>')}
                     
                     <div class="flex items-center space-x-1.5 ml-auto" title="Encargado: ${assigneeName}">
                         <img src="${assigneeAvatar}" class="w-4.5 h-4.5 rounded-full object-cover border border-gray-200">
@@ -1033,6 +1229,202 @@
             btn.disabled = false;
             btn.innerHTML = 'Guardar Colaborador';
         }
+    }
+    // ============================================================
+    // GESTIÓN DE TAREAS DIARIAS (RUTINAS)
+    // ============================================================
+    function openDailyTasksModal() {
+        const modal = document.getElementById('dailyTasksModal');
+        const content = modal.querySelector('.transform');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            if (content) {
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }
+        }, 10);
+        
+        // Cargar usuarios en el select
+        const assigneeSelect = document.getElementById('dailyTaskAssignee');
+        if (assigneeSelect && assigneeSelect.options.length <= 1) {
+            usersList.forEach(u => {
+                const opt = document.createElement("option");
+                opt.value = u.id;
+                opt.textContent = u.full_name;
+                assigneeSelect.appendChild(opt);
+            });
+        }
+        
+        loadDailyTasks();
+    }
+
+    function closeDailyTasksModal() {
+        const modal = document.getElementById('dailyTasksModal');
+        const content = modal.querySelector('.transform');
+        modal.classList.add('opacity-0');
+        if (content) {
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+        }
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            document.getElementById('newDailyTaskForm').reset();
+        }, 300);
+    }
+
+    async function loadDailyTasks() {
+        try {
+            const response = await fetchAPI("/api/tasks/daily");
+            if (response && response.ok) {
+                dailyTasksList = await response.json();
+                renderDailyTasks();
+            }
+        } catch (e) {
+            console.error("Error cargando tareas diarias:", e);
+        }
+    }
+
+    function renderDailyTasks() {
+        const list = document.getElementById("dailyTasksList");
+        if (!list) return;
+        
+        list.innerHTML = "";
+        if (dailyTasksList.length === 0) {
+            list.innerHTML = `<p class="text-xs text-grey-main italic text-center py-4">No hay tareas diarias configuradas.</p>`;
+            return;
+        }
+
+        dailyTasksList.forEach(task => {
+            const assignee = usersMap[task.assigned_to_user_id];
+            const assigneeName = assignee ? assignee.full_name : "Desconocido";
+            
+            const div = document.createElement("div");
+            div.className = "flex flex-col p-3 bg-gray-50 rounded-xl border border-gray-100";
+            div.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg">
+                                <i class="fa-regular fa-clock mr-1"></i>${task.schedule_time}
+                            </span>
+                            <h5 class="text-xs font-bold text-black-dark">${task.title}</h5>
+                        </div>
+                        <p class="text-[10px] text-grey-main mt-1">
+                            Encargado: <strong>${assigneeName}</strong>
+                            ${task.description ? ` | ${task.description}` : ''}
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2 ml-4">
+                        <button onclick="viewDailyTaskHistory(${task.id})" class="text-[10px] px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors" title="Ver Historial">
+                            <i class="fa-solid fa-list-ul"></i> Historial
+                        </button>
+                        <button onclick="toggleDailyTaskActive(${task.id}, ${!task.is_active})" class="text-[10px] px-2 py-1 rounded-lg ${task.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}">
+                            ${task.is_active ? 'Activa' : 'Inactiva'}
+                        </button>
+                        <button onclick="deleteDailyTask(${task.id})" class="text-red-400 hover:text-red-600 transition-colors">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="history-config-${task.id}" class="hidden mt-2"></div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    async function handleNewDailyTaskSubmit(e) {
+        e.preventDefault();
+        const payload = {
+            title: document.getElementById('dailyTaskTitle').value,
+            description: document.getElementById('dailyTaskDesc').value,
+            assigned_to_user_id: parseInt(document.getElementById('dailyTaskAssignee').value),
+            schedule_time: document.getElementById('dailyTaskTime').value
+        };
+
+        try {
+            const response = await fetchAPI("/api/tasks/daily", {
+                method: "POST",
+                body: payload
+            });
+            if (response && response.ok) {
+                showToast("Rutina diaria creada con éxito.", "success");
+                document.getElementById('newDailyTaskForm').reset();
+                loadDailyTasks();
+            } else {
+                showToast("Error al crear rutina.", "error");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async function toggleDailyTaskActive(id, newStatus) {
+        try {
+            const response = await fetchAPI(`/api/tasks/daily/${id}`, {
+                method: "PUT",
+                body: { is_active: newStatus }
+            });
+            if (response && response.ok) {
+                loadDailyTasks();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function deleteDailyTask(id) {
+        if (!confirm("¿Seguro que deseas eliminar esta rutina diaria?")) return;
+        try {
+            const response = await fetchAPI(`/api/tasks/daily/${id}`, {
+                method: "DELETE"
+            });
+            if (response && response.ok) {
+                loadDailyTasks();
+                showToast("Rutina eliminada.", "success");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function viewDailyTaskHistory(configId) {
+        const historyContainer = document.getElementById(`history-config-${configId}`);
+        if (!historyContainer) return;
+        
+        if (!historyContainer.classList.contains("hidden")) {
+            historyContainer.classList.add("hidden");
+            return;
+        }
+        
+        // Find tasks in tasksList with this configId and status done
+        const completedTasks = tasksList.filter(t => t.daily_task_config_id === configId && (t.status === 'done' || t.status === 'completed') && t.completed_at);
+        
+        // Sort by completed_at desc
+        completedTasks.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+        
+        let html = '<div class="p-3 bg-white rounded-xl border border-gray-100 mt-2 text-xs space-y-2">';
+        html += '<h6 class="font-bold text-gray-600 border-b pb-1 mb-2">Últimas realizaciones</h6>';
+        
+        if (completedTasks.length === 0) {
+            html += '<p class="text-gray-400 italic text-[10px]">No hay registros de finalización en el historial reciente.</p>';
+        } else {
+            completedTasks.slice(0, 10).forEach(t => {
+                const d = new Date(t.completed_at);
+                const dateStr = d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+                const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                html += `
+                    <div class="flex justify-between items-center text-[10px]">
+                        <span class="text-gray-500 capitalize"><i class="fa-solid fa-calendar-check mr-1.5 text-emerald-500"></i>${dateStr}</span>
+                        <span class="font-bold text-gray-700">${timeStr}</span>
+                    </div>
+                `;
+            });
+        }
+        html += '</div>';
+        
+        historyContainer.innerHTML = html;
+        historyContainer.classList.remove("hidden");
     }
 </script>
 {% endblock %}

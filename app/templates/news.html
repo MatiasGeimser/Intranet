@@ -280,7 +280,9 @@
         `;
 
         panel.appendChild(listDiv);
-        panel.appendChild(form);
+        if ("{{ user.role.name }}" !== "Usuario") {
+            panel.appendChild(form);
+        }
     }
 
     // Enviar comentario

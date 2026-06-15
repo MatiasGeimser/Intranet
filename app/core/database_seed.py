@@ -29,6 +29,20 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (note_id): {e} ======")
 
+    # Migración dinámica de columnas para tareas diarias en la tabla tasks
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS daily_task_config_id INTEGER REFERENCES daily_task_configs(id) ON DELETE SET NULL"))
+            db.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITHOUT TIME ZONE"))
+        else:
+            db.execute(text("ALTER TABLE tasks ADD COLUMN daily_task_config_id INTEGER REFERENCES daily_task_configs(id) ON DELETE SET NULL"))
+            db.execute(text("ALTER TABLE tasks ADD COLUMN completed_at DATETIME"))
+        db.commit()
+        print("====== COLUMNAS daily_task_config_id Y completed_at VERIFICADAS/AÑADIDAS EN tasks ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (daily_task_config_id/completed_at): {e} ======")
+
     # Migración dinámica de la columna updated_at en la tabla documents
     try:
         if engine.name == "postgresql":

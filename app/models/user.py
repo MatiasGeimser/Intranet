@@ -14,6 +14,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)
+    birth_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relaciones

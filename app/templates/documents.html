@@ -223,6 +223,10 @@
 {% endblock %}
 
 {% block content %}
+{% set user_perms = [] %}
+{% for perm in user.role.permissions %}
+    {% set _ = user_perms.append(perm.code) %}
+{% endfor %}
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
@@ -321,7 +325,8 @@
          ═══════════════════════════════════════════════════ -->
     <div class="lg:col-span-3 space-y-4">
 
-        <!-- Dropzone mejorado -->
+        <!-- Dropzone mejorado (Solo Administradores o con permiso) -->
+        {% if user.role.name == 'Administrador' or 'documents:manage' in user_perms %}
         <div id="dropzone"
             class="border-2 border-dashed border-[#8C8C8C]/30 hover:border-blue-corp rounded-3xl p-7 bg-white/50 hover:bg-blue-corp/4 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none group">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
@@ -343,6 +348,7 @@
                 <p class="text-[10px] text-blue-corp font-semibold mt-1.5" id="upload-progress-label">Subiendo...</p>
             </div>
         </div>
+        {% endif %}
 
         <!-- Barra de herramientas: carpeta activa, búsqueda, toggle de vista -->
         <div class="glass-card px-4 py-3 rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
@@ -431,7 +437,7 @@
     let rawDocumentsList = [];
     let currentView     = 'table';   // 'table' | 'grid'
     let currentPreviewDocument = null;
-    const isAdmin = "{{ user.role.name }}" === "Administrador";
+    const isAdmin = {{ 'true' if user.role.name == 'Administrador' or 'documents:manage' in user_perms else 'false' }};
     const folderCounts = {};   // { folder: count }
 
     /* ──────────────────────────────────────────────────────
@@ -464,7 +470,12 @@
        ────────────────────────────────────────────────────── */
     document.addEventListener('DOMContentLoaded', () => {
         createModalInBody();
-        initDropzone();
+        selectFolder('General');
+        
+        // Inicializar dropzone solo si existe (si el usuario tiene permisos)
+        if (document.getElementById('dropzone')) {
+            initDropzone();
+        }
         loadDocuments();
         loadAllFolderCounts();
     });

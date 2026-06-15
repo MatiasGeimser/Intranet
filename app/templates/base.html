@@ -171,19 +171,10 @@
             {% endif %}
 
             {% if user.role.name == 'Administrador' or 'it:manage' in user_perms %}
-            <a href="/network" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'network' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
-                <i class="fa-solid fa-network-wired text-base"></i>
-                <span>Switches</span>
-                <span class="ml-auto text-[10px] bg-[#79F2E6]/20 text-[#79F2E6] px-2 py-0.5 rounded-full font-bold">NET</span>
-            </a>
-            <a href="/it-assets" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'it-assets' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
-                <i class="fa-solid fa-desktop text-base"></i>
-                <span>Inventario PC</span>
+            <a href="/it-assets" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page in ['it-assets', 'network', 'phone-numbers'] %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-server text-base"></i>
+                <span>Gestión Activos IT</span>
                 <span class="ml-auto text-[10px] bg-[#79F2E6]/20 text-[#79F2E6] px-2 py-0.5 rounded-full font-bold">IT</span>
-            </a>
-            <a href="/phone-numbers" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'phone-numbers' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
-                <i class="fa-solid fa-phone text-base"></i>
-                <span>Números Contratados</span>
             </a>
             {% endif %}
 

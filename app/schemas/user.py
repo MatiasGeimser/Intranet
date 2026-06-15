@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     avatar_url: Optional[str] = None
     is_active: Optional[bool] = True
     area_id: Optional[int] = None
+    birth_date: Optional[datetime] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, max_length=50)

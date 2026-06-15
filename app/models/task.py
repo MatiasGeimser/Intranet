@@ -21,9 +21,33 @@ class Task(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     due_date = Column(DateTime, nullable=True)
     note_id = Column(Integer, ForeignKey("notes.id", ondelete="CASCADE"), nullable=True)
+    
+    daily_task_config_id = Column(Integer, ForeignKey("daily_task_configs.id", ondelete="SET NULL"), nullable=True)
+    completed_at = Column(DateTime, nullable=True)
 
     # Relationships
     creator = relationship("User", foreign_keys=[created_by_id], backref=backref("created_tasks", cascade="all, delete-orphan"))
     assigned_user = relationship("User", foreign_keys=[assigned_to_user_id], back_populates="tasks")
     assigned_role = relationship("Role", foreign_keys=[assigned_to_role_id], back_populates="tasks")
     note = relationship("Note", back_populates="tasks")
+
+class DailyTaskConfig(Base):
+    __tablename__ = "daily_task_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Horario a ejecutarse (HH:MM)
+    schedule_time = Column(String(5), nullable=False, default="09:00") 
+    
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_triggered_date = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    creator = relationship("User", foreign_keys=[created_by_id])
+    assigned_user = relationship("User", foreign_keys=[assigned_to_user_id])

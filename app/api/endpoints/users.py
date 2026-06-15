@@ -9,9 +9,21 @@ from app.models.role import Role
 from app.api.deps import get_current_active_user, PermissionChecker
 from app.core.security import get_password_hash
 from app.services.audit_service import audit_service
+from datetime import datetime
 from app.core.config import settings
 
 router = APIRouter()
+
+@router.get("/birthdays", response_model=List[UserResponse])
+def get_birthdays(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Obtiene los usuarios que cumplen años en el mes actual."""
+    users = db.query(User).filter(User.is_active == True, User.birth_date.isnot(None)).all()
+    current_month = datetime.now().month
+    birthdays = [u for u in users if u.birth_date.month == current_month]
+    return birthdays
 
 @router.get("", response_model=List[UserResponse])
 def get_users(

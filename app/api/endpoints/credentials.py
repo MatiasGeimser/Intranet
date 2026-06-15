@@ -20,12 +20,27 @@ def get_credentials(
     """Obtiene la bóveda de contraseñas filtradas por categoría (si se especifica)."""
     query = db.query(Credential)
     
-    # Solo el Administrador puede visualizar la bóveda
+    # Solo el Administrador puede ver todo; el usuario normal ve solo las suyas
     if current_user.role.name != "Administrador":
-        raise HTTPException(
-            status_code=403, 
-            detail="Acceso denegado. Solo el Administrador puede ver la bóveda de credenciales."
-        )
+        # Estrategia: Buscar credenciales donde el username coincida con el email del usuario
+        matching_creds = db.query(Credential).filter(Credential.username == current_user.email).all()
+        
+        # Extraer el "Nombre Persona" del título ("Sistema - Nombre Persona")
+        person_names = set()
+        for c in matching_creds:
+            if " - " in c.title:
+                person_names.add(c.title.split(" - ", 1)[1].strip())
+        
+        if person_names:
+            from sqlalchemy import or_
+            # Construir filtro OR para traer todas las credenciales de esos "Nombres de Persona"
+            filters = [Credential.title.endswith(f" - {name}") for name in person_names]
+            # También incluimos directamente por username por si hay sueltas sin el formato " - "
+            filters.append(Credential.username == current_user.email)
+            query = query.filter(or_(*filters))
+        else:
+            # Si no encontró grupo, filtra estrictamente por el email
+            query = query.filter(Credential.username == current_user.email)
         
     if category:
         query = query.filter(Credential.category == category)
@@ -79,12 +94,26 @@ def decrypt_credential_password(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    # Solo el Administrador puede visualizar credenciales
+    # Solo el Administrador o los usuarios vinculados por email pueden visualizar credenciales
     if current_user.role.name != "Administrador":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado. Solo el Administrador puede ver esta credencial."
-        )
+        is_allowed = False
+        if cred.username == current_user.email:
+            is_allowed = True
+        elif " - " in cred.title:
+            person_name = cred.title.split(" - ", 1)[1].strip()
+            # ¿Tiene alguna otra credencial con ese mismo person_name y su email?
+            has_matching = db.query(Credential).filter(
+                Credential.username == current_user.email,
+                Credential.title.endswith(f" - {person_name}")
+            ).first()
+            if has_matching:
+                is_allowed = True
+
+        if not is_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado. No eres el propietario de esta credencial."
+            )
 
     # Desencriptar e inyectar auditoría
     decrypted_pw = crypto_service.decrypt_password(

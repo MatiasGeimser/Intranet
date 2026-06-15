@@ -72,6 +72,8 @@ app.include_router(notes.router, prefix="/api/notes", tags=["Gestión de Notas"]
 app.include_router(areas.router, prefix="/api/areas", tags=["Gestión de Áreas"])
 app.include_router(duplicate_phones.router, prefix="/api/duplicate-phones", tags=["Limpieza de Teléfonos"])
 
+from app.services.scheduler_service import scheduler_service
+
 # Evento de inicialización de Base de Datos
 @app.on_event("startup")
 def on_startup():
@@ -84,3 +86,11 @@ def on_startup():
         print(f"====== ERROR AL SEMBRAR LA BASE DE DATOS: {e} ======")
     finally:
         db.close()
+        
+    # Iniciar el servicio de tareas programadas (schedulers)
+    scheduler_service.start()
+
+@app.on_event("shutdown")
+def on_shutdown():
+    """Detiene los servicios en segundo plano al apagar la aplicación."""
+    scheduler_service.stop()

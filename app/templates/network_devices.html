@@ -186,6 +186,19 @@
 {% endblock %}
 
 {% block content %}
+<!-- ── NAVEGACIÓN DE SUB-MÓDULOS IT ── -->
+<div class="flex items-center space-x-1 bg-white/50 p-1 rounded-2xl border border-gray-100 mb-6 inline-flex">
+    <a href="/it-assets" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {{ 'bg-[#049DD9] text-white shadow-md' if active_page == 'it-assets' else 'text-gray-500 hover:text-[#049DD9] hover:bg-white' }}">
+        <i class="fa-solid fa-desktop mr-2"></i>Inventario PC
+    </a>
+    <a href="/network" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {{ 'bg-[#049DD9] text-white shadow-md' if active_page == 'network' else 'text-gray-500 hover:text-[#049DD9] hover:bg-white' }}">
+        <i class="fa-solid fa-network-wired mr-2"></i>Switches
+    </a>
+    <a href="/phone-numbers" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {{ 'bg-[#049DD9] text-white shadow-md' if active_page == 'phone-numbers' else 'text-gray-500 hover:text-[#049DD9] hover:bg-white' }}">
+        <i class="fa-solid fa-phone mr-2"></i>Números Contratados
+    </a>
+</div>
+
 <!-- ── KPI CARDS ── -->
 <div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="stat-card fade-in" style="animation-delay: 0s">

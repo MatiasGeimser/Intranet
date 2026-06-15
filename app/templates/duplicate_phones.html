@@ -54,22 +54,58 @@
     </div>
 </div>
 
-<!-- PASO 1: SUBIDA DE ARCHIVO -->
+<!-- PASO 1: SUBIDA DE ARCHIVOS -->
 <div id="section-upload" class="bg-white border border-[#8C8C8C]/12 rounded-2xl p-6 md:p-8 space-y-6">
-    <div class="max-w-xl mx-auto text-center space-y-4">
-        <h3 class="text-base font-semibold text-[#262523]">Paso 1: Sube tu archivo Excel (.xlsx)</h3>
+    <div class="max-w-3xl mx-auto text-center space-y-4">
+        <h3 class="text-base font-semibold text-[#262523]">Paso 1: Configura la limpieza y sube tu(s) archivo(s) Excel (.xlsx)</h3>
         
-        <div id="drop-zone" class="drop-zone p-8 flex flex-col items-center justify-center min-h-[220px]"
-             onclick="document.getElementById('excel-file-input').click()">
-            
-            <input type="file" id="excel-file-input" class="hidden" accept=".xlsx" onchange="handleFileSelect(event)">
-            
-            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#049DD9]/10 to-[#79F2E6]/10 flex items-center justify-center text-[#049DD9] mb-4">
-                <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+        <!-- SELECCIÓN DE MODO -->
+        <div class="flex justify-center mb-6">
+            <div class="inline-flex bg-gray-100 p-1 rounded-xl">
+                <button id="mode-global" onclick="setMode('global')" class="px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-white text-[#049DD9] shadow-sm">
+                    Limpieza Global
+                </button>
+                <button id="mode-commercial" onclick="setMode('commercial')" class="px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-gray-500 hover:text-gray-700">
+                    Limpieza por Empresa
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="upload-grid">
+            <!-- Zona 1 -->
+            <div id="drop-zone-1" class="drop-zone p-6 flex flex-col items-center justify-center min-h-[200px]" onclick="document.getElementById('file-input-1').click()">
+                <input type="file" id="file-input-1" class="hidden" accept=".xlsx" onchange="handleFileSelect(event, 1)">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#049DD9]/10 to-[#79F2E6]/10 flex items-center justify-center text-[#049DD9] mb-3">
+                    <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                </div>
+                <p class="text-sm font-semibold text-[#262523]">Base de Datos 1<br><span class="text-[10px] text-gray-500 font-normal">(Principal - Obligatoria)</span></p>
+                <p id="file-name-1" class="text-xs text-[#049DD9] mt-2 hidden font-bold truncate w-full px-4"></p>
             </div>
             
-            <p class="text-sm font-semibold text-[#262523]">Arrastra tu archivo aquí o haz clic para explorar</p>
-            <p class="text-xs text-[#8C8C8C] mt-1">Soporta el formato Excel standard .xlsx</p>
+            <!-- Zona 2 (Sólo para Global) -->
+            <div id="drop-zone-2" class="drop-zone p-6 flex flex-col items-center justify-center min-h-[200px]" onclick="document.getElementById('file-input-2').click()">
+                <input type="file" id="file-input-2" class="hidden" accept=".xlsx" onchange="handleFileSelect(event, 2)">
+                <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 mb-3">
+                    <i class="fa-solid fa-link text-xl"></i>
+                </div>
+                <p class="text-sm font-semibold text-[#262523]">Base de Datos 2<br><span class="text-[10px] text-gray-500 font-normal">(A Cruzar - Opcional)</span></p>
+                <p id="file-name-2" class="text-xs text-[#049DD9] mt-2 hidden font-bold truncate w-full px-4"></p>
+            </div>
+            
+            <!-- Columna Empresa (Sólo para Comercial) -->
+            <div id="commercial-config" class="hidden text-left flex flex-col justify-center min-h-[200px]">
+                <label class="block text-sm font-semibold text-[#262523] mb-2">Nombre de la columna de Empresa (opcional)</label>
+                <p class="text-[11px] text-[#8C8C8C] mb-2">Si lo dejas en blanco, buscaremos una columna llamada "Nombre Comercial" o "Empresa" automáticamente.</p>
+                <input type="text" id="col-name-input" placeholder="Ej: Nombre Comercial" class="w-full bg-[#F2F2F2] text-sm rounded-xl px-4 py-3 border border-[#8C8C8C]/20 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9] transition-all duration-200">
+            </div>
+        </div>
+
+        </div>
+        
+        <div class="pt-4">
+            <button id="btn-process" onclick="startProcessing()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-[#049DD9] to-[#79F2E6] text-white text-sm font-bold hover:shadow-lg hover:shadow-[#049DD9]/20 transition-all duration-200 opacity-50 cursor-not-allowed" disabled>
+                Procesar Archivos
+            </button>
         </div>
     </div>
 </div>
@@ -109,106 +145,159 @@
 
 {% block extra_js %}
 <script>
-    // =============================================================================
-    // GESTIÓN DE EVENTOS DE ARCHIVO / DRAG & DROP
-    // =============================================================================
-    const dropZone = document.getElementById('drop-zone');
-    
-    // Prevenir comportamientos por defecto del navegador para drag and drop
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-    });
+    let file1 = null;
+    let file2 = null;
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    function setupDropZone(zoneId, inputId, fileNum) {
+        const zone = document.getElementById(zoneId);
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            zone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            zone.addEventListener(evt, () => zone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            zone.addEventListener(evt, () => zone.classList.remove('dragover'), false);
+        });
+
+        zone.addEventListener('drop', e => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                setFile(files[0], fileNum);
+            }
+        });
     }
 
-    // Efecto visual al arrastrar archivo sobre la zona
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-            dropZone.classList.add('dragover');
-        }, false);
-    });
+    setupDropZone('drop-zone-1', 'file-input-1', 1);
+    setupDropZone('drop-zone-2', 'file-input-2', 2);
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-            dropZone.classList.remove('dragover');
-        }, false);
-    });
-
-    // Manejar el archivo soltado
-    dropZone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-            uploadFile(files[0]);
-        }
-    });
-
-    // Manejar el archivo seleccionado mediante explorador
-    function handleFileSelect(e) {
-        const files = e.target.files;
-        if (files.length > 0) {
-            uploadFile(files[0]);
+    function handleFileSelect(e, num) {
+        if (e.target.files.length > 0) {
+            setFile(e.target.files[0], num);
         }
     }
 
-    // =============================================================================
-    // SUBIDA Y PROCESAMIENTO
-    // =============================================================================
-    async function uploadFile(file) {
-        // Validar extensión
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (ext !== 'xlsx') {
+    function setFile(file, num) {
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
             showToast('Por favor, selecciona un archivo válido de Excel (.xlsx)', 'error');
             return;
         }
+        
+        const nameEl = document.getElementById(`file-name-${num}`);
+        nameEl.textContent = file.name;
+        nameEl.classList.remove('hidden');
+        
+        if (num === 1) file1 = file;
+        else file2 = file;
+        
+        checkProcessButton();
+    }
 
-        // Mostrar loading
+    function checkProcessButton() {
+        const btn = document.getElementById('btn-process');
+        if (file1) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    let currentMode = 'global'; // 'global' o 'commercial'
+
+    function setMode(mode) {
+        currentMode = mode;
+        const btnGlobal = document.getElementById('mode-global');
+        const btnCommercial = document.getElementById('mode-commercial');
+        const dropZone2 = document.getElementById('drop-zone-2');
+        const commercialConfig = document.getElementById('commercial-config');
+        
+        if (mode === 'global') {
+            btnGlobal.className = "px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-white text-[#049DD9] shadow-sm";
+            btnCommercial.className = "px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-gray-500 hover:text-gray-700";
+            dropZone2.classList.remove('hidden');
+            commercialConfig.classList.add('hidden');
+            document.getElementById('upload-grid').classList.replace('md:grid-cols-1', 'md:grid-cols-2');
+        } else {
+            btnCommercial.className = "px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-white text-[#049DD9] shadow-sm";
+            btnGlobal.className = "px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-gray-500 hover:text-gray-700";
+            dropZone2.classList.add('hidden');
+            commercialConfig.classList.remove('hidden');
+            document.getElementById('upload-grid').classList.replace('md:grid-cols-2', 'md:grid-cols-2');
+        }
+    }
+
+    async function startProcessing() {
+        if (!file1) return;
+        
         document.getElementById('section-upload').classList.add('hidden');
         document.getElementById('section-result').classList.add('hidden');
         document.getElementById('section-loading').classList.remove('hidden');
 
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', file1);
+        
+        let endpoint = '';
+
+        if (currentMode === 'global') {
+            if (file2) formData.append('file2', file2);
+            endpoint = '/api/duplicate-phones/process';
+        } else {
+            const colName = document.getElementById('col-name-input').value.trim();
+            if (colName) formData.append('company_column', colName);
+            endpoint = '/api/duplicate-phones/process-commercial';
+        }
 
         try {
-            // Reutilizar la función fetchAPI de base.html
-            const response = await fetchAPI('/api/duplicate-phones/process', {
+            const response = await fetchAPI(endpoint, {
                 method: 'POST',
-                // Importante: Al enviar FormData, NO se debe establecer Content-Type, 
-                // el navegador lo hace automáticamente incluyendo el boundary.
-                // fetchAPI se da cuenta de que no es un objeto simple y no lo sobreescribe si lo dejamos sin header
                 body: formData
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || 'Error desconocido al procesar el archivo');
+                throw new Error(errorData.detail || 'Error desconocido al procesar');
             }
 
             const data = await response.json();
             
-            // Ocultar loading y mostrar resultados
             document.getElementById('section-loading').classList.add('hidden');
             document.getElementById('section-result').classList.remove('hidden');
             
-            // Actualizar interfaz
             document.getElementById('deleted-count-badge').textContent = data.deleted_count;
-            document.getElementById('download-btn').href = '/api/duplicate-phones/download/' + data.download_id;
+            
+            const dlBtn = document.getElementById('download-btn');
+            let query = data.original_filename ? `?filename=${encodeURIComponent(data.original_filename)}` : '';
+            dlBtn.href = '/api/duplicate-phones/download/' + data.download_id + query;
+            
+            if (data.download_id.endsWith('.zip')) {
+                dlBtn.innerHTML = '<i class="fa-solid fa-file-zipper text-base"></i> Descargar ZIP Cruzado';
+            } else {
+                dlBtn.innerHTML = '<i class="fa-solid fa-download text-base"></i> Descargar Excel Limpio';
+            }
             
             showToast(data.message, 'success');
 
         } catch (error) {
-            console.error("Error al subir archivo:", error);
-            showToast(`Ocurrió un error: ${error.message}`, 'error');
+            console.error(error);
+            showToast(`Error: ${error.message}`, 'error');
             resetProcessor();
         }
     }
 
     function resetProcessor() {
-        document.getElementById('excel-file-input').value = '';
+        file1 = null;
+        file2 = null;
+        document.getElementById('file-input-1').value = '';
+        document.getElementById('file-input-2').value = '';
+        document.getElementById('file-name-1').classList.add('hidden');
+        document.getElementById('file-name-2').classList.add('hidden');
+        checkProcessButton();
+        
         document.getElementById('section-loading').classList.add('hidden');
         document.getElementById('section-result').classList.add('hidden');
         document.getElementById('section-upload').classList.remove('hidden');

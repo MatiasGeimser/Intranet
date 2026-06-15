@@ -274,3 +274,4 @@ def duplicate_phones_view(request: Request, db: Session = Depends(get_db)):
         "active_page": "duplicate-phones",
         "project_name": settings.PROJECT_NAME
     })
+
