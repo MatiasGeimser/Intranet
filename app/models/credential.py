@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.core.database import Base
@@ -12,6 +12,7 @@ class Credential(Base):
     username = Column(String(100), nullable=False)
     encrypted_password = Column(String(500), nullable=False)  # Encriptada con AES-256-GCM
     category = Column(String(50), default="General", nullable=False)  # Servidores, BDs, Redes, etc.
+    is_active = Column(Boolean, default=True, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

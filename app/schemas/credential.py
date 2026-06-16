@@ -7,6 +7,7 @@ class CredentialBase(BaseModel):
     url: Optional[str] = Field(None, max_length=200)
     username: str = Field(..., min_length=1, max_length=100)
     category: str = Field("General", max_length=50)
+    is_active: Optional[bool] = True
 
 class CredentialCreate(CredentialBase):
     password: str = Field(..., min_length=1, max_length=100)
@@ -17,6 +18,7 @@ class CredentialUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=1, max_length=100)
     password: Optional[str] = Field(None, min_length=1, max_length=100)
     category: Optional[str] = Field(None, max_length=50)
+    is_active: Optional[bool] = None
 
 class CredentialResponse(CredentialBase):
     id: int

@@ -623,6 +623,7 @@ async function toggleReveal(credId) {
             return;
         }
         icon.classList.remove('fa-spinner','fa-spin');
+        icon.classList.add('fa-eye');
     }
 
     display.textContent = decryptedPasswords[credId];

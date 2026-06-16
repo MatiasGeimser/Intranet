@@ -40,7 +40,6 @@
                         <th class="px-6 py-4">Colaborador</th>
                         <th class="px-6 py-4">Área de Trabajo</th>
                         <th class="px-6 py-4">Rol / Nivel</th>
-                        <th class="px-6 py-4">Estado Cuenta</th>
                         <th class="px-6 py-4">Fecha Alta</th>
                         <th class="px-6 py-4 text-right">Acciones</th>
                     </tr>
@@ -219,8 +218,18 @@
                         <td class="px-6 py-4 font-bold text-black-dark">
                             <div class="flex items-center space-x-3">
                                 <img src="${u.avatar_url || '/static/images/default-avatar.png'}" class="w-8 h-8 rounded-xl object-cover border border-[#8C8C8C]/20">
-                                <div>
-                                    <p class="font-bold text-black-dark leading-tight">${u.full_name}</p>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center space-x-2">
+                                        <p class="font-bold text-black-dark leading-tight">${u.full_name}</p>
+                                        <button onclick="toggleUserActiveInline(${u.id}, ${u.is_active})" class="flex items-center space-x-1 focus:outline-none group" title="Cambiar estado">
+                                            <span class="relative inline-flex h-4 w-7 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${u.is_active ? 'bg-[#79F2E6]' : 'bg-gray-200'}">
+                                                <span class="pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${u.is_active ? 'translate-x-3' : 'translate-x-0'}"></span>
+                                            </span>
+                                            <span class="text-[9px] font-semibold ${u.is_active ? 'text-blue-corp' : 'text-gray-400'} group-hover:underline">
+                                                ${u.is_active ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </button>
+                                    </div>
                                     <p class="text-[10px] text-grey-main font-mono">${u.email}</p>
                                 </div>
                             </div>
@@ -236,16 +245,6 @@
                                 <option value="2" ${u.role_id === 2 ? 'selected' : ''}>Supervisor</option>
                                 <option value="1" ${u.role_id === 1 ? 'selected' : ''}>Administrador</option>
                             </select>
-                        </td>
-                        <td class="px-6 py-4">
-                            <button onclick="toggleUserActiveInline(${u.id}, ${u.is_active})" class="flex items-center space-x-2 text-left group focus:outline-none">
-                                <span class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${u.is_active ? 'bg-[#79F2E6]' : 'bg-gray-200'}">
-                                    <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${u.is_active ? 'translate-x-4' : 'translate-x-0'}"></span>
-                                </span>
-                                <span class="text-[11px] font-semibold ${u.is_active ? 'text-blue-corp' : 'text-gray-400'} group-hover:underline">
-                                    ${u.is_active ? 'Activo' : 'Desactivado'}
-                                </span>
-                            </button>
                         </td>
                         <td class="px-6 py-4 text-gray-500">${dateStr}</td>
                         <td class="px-6 py-4 text-right">

@@ -151,6 +151,8 @@ def update_credential(
         cred.username = cred_data.username
     if cred_data.category:
         cred.category = cred_data.category
+    if cred_data.is_active is not None:
+        cred.is_active = cred_data.is_active
     if cred_data.password:
         cred.encrypted_password = crypto_service.encrypt_password(cred_data.password)
 
@@ -167,6 +169,48 @@ def update_credential(
     )
 
     return cred
+
+
+from pydantic import BaseModel
+class ExecutiveStatusUpdate(BaseModel):
+    is_active: bool
+
+@router.put("/executive/{person_name}/status")
+def update_executive_status(
+    person_name: str,
+    status_update: ExecutiveStatusUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("credentials:manage"))
+):
+    """Actualiza el estado de activo/inactivo para todas las credenciales de un ejecutivo."""
+    query = db.query(Credential).filter(Credential.owner_id == current_user.id)
+    if current_user.role.name == "Administrador":
+        query = db.query(Credential)
+        
+    from sqlalchemy import or_
+    creds = query.filter(or_(
+        Credential.title.endswith(f" - {person_name}"),
+        Credential.title == person_name
+    )).all()
+    
+    if not creds:
+        raise HTTPException(status_code=404, detail="Ejecutivo no encontrado en la bóveda.")
+        
+    for c in creds:
+        c.is_active = status_update.is_active
+        
+    db.commit()
+    
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="executive_status_update",
+        ip_address=request.client.host if request.client else None,
+        details=f"Cambió estado a {'Activo' if status_update.is_active else 'Inactivo'} para el ejecutivo: {person_name}"
+    )
+    
+    return {"detail": "Estado del ejecutivo actualizado."}
 
 
 @router.delete("/{cred_id}")
