@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from typing import List, Optional
-import pandas as pd
 from io import BytesIO
+from openpyxl import Workbook, load_workbook
 
 from app.core.database import get_db
 from app.models.collaborator import Collaborator
@@ -135,29 +135,22 @@ def export_collaborators(
     collaborators = db.query(Collaborator).all()
     
     data = []
+    headers = ["Nombre", "Correo", "Cargo", "Empresa", "Área", "Departamento", "Jefe", "Teléfono", "Anexo", "Sucursal", "Dirección", "Estado", "Observaciones"]
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Directorio"
+    ws.append(headers)
+    
     for c in collaborators:
-        data.append({
-            "Nombre": c.full_name,
-            "Correo": c.email,
-            "Cargo": c.position,
-            "Empresa": c.company,
-            "Área": c.area,
-            "Departamento": c.department,
-            "Jefe": c.direct_boss,
-            "Teléfono": c.phone,
-            "Anexo": c.extension_3cx,
-            "Sucursal": c.branch,
-            "Dirección": c.address,
-            "Estado": c.status,
-            "Observaciones": c.observations
-        })
+        row_data = [
+            c.full_name, c.email, c.position, c.company, c.area, c.department,
+            c.direct_boss, c.phone, c.extension_3cx, c.branch, c.address, c.status, c.observations
+        ]
+        ws.append(row_data)
         
-    df = pd.DataFrame(data)
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Directorio')
-        
-    output.seek(0)
+    wb.save(output)
     
     from fastapi.responses import StreamingResponse
     headers = {
@@ -222,22 +215,28 @@ def import_collaborators(
         
     try:
         contents = file.file.read()
-        df = pd.read_excel(BytesIO(contents))
-        # Ensure NaN is converted to None
-        df = df.where(pd.notnull(df), None)
+        wb = load_workbook(filename=BytesIO(contents), data_only=True)
+        ws = wb.active
+        
+        headers = [str(cell.value).strip() if cell.value else "" for cell in ws[1]]
         
         imported_count = 0
         updated_count = 0
         
-        for index, row in df.iterrows():
-            # Validate required fields (Nombre)
-            full_name = row.get("Nombre")
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_data = dict(zip(headers, row))
+            
+            # Convert missing values to None
+            for k, v in row_data.items():
+                if v is None or str(v).strip() == "" or str(v).strip() == "nan":
+                    row_data[k] = None
+                    
+            full_name = row_data.get("Nombre")
             if not full_name:
                 continue
                 
-            email = row.get("Correo")
+            email = row_data.get("Correo")
             
-            # Buscamos por correo o nombre para no duplicar
             existing = None
             if email:
                 existing = db.query(Collaborator).filter(Collaborator.email == email).first()
@@ -245,32 +244,32 @@ def import_collaborators(
                 existing = db.query(Collaborator).filter(Collaborator.full_name == full_name).first()
                 
             if existing:
-                existing.position = row.get("Cargo", existing.position)
-                existing.company = row.get("Empresa", existing.company)
-                existing.area = row.get("Área", existing.area)
-                existing.department = row.get("Departamento", existing.department)
-                existing.direct_boss = row.get("Jefe", existing.direct_boss)
+                existing.position = row_data.get("Cargo", existing.position)
+                existing.company = row_data.get("Empresa", existing.company)
+                existing.area = row_data.get("Área", existing.area)
+                existing.department = row_data.get("Departamento", existing.department)
+                existing.direct_boss = row_data.get("Jefe", existing.direct_boss)
                 existing.email = email or existing.email
-                existing.phone = str(row.get("Teléfono")) if row.get("Teléfono") else existing.phone
-                existing.extension_3cx = str(row.get("Anexo")) if row.get("Anexo") else existing.extension_3cx
-                existing.branch = row.get("Sucursal", existing.branch)
-                existing.address = row.get("Dirección", existing.address)
-                existing.status = row.get("Estado", existing.status) or "Disponible"
+                existing.phone = str(row_data.get("Teléfono")) if row_data.get("Teléfono") else existing.phone
+                existing.extension_3cx = str(row_data.get("Anexo")) if row_data.get("Anexo") else existing.extension_3cx
+                existing.branch = row_data.get("Sucursal", existing.branch)
+                existing.address = row_data.get("Dirección", existing.address)
+                existing.status = row_data.get("Estado", existing.status) or "Disponible"
                 updated_count += 1
             else:
                 new_collab = Collaborator(
                     full_name=full_name,
-                    position=row.get("Cargo"),
-                    company=row.get("Empresa"),
-                    area=row.get("Área"),
-                    department=row.get("Departamento"),
-                    direct_boss=row.get("Jefe"),
+                    position=row_data.get("Cargo"),
+                    company=row_data.get("Empresa"),
+                    area=row_data.get("Área"),
+                    department=row_data.get("Departamento"),
+                    direct_boss=row_data.get("Jefe"),
                     email=email,
-                    phone=str(row.get("Teléfono")) if row.get("Teléfono") else None,
-                    extension_3cx=str(row.get("Anexo")) if row.get("Anexo") else None,
-                    branch=row.get("Sucursal"),
-                    address=row.get("Dirección"),
-                    status=row.get("Estado", "Disponible")
+                    phone=str(row_data.get("Teléfono")) if row_data.get("Teléfono") else None,
+                    extension_3cx=str(row_data.get("Anexo")) if row_data.get("Anexo") else None,
+                    branch=row_data.get("Sucursal"),
+                    address=row_data.get("Dirección"),
+                    status=row_data.get("Estado", "Disponible")
                 )
                 db.add(new_collab)
                 imported_count += 1
