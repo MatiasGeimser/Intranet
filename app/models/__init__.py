@@ -11,10 +11,11 @@ from app.models.phone_number import PhoneNumber
 from app.models.task import Task
 from app.models.note import Note
 from app.models.area import Area
+from app.models.collaborator import Collaborator
 
 # Exportar todos los modelos para que Base.metadata.create_all() los encuentre
 __all__ = [
     "User", "Role", "Permission", "Session", "Credential", "Event",
     "Document", "News", "Comment", "AuditLog", "ITAsset", "VLAN",
-    "NetworkDevice", "PhoneNumber", "Task", "Note", "Area"
+    "NetworkDevice", "PhoneNumber", "Task", "Note", "Area", "Collaborator"
 ]

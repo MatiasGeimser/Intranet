@@ -138,6 +138,20 @@ def documents_view(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/directory", response_class=HTMLResponse)
+def directory_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el Directorio Corporativo."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+        
+    return templates.TemplateResponse(request=request, name="directory.html", context={
+        "user": user,
+        "active_page": "directory",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
 @router.get("/news", response_class=HTMLResponse)
 def news_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el portal de comunicación y noticias corporativas."""

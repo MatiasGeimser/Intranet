@@ -32,6 +32,16 @@ def get_users(
 ):
     """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
     if current_user.role.name != "Administrador":
+        # Supervisor can see themselves, users in their area (campaña), and their subordinates
+        if current_user.role.name == "Supervisor":
+            from sqlalchemy import or_
+            return db.query(User).filter(
+                or_(
+                    User.id == current_user.id, 
+                    User.area_id == current_user.area_id,
+                    User.supervisor_id == current_user.id
+                )
+            ).all()
         return db.query(User).filter(User.area_id == current_user.area_id).all()
     return db.query(User).all()
 
@@ -49,6 +59,16 @@ def get_users_minimal(
 ):
     """Obtiene la lista minimalista de todos los colaboradores activos para asignación, filtrado por área si no es admin."""
     if current_user.role.name != "Administrador":
+        if current_user.role.name == "Supervisor":
+            from sqlalchemy import or_
+            return db.query(User).filter(
+                User.is_active == True,
+                or_(
+                    User.id == current_user.id, 
+                    User.area_id == current_user.area_id,
+                    User.supervisor_id == current_user.id
+                )
+            ).all()
         return db.query(User).filter(User.is_active == True, User.area_id == current_user.area_id).all()
     return db.query(User).filter(User.is_active == True).all()
 
@@ -78,13 +98,18 @@ def create_user(
         )
 
     hashed_pw = get_password_hash(user_data.password)
+    import urllib.parse
+    default_avatar = f"https://avatar.iran.liara.run/public/girl?username={urllib.parse.quote(user_data.full_name)}" if user_data.gender == 'Mujer' else f"https://avatar.iran.liara.run/public/boy?username={urllib.parse.quote(user_data.full_name)}"
+    
     db_user = User(
         email=user_data.email,
         hashed_password=hashed_pw,
         full_name=user_data.full_name,
         role_id=user_data.role_id,
         area_id=user_data.area_id,
-        avatar_url=user_data.avatar_url or "/static/images/default-avatar.png",
+        supervisor_id=user_data.supervisor_id,
+        gender=user_data.gender,
+        avatar_url=user_data.avatar_url or default_avatar,
         is_active=user_data.is_active
     )
     db.add(db_user)
@@ -137,6 +162,15 @@ def update_user(
     # Actualizar campos comunes
     if user_data.full_name:
         user.full_name = user_data.full_name
+    if user_data.supervisor_id is not None:
+        user.supervisor_id = user_data.supervisor_id
+    if user_data.gender:
+        user.gender = user_data.gender
+        # Si no tiene avatar o es uno autogenerado/predeterminado, lo actualizamos al cambiar género/nombre
+        if not user.avatar_url or "avatar.iran.liara.run" in user.avatar_url or "default-avatar.png" in user.avatar_url:
+            import urllib.parse
+            user.avatar_url = f"https://avatar.iran.liara.run/public/girl?username={urllib.parse.quote(user.full_name)}" if user.gender == 'Mujer' else f"https://avatar.iran.liara.run/public/boy?username={urllib.parse.quote(user.full_name)}"
+            
     if user_data.avatar_url is not None:
         user.avatar_url = user_data.avatar_url
     if user_data.is_active is not None:

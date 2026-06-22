@@ -17,11 +17,15 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
-    if current_user.role.name in ["Administrador", "Supervisor"]:
+    if current_user.role.name == "Administrador":
         tasks = db.query(Task).order_by(Task.created_at.desc()).all()
     else:
+        # Regular users (including Supervisors) see tasks assigned to them or created by them
         tasks = db.query(Task).filter(
-            Task.assigned_to_user_id == current_user.id
+            or_(
+                Task.assigned_to_user_id == current_user.id,
+                Task.created_by_id == current_user.id
+            )
         ).order_by(Task.created_at.desc()).all()
     return tasks
 
@@ -30,10 +34,10 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
     """
     Create a new task. Restricted to Admins and Supervisors.
     """
-    if current_user.role.name not in ["Administrador", "Supervisor"]:
+    if current_user.role.name != "Administrador":
         raise HTTPException(
             status_code=403,
-            detail="Únicamente los administradores o supervisores pueden crear tareas."
+            detail="Únicamente los administradores pueden crear tareas."
         )
 
     db_task = Task(
@@ -71,7 +75,7 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    is_management = current_user.role.name == "Administrador"
     
     # Check permissions
     if not is_management and db_task.assigned_to_user_id != current_user.id:
@@ -126,7 +130,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    is_management = current_user.role.name == "Administrador"
     
     # Creator or Admins/Supervisors can delete
     if not is_management and db_task.created_by_id != current_user.id:
@@ -143,7 +147,7 @@ def read_daily_tasks(db: Session = Depends(get_db), current_user: User = Depends
     """
     Retrieve daily tasks.
     """
-    if current_user.role.name in ["Administrador", "Supervisor"]:
+    if current_user.role.name == "Administrador":
         tasks = db.query(DailyTaskConfig).order_by(DailyTaskConfig.created_at.desc()).all()
     else:
         tasks = db.query(DailyTaskConfig).filter(
@@ -159,7 +163,7 @@ def create_daily_task(task_in: DailyTaskConfigCreate, db: Session = Depends(get_
     """
     Create a new daily task config. Restricted to Admins and Supervisors.
     """
-    if current_user.role.name not in ["Administrador", "Supervisor"]:
+    if current_user.role.name != "Administrador":
         raise HTTPException(
             status_code=403,
             detail="Únicamente los administradores o supervisores pueden crear tareas diarias."
@@ -183,7 +187,7 @@ def update_daily_task(task_id: int, task_in: DailyTaskConfigUpdate, db: Session 
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
         
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    is_management = current_user.role.name == "Administrador"
     if not is_management and db_task.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes autorización para actualizar esta tarea")
         
@@ -205,7 +209,7 @@ def delete_daily_task(task_id: int, db: Session = Depends(get_db), current_user:
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
     
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
+    is_management = current_user.role.name == "Administrador"
     if not is_management and db_task.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         

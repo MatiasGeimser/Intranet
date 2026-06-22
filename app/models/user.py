@@ -15,11 +15,14 @@ class User(Base):
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)
     birth_date = Column(DateTime, nullable=True)
+    gender = Column(String(10), default="Hombre", nullable=True)
+    supervisor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relaciones
     role = relationship("Role", back_populates="users")
     area = relationship("Area", back_populates="users")
+    supervisor = relationship("User", remote_side=[id], backref="subordinates")
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     credentials = relationship("Credential", back_populates="owner", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="uploader", cascade="all, delete-orphan")

@@ -52,7 +52,7 @@
                     <option value="all">Todos los proyectos</option>
                 </select>
                 <!-- Botón eliminar proyecto activo (solo Admin/Supervisor) -->
-                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                {% if user.role.name == 'Administrador' %}
                 <button id="delete-project-btn" onclick="handleDeleteProject()" class="hidden w-7 h-7 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center" title="Eliminar este proyecto y sus tareas">
                     <i class="fa-regular fa-trash-can text-xs"></i>
                 </button>
@@ -60,7 +60,7 @@
             </div>
             
             <div class="flex items-center space-x-2">
-                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                {% if user.role.name == 'Administrador' %}
                 <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-folder-plus text-[10px]"></i>
                     <span>Nuevo Proyecto</span>
@@ -834,7 +834,7 @@
             `;
         }
 
-        const isManagement = userRole === 'Administrador' || userRole === 'Supervisor';
+        const isManagement = userRole === 'Administrador';
 
         return `
             <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 cursor-grab active:cursor-grabbing bg-white/95" draggable="true" ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)">
@@ -1055,7 +1055,7 @@
         // Poblar selector de encargados en el modal
         const assigneeSelect = document.getElementById("taskAssignee");
         assigneeSelect.innerHTML = '<option value="">Sin asignar / Libre</option>';
-        usersList.forEach(u => {
+        usersList.filter(u => u.role_name !== 'Supervisor').forEach(u => {
             const opt = document.createElement("option");
             opt.value = u.id;
             opt.textContent = `${u.full_name} (${u.role_name})`;
@@ -1248,7 +1248,7 @@
         // Cargar usuarios en el select
         const assigneeSelect = document.getElementById('dailyTaskAssignee');
         if (assigneeSelect && assigneeSelect.options.length <= 1) {
-            usersList.forEach(u => {
+            usersList.filter(u => u.role_name !== 'Supervisor').forEach(u => {
                 const opt = document.createElement("option");
                 opt.value = u.id;
                 opt.textContent = u.full_name;

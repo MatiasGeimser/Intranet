@@ -133,7 +133,7 @@
                 {% set _ = user_perms.append(perm.code) %}
             {% endfor %}
             
-            {% if user.role.name == 'Administrador' or 'credentials:manage' in user_perms or user.role.name == 'Usuario' %}
+            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario'] or 'credentials:manage' in user_perms %}
             <a href="/passwords" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'passwords' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-users text-base"></i>
                 <span>Gestor de Usuarios</span>
@@ -141,7 +141,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name == 'Administrador' or 'credentials:manage' in user_perms %}
+            {% if user.role.name in ['Administrador', 'Supervisor'] or 'credentials:manage' in user_perms %}
             <a href="/vault" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'vault' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-key text-base"></i>
                 <span>Gestor de Contraseñas</span>
@@ -155,6 +155,11 @@
                 <span>Calendario Corporativo</span>
             </a>
             {% endif %}
+
+            <a href="/directory" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'directory' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-address-book text-base"></i>
+                <span>Directorio Corporativo</span>
+            </a>
             
             {% if user.role.name == 'Administrador' or 'documents:manage' in user_perms or user.role.name == 'Usuario' %}
             <a href="/documents" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'documents' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
@@ -255,6 +260,16 @@
                     <input type="text" placeholder="Buscador inteligente..." class="w-56 bg-[#F2F2F2] text-xs rounded-xl pl-9 pr-4 py-2 border border-[#8C8C8C]/20 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9] transition-all duration-200">
                 </div>
                 
+                <!-- Acceso Rápido 3CX Web Client -->
+                <div class="relative hidden sm:block">
+                    <a href="https://1325.3cx.cloud/webclient/" target="_blank" 
+                       class="flex items-center space-x-2 bg-[#049DD9]/10 border border-[#049DD9]/30 px-3 py-1.5 rounded-xl hover:bg-[#049DD9] hover:text-white group transition-all duration-300"
+                       title="Abrir Marcador 3CX (Web Client)">
+                        <i class="fa-solid fa-phone-volume text-[#049DD9] group-hover:text-white transition-colors"></i>
+                        <span class="text-[10px] font-bold text-[#049DD9] group-hover:text-white tracking-wider uppercase transition-colors">3CX Web</span>
+                    </a>
+                </div>
+
                 <!-- Notificaciones elegantes -->
                 <div class="relative">
                     <button class="p-2 rounded-xl text-[#8C8C8C] hover:bg-gray-100 hover:text-[#262523] transition-all relative">
@@ -393,6 +408,10 @@
             overlay.classList.toggle('hidden');
         }
     </script>
+    <!-- 3CX Live Chat / Talk Widget -->
+    <call-us-selector phonesystem-url="https://1325.3cx.cloud" party="SoporteIntranet"></call-us-selector>
+    <script defer src="https://downloads-global.3cx.com/downloads/livechatandtalk/v1/callus.js" id="tcx-callus-js" charset="utf-8"></script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

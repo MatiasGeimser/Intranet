@@ -467,6 +467,10 @@ function renderTable(phones) {
             <td>
                 <div class="flex items-center gap-2">
                     <span class="font-mono font-semibold text-[#262523]">${esc(p.numero)}</span>
+                    <a href="tel:${esc(p.numero).replace(/[\\s\\(\\)\\-]/g, '')}" 
+                       class="flex items-center justify-center w-6 h-6 text-[#049DD9] hover:text-white hover:bg-[#049DD9] bg-[#049DD9]/10 rounded-lg transition-colors shadow-sm" title="Llamar con 3CX">
+                        <i class="fa-solid fa-phone text-[10px]"></i>
+                    </a>
                     <button onclick="copyText('${esc(p.numero)}','Número copiado')"
                         class="text-[#8C8C8C] hover:text-[#049DD9] p-1 rounded transition-colors" title="Copiar">
                         <i class="fa-regular fa-copy text-xs"></i>

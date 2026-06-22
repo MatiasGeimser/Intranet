@@ -10,6 +10,8 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     area_id: Optional[int] = None
     birth_date: Optional[datetime] = None
+    gender: Optional[str] = "Hombre"
+    supervisor_id: Optional[int] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, max_length=50)
@@ -22,6 +24,8 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     role_id: Optional[int] = None
     area_id: Optional[int] = None
+    supervisor_id: Optional[int] = None
+    gender: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, max_length=50)
 
 class RoleSimple(BaseModel):
@@ -37,6 +41,7 @@ class UserResponse(UserBase):
     role_id: int
     role: RoleSimple
     area: Optional[AreaSimple] = None
+    supervisor_id: Optional[int] = None
     created_at: datetime
 
     class Config:

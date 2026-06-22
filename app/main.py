@@ -11,7 +11,7 @@ from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.middlewares.csrf_middleware import CSRFMiddleware
 from app.middlewares.rate_limit import RateLimitMiddleware
 
-from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones
+from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators
 
 # Crear Aplicación FastAPI
 app = FastAPI(
@@ -71,6 +71,7 @@ app.include_router(tasks.router, prefix="/api/tasks", tags=["Gestión de Tareas 
 app.include_router(notes.router, prefix="/api/notes", tags=["Gestión de Notas"])
 app.include_router(areas.router, prefix="/api/areas", tags=["Gestión de Áreas"])
 app.include_router(duplicate_phones.router, prefix="/api/duplicate-phones", tags=["Limpieza de Teléfonos"])
+app.include_router(collaborators.router, prefix="/api/collaborators", tags=["Directorio Corporativo"])
 
 from app.services.scheduler_service import scheduler_service
 

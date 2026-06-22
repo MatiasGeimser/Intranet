@@ -183,6 +183,11 @@
         <p class="text-xs text-[#8C8C8C] mt-1 ml-13">Bóveda de credenciales generales · Cifrado AES-256-GCM</p>
     </div>
     <div class="flex gap-3">
+        {% set user_perms = [] %}
+        {% for perm in user.role.permissions %}
+            {% set _ = user_perms.append(perm.code) %}
+        {% endfor %}
+        {% if user.role.name == 'Administrador' or 'credentials:manage' in user_perms %}
         <button onclick="openCreateModal()" id="btn-nueva-credencial"
             class="flex items-center gap-2 bg-[#049DD9] hover:bg-[#038bc2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#049DD9]/30 transition-all duration-200 hover:-translate-y-0.5">
             <i class="fa-solid fa-plus"></i>
@@ -193,6 +198,7 @@
             <i class="fa-solid fa-file-import"></i>
             Importar
         </button>
+        {% endif %}
     </div>
 </div>
 
