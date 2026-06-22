@@ -56,6 +56,18 @@ class SchedulerService:
                     sched_minutes = sched_hour * 60 + sched_min
 
                     if current_minutes >= sched_minutes:
+                        # 0. Check if there's already an uncompleted task for this daily config
+                        existing_pending = db.query(Task).filter(
+                            Task.daily_task_config_id == config.id,
+                            Task.status != "done"
+                        ).first()
+                        
+                        if existing_pending:
+                            # Just update the config so it doesn't trigger again today
+                            config.last_triggered_date = now
+                            db.commit()
+                            continue
+
                         # 1. Crear la Tarea real en el tablero
                         new_task = Task(
                             title=config.title,

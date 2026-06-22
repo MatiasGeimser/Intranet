@@ -227,6 +227,24 @@
         </div>
     </div>
 
+    <!-- Tareas Diarias Pendientes -->
+    <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px] bg-gradient-to-br from-purple-50/50 to-white">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h4 class="text-sm font-bold text-black-dark flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-purple-500"></i> Mis Tareas Diarias
+                </h4>
+                <p class="text-[10px] text-grey-main">Rutinas que debes cumplir hoy</p>
+            </div>
+            {% if user.role.name == 'Administrador' %}
+            <button onclick="openDailyTasksModal()" class="text-[10px] text-purple-600 font-bold hover:underline uppercase">Configurar</button>
+            {% endif %}
+        </div>
+        <div id="dashboard-daily-instances-list" class="flex-1 space-y-3 overflow-y-auto pr-1">
+            <p class="text-xs text-grey-main italic text-center py-12">Cargando tareas...</p>
+        </div>
+    </div>
+
     <!-- Cumpleaños del Mes -->
     <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col h-[320px] bg-gradient-to-b from-white to-pink-50/30">
         <div class="flex justify-between items-center mb-3">
@@ -490,6 +508,7 @@
         // Cargar Noticias y Cumpleaños
         await loadDashboardNews();
         await loadDashboardBirthdays();
+        await loadDailyInstances();
     });
 
     // Cargar Noticias Recientes
@@ -1230,6 +1249,75 @@
             btn.innerHTML = 'Guardar Colaborador';
         }
     }
+    // ============================================================
+    // CARGA DE TAREAS DIARIAS EN DASHBOARD
+    // ============================================================
+    async function loadDailyInstances() {
+        const container = document.getElementById("dashboard-daily-instances-list");
+        if (!container) return;
+        
+        try {
+            const response = await fetchAPI("/api/tasks/daily/instances");
+            if (response && response.ok) {
+                const tasks = await response.json();
+                const pendingTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'completed');
+                
+                if (pendingTasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-8 text-center">
+                            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 text-purple-400">
+                                <i class="fa-solid fa-clipboard-check text-xl"></i>
+                            </div>
+                            <p class="text-xs font-bold text-gray-500">¡Al día!</p>
+                            <p class="text-[10px] text-gray-400">No tienes rutinas pendientes para hoy.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                pendingTasks.forEach(task => {
+                    html += `
+                        <div class="p-3 bg-white border border-gray-100 rounded-2xl flex items-start justify-between shadow-sm group hover:shadow-md transition-all">
+                            <div class="flex items-start gap-3 flex-1 min-w-0">
+                                <button onclick="markDailyTaskDone(${task.id})" class="w-5 h-5 rounded border-2 border-purple-200 flex flex-shrink-0 items-center justify-center text-transparent hover:border-purple-500 hover:text-purple-500 transition-colors mt-0.5" title="Marcar como completada">
+                                    <i class="fa-solid fa-check text-[10px]"></i>
+                                </button>
+                                <div class="flex-1 min-w-0">
+                                    <h5 class="text-xs font-bold text-black-dark truncate">${escapeHtml(task.title)}</h5>
+                                    ${task.description ? `<p class="text-[10px] text-gray-500 truncate mt-0.5">${escapeHtml(task.description)}</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error al cargar tareas diarias.</p>`;
+            }
+        } catch (e) {
+            console.error("Error loadDailyInstances:", e);
+            container.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Error de conexión.</p>`;
+        }
+    }
+
+    async function markDailyTaskDone(taskId) {
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}`, {
+                method: "PUT",
+                body: { status: "done" }
+            });
+            if (response && response.ok) {
+                showToast("¡Rutina diaria completada!", "success");
+                loadDailyInstances();
+            } else {
+                showToast("Error al completar la tarea.", "error");
+            }
+        } catch (e) {
+            console.error("Error al completar tarea:", e);
+        }
+    }
+
     // ============================================================
     // GESTIÓN DE TAREAS DIARIAS (RUTINAS)
     // ============================================================
