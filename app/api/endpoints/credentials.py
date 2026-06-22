@@ -22,7 +22,7 @@ def get_credentials(
     
     # El Administrador y Supervisor pueden ver todo.
     # El usuario normal ve solo las suyas.
-    if current_user.role.name not in ["Administrador", "Supervisor"]:
+    if current_user.role.name != "Administrador":
         from sqlalchemy import or_
         filters = []
         
@@ -51,7 +51,7 @@ def create_credential(
     request: Request,
     cred_data: CredentialCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Crea y guarda una credencial encriptando la contraseña con AES-256-GCM."""
     encrypted_pw = crypto_service.encrypt_password(cred_data.password)
@@ -93,7 +93,7 @@ def decrypt_credential_password(
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
     # Solo el Administrador, Supervisor o los usuarios vinculados pueden visualizar credenciales
-    if current_user.role.name not in ["Administrador", "Supervisor"]:
+    if current_user.role.name != "Administrador":
         is_allowed = False
         if cred.username == current_user.email:
             is_allowed = True
@@ -132,14 +132,14 @@ def update_credential(
     request: Request,
     cred_data: CredentialUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Actualiza los datos de una credencial en la bóveda."""
     cred = db.query(Credential).filter(Credential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name not in ["Administrador", "Supervisor"] and cred.owner_id != current_user.id:
+    if current_user.role.name != "Administrador" and cred.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     if cred_data.title:
@@ -184,7 +184,7 @@ def update_executive_status(
 ):
     """Actualiza el estado de activo/inactivo para todas las credenciales de un ejecutivo."""
     query = db.query(Credential).filter(Credential.owner_id == current_user.id)
-    if current_user.role.name in ["Administrador", "Supervisor"]:
+    if current_user.role.name == "Administrador":
         query = db.query(Credential)
         
     from sqlalchemy import or_
@@ -217,14 +217,14 @@ def delete_credential(
     cred_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Elimina una credencial de la bóveda."""
     cred = db.query(Credential).filter(Credential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name not in ["Administrador", "Supervisor"] and cred.owner_id != current_user.id:
+    if current_user.role.name != "Administrador" and cred.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     title = cred.title
