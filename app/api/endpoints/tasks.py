@@ -18,11 +18,11 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
     Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
     if current_user.role.name == "Administrador":
-        tasks = db.query(Task).filter(Task.daily_task_config_id == None).order_by(Task.created_at.desc()).all()
+        tasks = db.query(Task).filter(Task.daily_task_config_id.is_(None)).order_by(Task.created_at.desc()).all()
     else:
         # Regular users (including Supervisors) see tasks assigned to them or created by them
         tasks = db.query(Task).filter(
-            Task.daily_task_config_id == None,
+            Task.daily_task_config_id.is_(None),
             or_(
                 Task.assigned_to_user_id == current_user.id,
                 Task.created_by_id == current_user.id
@@ -149,10 +149,10 @@ def read_daily_task_instances(db: Session = Depends(get_db), current_user: User 
     Retrieve generated daily tasks (instances) assigned to the current user.
     """
     if current_user.role.name == "Administrador":
-        tasks = db.query(Task).filter(Task.daily_task_config_id != None).order_by(Task.created_at.desc()).all()
+        tasks = db.query(Task).filter(Task.daily_task_config_id.isnot(None)).order_by(Task.created_at.desc()).all()
     else:
         tasks = db.query(Task).filter(
-            Task.daily_task_config_id != None,
+            Task.daily_task_config_id.isnot(None),
             or_(
                 Task.assigned_to_user_id == current_user.id,
                 Task.created_by_id == current_user.id
