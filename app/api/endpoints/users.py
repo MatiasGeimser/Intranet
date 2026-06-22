@@ -31,17 +31,7 @@ def get_users(
     current_user: User = Depends(PermissionChecker("users:read"))
 ):
     """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
-    if current_user.role.name != "Administrador":
-        # Supervisor can see themselves, users in their area (campaña), and their subordinates
-        if current_user.role.name == "Supervisor":
-            from sqlalchemy import or_
-            return db.query(User).filter(
-                or_(
-                    User.id == current_user.id, 
-                    User.area_id == current_user.area_id,
-                    User.supervisor_id == current_user.id
-                )
-            ).all()
+    if current_user.role.name not in ["Administrador", "Supervisor"]:
         return db.query(User).filter(User.area_id == current_user.area_id).all()
     return db.query(User).all()
 
@@ -58,17 +48,7 @@ def get_users_minimal(
     current_user: User = Depends(get_current_active_user)
 ):
     """Obtiene la lista minimalista de todos los colaboradores activos para asignación, filtrado por área si no es admin."""
-    if current_user.role.name != "Administrador":
-        if current_user.role.name == "Supervisor":
-            from sqlalchemy import or_
-            return db.query(User).filter(
-                User.is_active == True,
-                or_(
-                    User.id == current_user.id, 
-                    User.area_id == current_user.area_id,
-                    User.supervisor_id == current_user.id
-                )
-            ).all()
+    if current_user.role.name not in ["Administrador", "Supervisor"]:
         return db.query(User).filter(User.is_active == True, User.area_id == current_user.area_id).all()
     return db.query(User).filter(User.is_active == True).all()
 

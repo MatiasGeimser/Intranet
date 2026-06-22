@@ -27,8 +27,14 @@ def get_credentials(
         filters = []
         
         # 1. Base rule: can see their own credentials
+        filters.append(Credential.owner_id == current_user.id)
         filters.append(Credential.username == current_user.email)
         
+        # 2. Supervisor can see ALL executive credentials
+        if current_user.role.name == "Supervisor":
+            filters.append(Credential.title.like("% - %"))
+            filters.append(Credential.category.in_(["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]))
+            
         matching_creds = db.query(Credential).filter(Credential.username == current_user.email).all()
         person_names = set()
         for c in matching_creds:
@@ -92,10 +98,12 @@ def decrypt_credential_password(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    # Solo el Administrador, Supervisor o los usuarios vinculados pueden visualizar credenciales
+    # Solo el Administrador puede verlo todo. Los demás aplican reglas de negocio.
     if current_user.role.name != "Administrador":
         is_allowed = False
-        if cred.username == current_user.email:
+        if cred.owner_id == current_user.id or cred.username == current_user.email:
+            is_allowed = True
+        elif current_user.role.name == "Supervisor" and (" - " in cred.title or cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
             is_allowed = True
         elif " - " in cred.title:
             person_name = cred.title.split(" - ", 1)[1].strip()
@@ -105,8 +113,6 @@ def decrypt_credential_password(
             ).first()
             if has_matching:
                 is_allowed = True
-                
-
 
         if not is_allowed:
             raise HTTPException(
