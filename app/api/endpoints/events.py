@@ -16,39 +16,10 @@ def get_events(
     db: Session = Depends(get_db),
     current_user: User = Depends(PermissionChecker("events:manage"))
 ):
-    """Obtiene todos los eventos del calendario y genera dinámicamente eventos de cumpleaños."""
+    """Obtiene todos los eventos del calendario."""
     events = db.query(Event).all()
     
-    # Adicionalmente, generamos cumpleaños virtuales para todos los usuarios activos
-    users = db.query(User).filter(User.is_active == True).all()
-    current_year = datetime.now().year
-    
-    birthday_events = []
-    # Usamos un ID virtual muy alto para no chocar
-    virtual_id = 900000
-    for u in users:
-        # Usamos el mes y día de creación del usuario como su "cumpleaños" para la simulación
-        u_date = u.created_at
-        start_date = datetime(year=current_year, month=u_date.month, day=u_date.day, hour=9, minute=0)
-        end_date = datetime(year=current_year, month=u_date.month, day=u_date.day, hour=18, minute=0)
-        
-        # Si ya pasó, podemos proyectarlo para el próximo año también si se desea
-        
-        virtual_event = Event(
-            id=virtual_id,
-            title=f"🎂 Cumpleaños de {u.full_name}",
-            description=f"Hoy es el cumpleaños de nuestro/a compañero/a {u.full_name}. ¡Felicítalo/a en su correo: {u.email}!",
-            start_date=start_date,
-            end_date=end_date,
-            event_type="birthday",
-            creator_id=u.id,
-            creator=u,
-            created_at=u.created_at
-        )
-        birthday_events.append(virtual_event)
-        virtual_id += 1
-        
-    return events + birthday_events
+    return events
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)

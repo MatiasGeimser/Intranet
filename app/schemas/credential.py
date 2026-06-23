@@ -33,6 +33,8 @@ class CredentialResponse(CredentialBase):
 
 class ExecutiveCredentialCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
+    personal_user: Optional[str] = None
+    personal_pass: Optional[str] = None
     correo_user: Optional[str] = None
     correo_pass: Optional[str] = None
     crm_user: Optional[str] = None

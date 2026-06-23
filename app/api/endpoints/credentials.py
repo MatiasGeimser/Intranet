@@ -14,11 +14,14 @@ router = APIRouter()
 @router.get("", response_model=List[CredentialResponse])
 def get_credentials(
     category: Optional[str] = None,
+    include_inactive: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Obtiene la bóveda de contraseñas filtradas por categoría (si se especifica)."""
     query = db.query(Credential)
+    if not include_inactive:
+        query = query.filter(Credential.is_active.is_(True))
     
     # El Administrador y Supervisor pueden ver todo.
     # El usuario normal ve solo las suyas.
@@ -32,10 +35,16 @@ def get_credentials(
         
         # 2. Supervisor can see ALL executive credentials
         if current_user.role.name == "Supervisor":
-            filters.append(Credential.title.like("% - %"))
-            filters.append(Credential.category.in_(["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]))
+            from sqlalchemy import and_
+            filters.append(and_(
+                Credential.title.like("% - %"),
+                Credential.category.in_(["Correo Corporativo", "CRM", "Telefonía", "Sistemas"])
+            ))
             
-        matching_creds = db.query(Credential).filter(Credential.username == current_user.email).all()
+        matching_creds_query = db.query(Credential).filter(Credential.username == current_user.email)
+        if not include_inactive:
+            matching_creds_query = matching_creds_query.filter(Credential.is_active.is_(True))
+        matching_creds = matching_creds_query.all()
         person_names = set()
         for c in matching_creds:
             if " - " in c.title:
@@ -97,13 +106,18 @@ def decrypt_credential_password(
     cred = db.query(Credential).filter(Credential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
+    if cred.is_active is False and current_user.role.name != "Administrador":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Credencial inactiva. No se permite revelar la contraseña."
+        )
         
     # Solo el Administrador puede verlo todo. Los demás aplican reglas de negocio.
     if current_user.role.name != "Administrador":
         is_allowed = False
         if cred.owner_id == current_user.id or cred.username == current_user.email:
             is_allowed = True
-        elif current_user.role.name == "Supervisor" and (" - " in cred.title or cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
+        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
             is_allowed = True
         elif " - " in cred.title:
             person_name = cred.title.split(" - ", 1)[1].strip()
@@ -145,8 +159,15 @@ def update_credential(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name != "Administrador" and cred.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    if current_user.role.name != "Administrador":
+        is_allowed = False
+        if cred.owner_id == current_user.id:
+            is_allowed = True
+        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
+            is_allowed = True
+            
+        if not is_allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     if cred_data.title:
         cred.title = cred_data.title
@@ -190,12 +211,13 @@ def update_executive_status(
 ):
     """Actualiza el estado de activo/inactivo para todas las credenciales de un ejecutivo."""
     query = db.query(Credential).filter(Credential.owner_id == current_user.id)
-    if current_user.role.name == "Administrador":
+    if current_user.role.name in ["Administrador", "Supervisor"]:
         query = db.query(Credential)
         
     from sqlalchemy import or_
     creds = query.filter(or_(
         Credential.title.endswith(f" - {person_name}"),
+        Credential.title.like(f"% - {person_name} (%)"),
         Credential.title == person_name
     )).all()
     
@@ -230,8 +252,15 @@ def delete_credential(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name != "Administrador" and cred.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    if current_user.role.name != "Administrador":
+        is_allowed = False
+        if cred.owner_id == current_user.id:
+            is_allowed = True
+        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
+            is_allowed = True
+            
+        if not is_allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     title = cred.title
     db.delete(cred)
@@ -435,6 +464,15 @@ def create_executive_credentials(
         systems_created.append(category)
 
     try:
+        # 0. Correo Personal
+        if exec_data.personal_user and exec_data.personal_pass:
+            add_system_cred(
+                title=f"Correo Personal - {exec_data.name.strip().upper()}",
+                username=exec_data.personal_user.strip(),
+                password_raw=exec_data.personal_pass.strip(),
+                category="Correo Corporativo"
+            )
+
         # 1. Correo Corporativo
         if exec_data.correo_user and exec_data.correo_pass:
             add_system_cred(
@@ -498,4 +536,3 @@ def create_executive_credentials(
         "imported": imported_count,
         "systems": systems_created
     }
-

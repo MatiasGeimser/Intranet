@@ -74,7 +74,7 @@ def passwords_view(request: Request, db: Session = Depends(get_db)):
         
     # Verificar si el rol tiene permiso
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name not in ["Administrador", "Usuario"] and "credentials:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario", "Supervisor"] and "credentials:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="passwords.html", context={
