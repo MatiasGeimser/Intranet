@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa Interactivo de Activos TI - {{ project_name }}{% endblock %}
+
+{% block extra_css %}
+<!-- Vite/React assets for the Map -->
+<link rel="stylesheet" href="/static/map/assets/index-78icA-ak.css">
+{% endblock %}
+
+{% block content %}
+<div class="h-full w-full">
+    <!-- El contenedor de React -->
+    <div id="root"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="/static/map/assets/index-MHeN1Z5Q.js"></script>
+{% endblock %}

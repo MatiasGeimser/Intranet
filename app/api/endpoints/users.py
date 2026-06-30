@@ -78,8 +78,7 @@ def create_user(
         )
 
     hashed_pw = get_password_hash(user_data.password)
-    import urllib.parse
-    default_avatar = f"https://avatar.iran.liara.run/public/girl?username={urllib.parse.quote(user_data.full_name)}" if user_data.gender == 'Mujer' else f"https://avatar.iran.liara.run/public/boy?username={urllib.parse.quote(user_data.full_name)}"
+    default_avatar = "/static/uploads/avatars/woman.png" if user_data.gender and user_data.gender.lower() == 'mujer' else "/static/uploads/avatars/man.png"
     
     db_user = User(
         email=user_data.email,
@@ -147,9 +146,8 @@ def update_user(
     if user_data.gender:
         user.gender = user_data.gender
         # Si no tiene avatar o es uno autogenerado/predeterminado, lo actualizamos al cambiar género/nombre
-        if not user.avatar_url or "avatar.iran.liara.run" in user.avatar_url or "default-avatar.png" in user.avatar_url:
-            import urllib.parse
-            user.avatar_url = f"https://avatar.iran.liara.run/public/girl?username={urllib.parse.quote(user.full_name)}" if user.gender == 'Mujer' else f"https://avatar.iran.liara.run/public/boy?username={urllib.parse.quote(user.full_name)}"
+        if not user.avatar_url or "avatar.iran.liara.run" in user.avatar_url or "default-avatar.png" in user.avatar_url or "api.dicebear.com" in user.avatar_url:
+            user.avatar_url = "/static/uploads/avatars/woman.png" if user.gender and user.gender.lower() == 'mujer' else "/static/uploads/avatars/man.png"
             
     if user_data.avatar_url is not None:
         user.avatar_url = user_data.avatar_url

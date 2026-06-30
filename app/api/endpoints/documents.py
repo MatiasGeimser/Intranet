@@ -17,12 +17,21 @@ router = APIRouter()
 def get_documents(
     folder: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:manage"))
+    current_user: User = Depends(PermissionChecker("documents:read"))
 ):
-    """Obtiene la lista de documentos, filtrando opcionalmente por carpeta virtual."""
+    """Obtiene la lista de documentos, filtrando opcionalmente por carpeta virtual y aplicando controles de acceso."""
     query = db.query(Document)
     if folder:
         query = query.filter(Document.folder == folder)
+        
+    if current_user.role.name != "Administrador":
+        # Usuarios regulares / Supervisores solo ven documentos públicos, los subidos por ellos mismos o los que les han compartido explícitamente.
+        query = query.filter(
+            (Document.is_public == True) | 
+            (Document.uploader_id == current_user.id) | 
+            (Document.allowed_users.any(User.id == current_user.id))
+        )
+        
     return query.order_by(Document.created_at.desc()).all()
 
 
@@ -31,16 +40,31 @@ def upload_document(
     request: Request,
     folder: str = Form("General"),
     file: UploadFile = File(...),
+    is_public: bool = Form(True),
+    allowed_users: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(PermissionChecker("documents:manage"))
 ):
     """Sube un archivo a una carpeta virtual específica de la intranet."""
+    # Solo Administrador o Supervisor pueden subir
+    if current_user.role.name not in ["Administrador", "Supervisor"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo los Supervisores o Administradores pueden subir documentos.")
+
+    allowed_users_ids = []
+    if not is_public and allowed_users:
+        try:
+            allowed_users_ids = [int(u_id.strip()) for u_id in allowed_users.split(",") if u_id.strip()]
+        except ValueError:
+            pass
+
     # Guardar documento usando el servicio que maneja versionamiento automático
     db_doc = doc_service.save_document(
         db=db,
         upload_file=file,
         folder=folder,
-        uploader_id=current_user.id
+        uploader_id=current_user.id,
+        is_public=is_public,
+        allowed_users_ids=allowed_users_ids
     )
 
     # Registrar en auditoría

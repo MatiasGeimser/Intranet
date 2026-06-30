@@ -50,6 +50,20 @@ def login_view(request: Request, db: Session = Depends(get_db)):
     return response
 
 
+@router.get("/inventory-map", response_class=HTMLResponse)
+async def inventory_map_view(request: Request, db: Session = Depends(get_db)):
+    """Vista del Mapa Interactivo de Activos TI."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        
+    return templates.TemplateResponse(request=request, name="inventory_map.html", context={
+        "user": user,
+        "active_page": "inventory-map",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
 @router.get("/", response_class=HTMLResponse)
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_view(request: Request, db: Session = Depends(get_db)):

@@ -29,7 +29,9 @@ class DocService:
         db: Session,
         upload_file: UploadFile,
         folder: str,
-        uploader_id: int
+        uploader_id: int,
+        is_public: bool = True,
+        allowed_users_ids: List[int] = None
     ) -> Document:
         """Sube y guarda un archivo con versionado automático si ya existe en la misma carpeta."""
         original_name = DocService.sanitize_filename(upload_file.filename)
@@ -81,8 +83,15 @@ class DocService:
             size_bytes=size_bytes,
             folder=folder,
             uploader_id=uploader_id,
-            version=version_str
+            version=version_str,
+            is_public=is_public
         )
+        
+        if not is_public and allowed_users_ids:
+            from app.models.user import User
+            users = db.query(User).filter(User.id.in_(allowed_users_ids)).all()
+            db_doc.allowed_users.extend(users)
+            
         db.add(db_doc)
         db.commit()
         db.refresh(db_doc)

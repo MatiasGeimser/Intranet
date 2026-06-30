@@ -1,15 +1,14 @@
 import os
-from app.core.database import engine
-from sqlalchemy import text
+import sys
 
-def migrate():
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE credentials ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
-            conn.commit()
-            print("Migration success")
-        except Exception as e:
-            print(f"Migration error: {e}")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-if __name__ == "__main__":
-    migrate()
+from app.core.database import engine, Base
+from app.models.it_asset import ITAsset
+from app.models.user import User
+from app.models.pc_login_history import PCLoginHistory
+from app.models.pc_login_history import PCLoginHistory
+
+print("Creating PCLoginHistory table...")
+Base.metadata.create_all(bind=engine)
+print("Done!")

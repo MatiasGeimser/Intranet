@@ -13,10 +13,14 @@ class ITAssetBase(BaseModel):
     license_key: Optional[str] = Field(None, max_length=255)
     version: Optional[str] = Field(None, max_length=50)
     vendor: Optional[str] = Field(None, max_length=100)
+    serial_number: Optional[str] = Field(None, max_length=100)
+    brand: Optional[str] = Field(None, max_length=100)
+    model: Optional[str] = Field(None, max_length=100)
     status: str = Field("Activo", max_length=20)
     location: Optional[str] = Field(None, max_length=120)
     assigned_to: Optional[str] = Field(None, max_length=120)
     acquired_at: Optional[datetime] = None
+    last_ping_at: Optional[datetime] = None
 
 
 class ITAssetCreate(ITAssetBase):
@@ -33,10 +37,14 @@ class ITAssetUpdate(BaseModel):
     license_key: Optional[str] = Field(None, max_length=255)
     version: Optional[str] = Field(None, max_length=50)
     vendor: Optional[str] = Field(None, max_length=100)
+    serial_number: Optional[str] = Field(None, max_length=100)
+    brand: Optional[str] = Field(None, max_length=100)
+    model: Optional[str] = Field(None, max_length=100)
     status: Optional[str] = Field(None, max_length=20)
     location: Optional[str] = Field(None, max_length=120)
     assigned_to: Optional[str] = Field(None, max_length=120)
     acquired_at: Optional[datetime] = None
+    last_ping_at: Optional[datetime] = None
 
 
 class ITAssetResponse(ITAssetBase):

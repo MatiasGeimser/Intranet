@@ -22,8 +22,14 @@ class ITAsset(Base):
     version = Column(String(50), nullable=True)
     vendor = Column(String(100), nullable=True)
 
+    # Campos de hardware
+    serial_number = Column(String(100), nullable=True)
+    brand = Column(String(100), nullable=True)
+    model = Column(String(100), nullable=True)
+
     # Estado y fechas
-    status = Column(String(20), default="Activo", nullable=False)  # Activo | Inactivo | Mantenimiento
+    status = Column(String(20), default="Activo", nullable=False)  # Activo | Inactivo | Mantenimiento | Fuera de Linea | Advertencia
+    last_ping_at = Column(DateTime, nullable=True)
     location = Column(String(120), nullable=True)                   # Sala, piso, oficina
     assigned_to = Column(String(120), nullable=True)                # Nombre de usuario o departamento
     acquired_at = Column(DateTime, nullable=True)

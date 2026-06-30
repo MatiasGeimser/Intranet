@@ -325,8 +325,8 @@
          ═══════════════════════════════════════════════════ -->
     <div class="lg:col-span-3 space-y-4">
 
-        <!-- Dropzone mejorado (Solo Administradores o con permiso) -->
-        {% if user.role.name == 'Administrador' or 'documents:manage' in user_perms %}
+        <!-- Dropzone mejorado (Solo Administradores y Supervisores) -->
+        {% if user.role.name in ['Administrador', 'Supervisor'] %}
         <div id="dropzone"
             class="border-2 border-dashed border-[#8C8C8C]/30 hover:border-blue-corp rounded-3xl p-7 bg-white/50 hover:bg-blue-corp/4 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none group">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
@@ -430,6 +430,13 @@
 
 {% block extra_js %}
 <script>
+    window.onerror = function(msg, url, line, col, error) {
+        alert("Global JS Error: " + msg + " | Line: " + line);
+    };
+    window.addEventListener("unhandledrejection", function(e) {
+        alert("Unhandled Promise Rejection: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+
     /* ──────────────────────────────────────────────────────
        ESTADO GLOBAL
        ────────────────────────────────────────────────────── */
@@ -438,6 +445,7 @@
     let currentView     = 'table';   // 'table' | 'grid'
     let currentPreviewDocument = null;
     const isAdmin = {{ 'true' if user.role.name == 'Administrador' or 'documents:manage' in user_perms else 'false' }};
+    const isSupervisor = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
     const folderCounts = {};   // { folder: count }
 
     /* ──────────────────────────────────────────────────────
@@ -485,6 +493,35 @@
        ────────────────────────────────────────────────────── */
     function createModalInBody() {
         const modalHTML = `
+        <!-- MODAL DE UPLOAD CONFIG -->
+        <div id="upload-config-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);">
+            <div class="modal-enter bg-white rounded-3xl w-full max-w-md shadow-2xl p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-1">Configuración de Acceso</h3>
+                <p class="text-xs text-gray-500 mb-4">Archivo: <span id="upload-filename-display" class="font-semibold text-blue-500"></span></p>
+                
+                <div class="mb-4">
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="checkbox" id="upload-is-public" onchange="toggleUploadPublic(this)" checked class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <span class="text-sm font-semibold text-gray-700">Público (Visible para todos)</span>
+                    </label>
+                </div>
+
+                <div id="upload-users-container" class="hidden mb-6">
+                    <label class="block text-xs font-semibold text-gray-600 mb-2">Selecciona quién puede verlo:</label>
+                    <select id="upload-allowed-users" multiple class="w-full text-sm border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 p-2" style="min-height: 120px;">
+                        <!-- Options filled via JS -->
+                    </select>
+                    <p class="text-[10px] text-gray-400 mt-1">Mantén presionado Ctrl (o Cmd) para seleccionar múltiples.</p>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button onclick="closeUploadConfigModal()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
+                    <button onclick="confirmUpload()" class="px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">Subir Archivo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL DE PREVIEW ORIGINAL -->
         <div id="doc-preview-modal" class="modal-hidden">
             <div class="modal-enter bg-white rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col" style="max-height: 90vh;">
                 <!-- Cabecera del modal -->
@@ -516,6 +553,20 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <!-- MODAL DE USUARIOS ASIGNADOS -->
+        <div id="assigned-users-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);">
+            <div class="modal-enter bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" style="max-height: 80vh; display: flex; flex-direction: column;">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Usuarios Asignados</h3>
+                    <button onclick="document.getElementById('assigned-users-modal').style.display='none'" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <div id="assigned-users-list" class="overflow-y-auto pr-2 space-y-2">
+                    <!-- JS fills this -->
+                </div>
+            </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
@@ -523,6 +574,23 @@
         document.getElementById('doc-preview-modal').addEventListener('click', function(e) {
             if (e.target === this) closeDocumentPreview();
         });
+        document.getElementById('assigned-users-modal').addEventListener('click', function(e) {
+            if (e.target === this) this.style.display = 'none';
+        });
+    }
+
+    function showAssignedUsersModal(usersJsonStr) {
+        const users = JSON.parse(decodeURIComponent(usersJsonStr));
+        const listDiv = document.getElementById('assigned-users-list');
+        listDiv.innerHTML = users.map(u => `
+            <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    ${u.full_name.charAt(0).toUpperCase()}
+                </div>
+                <span class="text-sm font-medium text-gray-700 truncate">${escapeHtml(u.full_name)}</span>
+            </div>
+        `).join('');
+        document.getElementById('assigned-users-modal').style.display = 'flex';
     }
 
     /* ──────────────────────────────────────────────────────
@@ -747,6 +815,19 @@
                 });
             }
 
+            let assignmentHtml = '';
+            if (isAdmin || isSupervisor) {
+                if (doc.is_public) {
+                    assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 mr-2" title="Visible para todos"><i class="fa-solid fa-earth-americas mr-1"></i>Público</span>`;
+                } else if (doc.allowed_users && doc.allowed_users.length > 0) {
+                    const count = doc.allowed_users.length;
+                    const usersJson = encodeURIComponent(JSON.stringify(doc.allowed_users));
+                    assignmentHtml = `<span onclick="showAssignedUsersModal('${usersJson}')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 mr-2 cursor-pointer hover:bg-amber-200 transition-colors" title="Clic para ver usuarios"><i class="fa-solid fa-users mr-1"></i>${count} Asignado(s)</span>`;
+                } else {
+                    assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 mr-2" title="Solo tú puedes verlo"><i class="fa-solid fa-lock mr-1"></i>Privado</span>`;
+                }
+            }
+
             const tr = document.createElement('tr');
             tr.className = 'doc-row doc-fade-in';
             tr.style.animationDelay = `${i * 30}ms`;
@@ -776,6 +857,7 @@
                 </td>
                 <td class="px-5 py-3.5 pr-6 text-right">
                     <div class="flex items-center justify-end gap-1">
+                        ${assignmentHtml}
                         ${isAdmin ? `
                         <button onclick="openDocumentPreview(${doc.id})"
                             class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Ver / editar">
@@ -828,6 +910,19 @@
                 updateDateStr = ` · <span class="text-[#049DD9]" title="Fecha de actualización">Act: ${ud}</span>`;
             }
 
+            let assignmentHtml = '';
+            if (isAdmin || isSupervisor) {
+                if (doc.is_public) {
+                    assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700" title="Visible para todos"><i class="fa-solid fa-earth-americas"></i></span>`;
+                } else if (doc.allowed_users && doc.allowed_users.length > 0) {
+                    const count = doc.allowed_users.length;
+                    const usersJson = encodeURIComponent(JSON.stringify(doc.allowed_users));
+                    assignmentHtml = `<span onclick="showAssignedUsersModal('${usersJson}')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 cursor-pointer hover:bg-amber-200 transition-colors" title="Clic para ver usuarios"><i class="fa-solid fa-users mr-1"></i>${count}</span>`;
+                } else {
+                    assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700" title="Solo tú puedes verlo"><i class="fa-solid fa-lock"></i></span>`;
+                }
+            }
+
             const card = document.createElement('div');
             card.className = 'doc-card glass-card rounded-2xl p-4 shadow-sm doc-fade-in flex flex-col gap-3';
             card.style.animationDelay = `${i * 40}ms`;
@@ -849,6 +944,7 @@
                 <!-- Footer de tarjeta -->
                 <div class="flex items-center justify-between border-t border-gray-100 pt-2.5 mt-auto">
                     <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-widest">${escapeHtml(doc.version || 'v1')}</span>
+                    <div class="flex items-center gap-1">${assignmentHtml}</div>
                     <div class="flex items-center gap-0.5">
                         ${isAdmin ? `
                         <button onclick="openDocumentPreview(${doc.id})"
@@ -881,14 +977,118 @@
     /* ──────────────────────────────────────────────────────
        UPLOADER
        ────────────────────────────────────────────────────── */
+    let pendingFileToUpload = null;
+
     async function handleFileSelect(e) {
-        if (e.target.files.length > 0) await uploadFile(e.target.files[0]);
+        if (e.target.files.length > 0) {
+            pendingFileToUpload = e.target.files[0];
+            showUploadConfigModal();
+        }
     }
 
-    async function uploadFile(file) {
+    async function showUploadConfigModal() {
+        if (!pendingFileToUpload) return;
+        
+        // Cargar colaboradores para el select
+        const select = document.getElementById('upload-allowed-users');
+        
+        // Clear all options safely
+        while (select.firstChild) {
+            select.removeChild(select.firstChild);
+        }
+        
+        const optLoad = document.createElement('option');
+        optLoad.disabled = true;
+        optLoad.textContent = 'Cargando...';
+        select.appendChild(optLoad);
+
+        const titleEl = document.querySelector('#upload-config-modal h3');
+        if(titleEl) titleEl.textContent = "Configuración de Acceso (Cargando...)";
+
+        try {
+            const response = await fetchAPI('/api/users/list-minimal');
+            if (response && response.ok) {
+                const users = await response.json();
+                const currentUserRole = "{{ user.role.name }}";
+                
+                if(titleEl) titleEl.textContent = `Configuración de Acceso (Encontrados: ${users.length})`;
+                
+                while (select.firstChild) {
+                    select.removeChild(select.firstChild);
+                }
+                
+                let count = 0;
+                users.forEach(c => {
+                    // Si es Supervisor, solo puede compartir con roles 'Usuario'. Administrador ve a todos.
+                    if (currentUserRole === 'Supervisor' && (!c.role || c.role.name !== 'Usuario')) return;
+                    
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.className = 'text-black bg-white p-1';
+                    opt.textContent = c.full_name + ' (' + (c.role ? c.role.name : 'N/A') + ')';
+                    select.appendChild(opt);
+                    count++;
+                });
+                
+                if (count === 0) {
+                    const optEmpty = document.createElement('option');
+                    optEmpty.disabled = true;
+                    optEmpty.className = 'text-red-500';
+                    optEmpty.textContent = `No hay usuarios compatibles (Tu rol: ${currentUserRole})`;
+                    select.appendChild(optEmpty);
+                }
+            } else {
+                while (select.firstChild) select.removeChild(select.firstChild);
+                const optErr = document.createElement('option');
+                optErr.disabled = true;
+                optErr.textContent = `Error API: ${response ? response.status : 'Nula'}`;
+                select.appendChild(optErr);
+                if(titleEl) titleEl.textContent = "Configuración de Acceso (Error API)";
+            }
+        } catch(e) { 
+            console.error("Error al cargar usuarios", e); 
+            while (select.firstChild) select.removeChild(select.firstChild);
+            const optErrJS = document.createElement('option');
+            optErrJS.disabled = true;
+            optErrJS.textContent = `Error JS: ${e.message}`;
+            select.appendChild(optErrJS);
+            if(titleEl) titleEl.textContent = "Configuración de Acceso (Error JS)";
+        }
+        
+        document.getElementById('upload-filename-display').textContent = pendingFileToUpload.name;
+        document.getElementById('upload-config-modal').style.display = 'flex';
+    }
+
+    function closeUploadConfigModal() {
+        document.getElementById('upload-config-modal').style.display = 'none';
+        document.getElementById('file-uploader').value = '';
+        pendingFileToUpload = null;
+    }
+
+    // Toggle public/private visibility
+    function toggleUploadPublic(checkbox) {
+        const usersContainer = document.getElementById('upload-users-container');
+        if(checkbox.checked) {
+            usersContainer.classList.add('hidden');
+        } else {
+            usersContainer.classList.remove('hidden');
+        }
+    }
+
+    async function confirmUpload() {
+        if(!pendingFileToUpload) return;
+        const file = pendingFileToUpload;
+        const isPublic = document.getElementById('upload-is-public').checked;
+        const select = document.getElementById('upload-allowed-users');
+        const allowedUsers = Array.from(select.selectedOptions).map(o => o.value).join(',');
+
+        closeUploadConfigModal();
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('folder', activeFolder);
+        formData.append('is_public', isPublic);
+        formData.append('allowed_users', allowedUsers);
 
         // Mostrar barra de progreso simulada
         const wrap  = document.getElementById('upload-progress-wrap');

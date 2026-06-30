@@ -10,8 +10,9 @@ from app.core.database_seed import seed_database
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.middlewares.csrf_middleware import CSRFMiddleware
 from app.middlewares.rate_limit import RateLimitMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators
+from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators, search, inventory_map
 
 # Crear Aplicación FastAPI
 app = FastAPI(
@@ -39,6 +40,15 @@ app.add_middleware(CSRFMiddleware)
 # 3. Registrar Middleware de Rate Limiting (Mitigación Fuerza Bruta)
 # Permite un máximo de 20 peticiones cada 2 segundos para APIs críticas
 app.add_middleware(RateLimitMiddleware, limit_seconds=2, max_requests=20)
+
+# 4. Registrar Middleware CORS para permitir Zammad
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080", "https://localhost:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Asegurar que existan los directorios de subida y estáticos de forma segura (tolerante a entornos read-only)
 try:
@@ -72,6 +82,8 @@ app.include_router(notes.router, prefix="/api/notes", tags=["Gestión de Notas"]
 app.include_router(areas.router, prefix="/api/areas", tags=["Gestión de Áreas"])
 app.include_router(duplicate_phones.router, prefix="/api/duplicate-phones", tags=["Limpieza de Teléfonos"])
 app.include_router(collaborators.router, prefix="/api/collaborators", tags=["Directorio Corporativo"])
+app.include_router(search.router, prefix="/api/search", tags=["Búsqueda Global"])
+app.include_router(inventory_map.router, tags=["Mapa de Inventario"])
 
 from app.services.scheduler_service import scheduler_service
 

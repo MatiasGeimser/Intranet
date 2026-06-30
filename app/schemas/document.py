@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
+class UserMinimal(BaseModel):
+    id: int
+    full_name: str
+    class Config:
+        from_attributes = True
 
 class DocumentBase(BaseModel):
     name: str
@@ -24,6 +30,8 @@ class DocumentResponse(DocumentBase):
     size_bytes: int
     version: str
     uploader_id: int
+    is_public: bool
+    allowed_users: List[UserMinimal] = []
     created_at: datetime
     updated_at: Optional[datetime] = None
 
