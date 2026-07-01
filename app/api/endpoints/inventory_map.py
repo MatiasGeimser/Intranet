@@ -101,7 +101,8 @@ def get_assign_options(db: Session = Depends(get_db)):
     # Conectar a Zammad para extraer status y usuario en tiempo real
     zmap = {}
     try:
-        zammad_engine = create_engine("postgresql://zammad:zammad@itsm_geimser-zammad-postgresql-1:5432/zammad_production")
+        zammad_url = os.getenv("ZAMMAD_DATABASE_URL", "postgresql://zammad:zammad@127.0.0.1:15432/zammad_production")
+        zammad_engine = create_engine(zammad_url)
         with zammad_engine.connect() as zconn:
             zassets = zconn.execute(text("SELECT name, status, raw FROM geimser_remote_assets")).fetchall()
             for z in zassets:
