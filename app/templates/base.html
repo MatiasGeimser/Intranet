@@ -109,21 +109,12 @@
         class="fixed inset-y-0 left-0 z-40 w-64 bg-[#262523] text-white flex flex-col transform -translate-x-full lg:translate-x-0 lg:static lg:flex-shrink-0 transition-transform duration-300 ease-in-out border-r border-[#8C8C8C]/20">
 
         <!-- Header del Sidebar (Logo y Nombre) -->
-        <div class="h-16 flex items-center px-6 border-b border-[#8C8C8C]/10 justify-between">
-            <div class="flex items-center space-x-3">
-                <div
-                    class="w-8 h-8 rounded-lg bg-[#049DD9] flex items-center justify-center text-[#79F2E6] font-bold text-lg shadow-lg shadow-[#049DD9]/30">
-                    <i class="fa-solid fa-layer-group text-sm"></i>
-                </div>
-                <div>
-                    <h1
-                        class="text-sm font-semibold tracking-wide bg-gradient-to-r from-white via-[#8C8C8C] to-[#79F2E6] bg-clip-text text-transparent uppercase">
-                        Intranet</h1>
-                    <p class="text-[10px] text-gray-400 font-medium tracking-wider -mt-1">NEXUS GLOBAL</p>
-                </div>
+        <div class="h-24 flex items-center px-6 border-b border-[#8C8C8C]/10 relative">
+            <div class="flex-1 flex items-center justify-center">
+                <img src="/static/images/logo.png" alt="Logo" class="h-16 w-auto object-contain max-w-full">
             </div>
             <!-- Botón cerrar móvil -->
-            <button onclick="toggleSidebar()" class="lg:hidden text-gray-400 hover:text-white p-1 rounded-md">
+            <button onclick="toggleSidebar()" class="lg:hidden absolute right-4 text-gray-400 hover:text-white p-1 rounded-md">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
