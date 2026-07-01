@@ -21,6 +21,7 @@ class WorkspaceResponse(BaseModel):
     pos_y: float
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    temp_user_name: Optional[str] = None
     user_name: Optional[str] = None
     user_email: Optional[str] = None
     user_role: Optional[str] = None
@@ -53,6 +54,9 @@ def get_map_inventory(db: Session = Depends(get_db)):
             res.user_email = w.user.email
             res.user_role = w.user.role.name if w.user.role else None
             res.user_area = w.user.area.name if w.user.area else None
+        elif w.temp_user_name:
+            res.user_name = w.temp_user_name + " (PC)"
+            
         if w.asset:
             res.asset_hostname = w.asset.name
             res.asset_ip = w.asset.ip_address
@@ -84,18 +88,55 @@ class AssignUpdate(BaseModel):
     code: Optional[str] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    temp_user_name: Optional[str] = None
+
+import json
+from sqlalchemy import create_engine, text
 
 @router.get("/api/inventory-map/options")
 def get_assign_options(db: Session = Depends(get_db)):
     users = db.query(User).filter(User.is_active == True).all()
     assets = db.query(ITAsset).filter(ITAsset.status != "Descartado").all()
+    
+    # Conectar a Zammad para extraer status y usuario en tiempo real
+    zmap = {}
+    try:
+        zammad_engine = create_engine("postgresql://zammad:zammad@itsm_geimser-zammad-postgresql-1:5432/zammad_production")
+        with zammad_engine.connect() as zconn:
+            zassets = zconn.execute(text("SELECT name, status, raw FROM geimser_remote_assets")).fetchall()
+            for z in zassets:
+                name, status, raw_text = z[0], z[1], z[2]
+                occupant = "Sin usuario"
+                if raw_text:
+                    try:
+                        # Reemplazar null bytes problemáticos antes de parsear
+                        data = json.loads(raw_text.replace('\\u0000', ''))
+                        u_list = data.get("users", [])
+                        if u_list and len(u_list) > 0:
+                            occupant = u_list[0].split("\\")[-1] # quitar el DOMAIN\\
+                    except Exception:
+                        pass
+                zmap[name] = {"status": status, "occupant": occupant}
+    except Exception as e:
+        print("Error al conectar con Zammad DB:", e)
+
+    asset_list = []
+    for a in assets:
+        zdata = zmap.get(a.name, {})
+        status = zdata.get("status", "offline")
+        
+        # Filtrar solo encendidos y marcar
+        if status == "online":
+            occupant = zdata.get("occupant", a.ip_address or "Sin usuario")
+            asset_list.append({"id": a.id, "name": f"🟢 {a.name}", "occupant": occupant, "ip": a.ip_address})
+        
     return {
         "users": [{"id": u.id, "name": u.full_name, "email": u.email} for u in users],
-        "assets": [{"id": a.id, "name": a.name, "ip": a.ip_address} for a in assets]
+        "assets": asset_list
     }
 
 @router.post("/api/inventory-map/assign")
-def assign_workspace(data: AssignUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def assign_workspace(data: AssignUpdate, db: Session = Depends(get_db)):
     w = None
     if data.workspace_id:
         w = db.query(Workspace).filter(Workspace.id == data.workspace_id).first()
@@ -112,6 +153,11 @@ def assign_workspace(data: AssignUpdate, db: Session = Depends(get_db), current_
 
     w.user_id = data.user_id
     w.asset_id = data.asset_id
+    if data.temp_user_name:
+        w.temp_user_name = data.temp_user_name
+    elif data.user_id:
+        w.temp_user_name = None
+    
     db.commit()
     return {"status": "ok"}
 
@@ -156,6 +202,29 @@ def recommend_asset(user_id: int, db: Session = Depends(get_db)):
         return {"asset_id": asset.id}
         
     return {"asset_id": None}
+
+@router.get("/api/inventory-map/recommend-user/{asset_id}")
+def recommend_user(asset_id: int, db: Session = Depends(get_db)):
+    most_frequent = db.query(
+        PCLoginHistory.username_reported, func.count(PCLoginHistory.username_reported).label("cnt")
+    ).filter(
+        PCLoginHistory.asset_id == asset_id
+    ).group_by(PCLoginHistory.username_reported).order_by(func.count(PCLoginHistory.username_reported).desc()).first()
+    
+    if not most_frequent:
+        return {"user_id": None, "pc_username": None}
+        
+    username = most_frequent.username_reported
+    
+    user = db.query(User).filter(
+        (User.full_name.ilike(f"%{username}%")) | 
+        (User.email.ilike(f"%{username}%"))
+    ).first()
+    
+    if user:
+        return {"user_id": user.id, "pc_username": username}
+        
+    return {"user_id": None, "pc_username": username}
 
 # WebSockets logic
 active_connections: List[WebSocket] = []

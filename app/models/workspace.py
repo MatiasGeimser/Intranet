@@ -12,6 +12,7 @@ class Workspace(Base):
     
     # Optional assignment to a user and/or an IT Asset
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    temp_user_name = Column(String(100), nullable=True)
     asset_id = Column(Integer, ForeignKey("it_assets.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
