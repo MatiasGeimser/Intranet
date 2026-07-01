@@ -292,6 +292,16 @@
                     <span class="flex-1 truncate">Repositorio de Claves</span>
                     <span class="folder-count-badge" id="count-Claves">—</span>
                 </button>
+
+                <!-- Natura -->
+                <button onclick="selectFolder('Natura')" id="fold-Natura"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-green-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-leaf text-sm text-green-500"></i>
+                    </span>
+                    <span class="flex-1 truncate">Natura</span>
+                    <span class="folder-count-badge" id="count-Natura">—</span>
+                </button>
             </div>
         </div>
 
@@ -442,11 +452,19 @@
        ────────────────────────────────────────────────────── */
     let activeFolder    = 'General';
     let rawDocumentsList = [];
-    let currentView     = 'table';   // 'table' | 'grid'
+    let currentView     = 'table';
     let currentPreviewDocument = null;
-    const isAdmin = {{ 'true' if user.role.name == 'Administrador' or 'documents:manage' in user_perms else 'false' }};
-    const isSupervisor = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
-    const folderCounts = {};   // { folder: count }
+    let currentSearchTerm = '';
+    
+    const IS_ADMIN = {{ 'true' if user.role.name == 'Administrador' else 'false' }};
+    const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
+    const userFolderPerms = [
+        {% for perm in user.folder_permissions %}
+        { folder: "{{ perm.folder_name }}", read: {{ 'true' if perm.can_read else 'false' }}, write: {{ 'true' if perm.can_write else 'false' }} },
+        {% endfor %}
+    ];
+
+    const folderCounts = {};
 
     /* ──────────────────────────────────────────────────────
        ICONOGRAFÍA POR TIPO DE ARCHIVO
@@ -478,53 +496,60 @@
        ────────────────────────────────────────────────────── */
     document.addEventListener('DOMContentLoaded', () => {
         createModalInBody();
-        selectFolder('General');
-        
-        // Inicializar dropzone solo si existe (si el usuario tiene permisos)
+        initDocuments();
+    });
+
+    async function initDocuments() {
+        if (!IS_ADMIN) {
+            const allFolders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura'];
+            allFolders.forEach(f => {
+                const perm = userFolderPerms.find(p => p.folder === f);
+                if (!perm || !perm.read) {
+                    const btn = document.getElementById(`fold-${f}`);
+                    if (btn) btn.style.display = 'none';
+                }
+            });
+            const firstVisible = allFolders.find(f => {
+                const p = userFolderPerms.find(p => p.folder === f);
+                return p && p.read;
+            });
+            if (firstVisible) selectFolder(firstVisible);
+            else selectFolder('General');
+        } else {
+            selectFolder('General');
+        }
+
         if (document.getElementById('dropzone')) {
             initDropzone();
         }
-        loadDocuments();
         loadAllFolderCounts();
-    });
+    }
 
-    /* ──────────────────────────────────────────────────────
-       CREAR MODAL DIRECTAMENTE EN BODY (evita overflow clipping)
-       ────────────────────────────────────────────────────── */
     function createModalInBody() {
         const modalHTML = `
-        <!-- MODAL DE UPLOAD CONFIG -->
         <div id="upload-config-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);">
             <div class="modal-enter bg-white rounded-3xl w-full max-w-md shadow-2xl p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-1">Configuración de Acceso</h3>
                 <p class="text-xs text-gray-500 mb-4">Archivo: <span id="upload-filename-display" class="font-semibold text-blue-500"></span></p>
-                
                 <div class="mb-4">
                     <label class="flex items-center space-x-3 cursor-pointer">
                         <input type="checkbox" id="upload-is-public" onchange="toggleUploadPublic(this)" checked class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="text-sm font-semibold text-gray-700">Público (Visible para todos)</span>
                     </label>
                 </div>
-
                 <div id="upload-users-container" class="hidden mb-6">
                     <label class="block text-xs font-semibold text-gray-600 mb-2">Selecciona quién puede verlo:</label>
-                    <select id="upload-allowed-users" multiple class="w-full text-sm border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 p-2" style="min-height: 120px;">
-                        <!-- Options filled via JS -->
-                    </select>
+                    <select id="upload-allowed-users" multiple class="w-full text-sm border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 p-2" style="min-height: 120px;"></select>
                     <p class="text-[10px] text-gray-400 mt-1">Mantén presionado Ctrl (o Cmd) para seleccionar múltiples.</p>
                 </div>
-
                 <div class="flex justify-end space-x-3 mt-6">
                     <button onclick="closeUploadConfigModal()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
                     <button onclick="confirmUpload()" class="px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">Subir Archivo</button>
                 </div>
             </div>
         </div>
-
-        <!-- MODAL DE PREVIEW ORIGINAL -->
         <div id="doc-preview-modal" class="modal-hidden">
             <div class="modal-enter bg-white rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col" style="max-height: 90vh;">
-                <!-- Cabecera del modal -->
                 <div class="flex items-center gap-4 px-6 py-4 border-b border-gray-100 bg-white" style="flex-shrink:0">
                     <div class="flex items-center justify-center" style="width:40px;height:40px;border-radius:16px;flex-shrink:0" id="modal-icon-wrap">
                         <i class="fa-solid fa-file" style="font-size:20px;color:#9ca3af" id="modal-icon"></i>
@@ -543,9 +568,7 @@
                         </button>
                     </div>
                 </div>
-                <!-- Cuerpo del modal -->
                 <div id="doc-preview-body" style="flex:1;overflow:auto;padding:24px;min-height:280px;background:#FAFCFE"></div>
-                <!-- Footer -->
                 <div id="doc-preview-footer" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 24px;border-top:1px solid #f3f4f6;background:white;flex-shrink:0">
                     <div id="doc-preview-info" style="font-size:10px;color:#8C8C8C"></div>
                     <div style="display:flex;align-items:center;gap:8px">
@@ -554,7 +577,6 @@
                 </div>
             </div>
         </div>
-        <!-- MODAL DE USUARIOS ASIGNADOS -->
         <div id="assigned-users-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);">
             <div class="modal-enter bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" style="max-height: 80vh; display: flex; flex-direction: column;">
                 <div class="flex justify-between items-center mb-4">
@@ -563,14 +585,11 @@
                         <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
-                <div id="assigned-users-list" class="overflow-y-auto pr-2 space-y-2">
-                    <!-- JS fills this -->
-                </div>
+                <div id="assigned-users-list" class="overflow-y-auto pr-2 space-y-2"></div>
             </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-        // Click on backdrop to close
         document.getElementById('doc-preview-modal').addEventListener('click', function(e) {
             if (e.target === this) closeDocumentPreview();
         });
@@ -579,27 +598,9 @@
         });
     }
 
-    function showAssignedUsersModal(usersJsonStr) {
-        const users = JSON.parse(decodeURIComponent(usersJsonStr));
-        const listDiv = document.getElementById('assigned-users-list');
-        listDiv.innerHTML = users.map(u => `
-            <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
-                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                    ${u.full_name.charAt(0).toUpperCase()}
-                </div>
-                <span class="text-sm font-medium text-gray-700 truncate">${escapeHtml(u.full_name)}</span>
-            </div>
-        `).join('');
-        document.getElementById('assigned-users-modal').style.display = 'flex';
-    }
-
-    /* ──────────────────────────────────────────────────────
-       DROPZONE
-       ────────────────────────────────────────────────────── */
     function initDropzone() {
         const dz = document.getElementById('dropzone');
         dz.addEventListener('click', () => document.getElementById('file-uploader').click());
-
         dz.addEventListener('dragover', e => {
             e.preventDefault();
             dz.classList.add('dropzone-active');
@@ -614,9 +615,6 @@
         });
     }
 
-    /* ──────────────────────────────────────────────────────
-       TOGGLE DE VISTA
-       ────────────────────────────────────────────────────── */
     function setView(mode) {
         currentView = mode;
         const table = document.getElementById('view-table');
@@ -639,15 +637,11 @@
             btnT.classList.remove('view-btn-active');
             btnT.classList.add('text-gray-400');
         }
-
         renderDocuments(rawDocumentsList.filter(d =>
             d.name.toLowerCase().includes(document.getElementById('doc-search').value.toLowerCase())
         ));
     }
 
-    /* ──────────────────────────────────────────────────────
-       SELECCIÓN DE CARPETA
-       ────────────────────────────────────────────────────── */
     function selectFolder(folder) {
         activeFolder = folder;
         document.getElementById('active-folder-title').textContent = folder;
@@ -655,25 +649,29 @@
 
         document.querySelectorAll('.folder-btn').forEach(btn => {
             const isActive = btn.id === `fold-${folder}`;
-            btn.classList.toggle('folder-btn-active', isActive);
+            if (isActive) btn.classList.add('folder-btn-active');
+            else btn.classList.remove('folder-btn-active');
             btn.classList.toggle('text-black-dark', !isActive);
             btn.classList.toggle('hover:bg-gray-50', !isActive);
-            // Ícono
             const iconWrap = btn.querySelector('span:first-of-type');
             if (isActive) {
                 iconWrap.className = 'w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0';
             }
         });
 
+        const uploadDropzone = document.getElementById('dropzone');
+        let canWrite = IS_ADMIN;
+        if (!IS_ADMIN) {
+            const p = userFolderPerms.find(p => p.folder === folder);
+            canWrite = p && p.write;
+        }
+        if (uploadDropzone) uploadDropzone.style.display = canWrite ? 'block' : 'none';
+
         loadDocuments();
     }
 
-    /* ──────────────────────────────────────────────────────
-       CARGAR DOCUMENTOS DE CARPETA
-       ────────────────────────────────────────────────────── */
     async function loadDocuments() {
         showTableSkeleton();
-
         try {
             const response = await fetchAPI(`/api/documents?folder=${encodeURIComponent(activeFolder)}`);
             if (response && response.ok) {
@@ -715,7 +713,7 @@
        CONTADORES DE TODAS LAS CARPETAS (en paralelo)
        ────────────────────────────────────────────────────── */
     async function loadAllFolderCounts() {
-        const folders = ['General','IT','RRHH','Finanzas','Claves'];
+        const folders = ['General','IT','RRHH','Finanzas','Claves', 'Natura'];
         await Promise.allSettled(folders.map(async f => {
             try {
                 const r = await fetchAPI(`/api/documents?folder=${encodeURIComponent(f)}`);
@@ -816,7 +814,7 @@
             }
 
             let assignmentHtml = '';
-            if (isAdmin || isSupervisor) {
+            if (IS_ADMIN || IS_SUPERVISOR) {
                 if (doc.is_public) {
                     assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 mr-2" title="Visible para todos"><i class="fa-solid fa-earth-americas mr-1"></i>Público</span>`;
                 } else if (doc.allowed_users && doc.allowed_users.length > 0) {
@@ -858,7 +856,7 @@
                 <td class="px-5 py-3.5 pr-6 text-right">
                     <div class="flex items-center justify-end gap-1">
                         ${assignmentHtml}
-                        ${isAdmin ? `
+                        ${IS_ADMIN ? `
                         <button onclick="openDocumentPreview(${doc.id})"
                             class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Ver / editar">
                             <i class="fa-solid fa-eye text-xs"></i>
@@ -911,7 +909,7 @@
             }
 
             let assignmentHtml = '';
-            if (isAdmin || isSupervisor) {
+            if (IS_ADMIN || IS_SUPERVISOR) {
                 if (doc.is_public) {
                     assignmentHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700" title="Visible para todos"><i class="fa-solid fa-earth-americas"></i></span>`;
                 } else if (doc.allowed_users && doc.allowed_users.length > 0) {
@@ -946,7 +944,7 @@
                     <span class="text-[9px] bg-blue-corp/10 text-blue-corp font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-widest">${escapeHtml(doc.version || 'v1')}</span>
                     <div class="flex items-center gap-1">${assignmentHtml}</div>
                     <div class="flex items-center gap-0.5">
-                        ${isAdmin ? `
+                        ${IS_ADMIN ? `
                         <button onclick="openDocumentPreview(${doc.id})"
                             class="p-1.5 rounded-lg text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Ver / editar">
                             <i class="fa-solid fa-eye text-[11px]"></i>
@@ -1201,7 +1199,7 @@
             const isEditable = data.preview.mode === 'text' || data.preview.mode === 'table';
             footer.querySelector('div:last-child').innerHTML = `
                 <button onclick="closeDocumentPreview()" type="button" class="modal-toolbar-btn" style="background:#f3f4f6;color:#4b5563">Cerrar</button>
-                ${isEditable && isAdmin ? `<button onclick="saveDocumentContent()" type="button"
+                ${isEditable && IS_ADMIN ? `<button onclick="saveDocumentContent()" type="button"
                     class="modal-toolbar-btn" style="background:#049DD9;color:white">
                     <i class="fa-solid fa-floppy-disk" style="font-size:12px"></i> Guardar cambios
                 </button>` : ''}`;

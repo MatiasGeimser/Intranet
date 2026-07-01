@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.schemas.user import UserResponse, UserCreate, UserUpdate
 from app.models.user import User
 from app.models.role import Role
+from app.models.folder_access import FolderAccess
 from app.api.deps import get_current_active_user, PermissionChecker
 from app.core.security import get_password_hash
 from app.services.audit_service import audit_service
@@ -95,6 +96,19 @@ def create_user(
     db.commit()
     db.refresh(db_user)
 
+    # Añadir permisos de carpeta si los hay
+    if user_data.folder_permissions is not None:
+        for perm in user_data.folder_permissions:
+            new_perm = FolderAccess(
+                user_id=db_user.id,
+                folder_name=perm.folder_name,
+                can_read=perm.can_read,
+                can_write=perm.can_write
+            )
+            db.add(new_perm)
+        db.commit()
+        db.refresh(db_user)
+
     # Log de auditoría
     audit_service.log_action(
         db=db,
@@ -158,6 +172,20 @@ def update_user(
         user.is_active = user_data.is_active
     if user_data.password:
         user.hashed_password = get_password_hash(user_data.password)
+
+    # Actualizar permisos de carpeta si vienen en la petición
+    if user_data.folder_permissions is not None:
+        # Eliminar permisos anteriores
+        db.query(FolderAccess).filter(FolderAccess.user_id == user.id).delete()
+        # Agregar los nuevos
+        for perm in user_data.folder_permissions:
+            new_perm = FolderAccess(
+                user_id=user.id,
+                folder_name=perm.folder_name,
+                can_read=perm.can_read,
+                can_write=perm.can_write
+            )
+            db.add(new_perm)
 
     db.commit()
     db.refresh(user)

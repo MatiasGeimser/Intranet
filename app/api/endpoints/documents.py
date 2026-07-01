@@ -25,6 +25,9 @@ def get_documents(
         query = query.filter(Document.folder == folder)
         
     if current_user.role.name != "Administrador":
+        allowed_folders = [f.folder_name for f in current_user.folder_permissions if f.can_read]
+        query = query.filter(Document.folder.in_(allowed_folders))
+        
         # Usuarios regulares / Supervisores solo ven documentos públicos, los subidos por ellos mismos o los que les han compartido explícitamente.
         query = query.filter(
             (Document.is_public == True) | 
@@ -46,9 +49,11 @@ def upload_document(
     current_user: User = Depends(PermissionChecker("documents:manage"))
 ):
     """Sube un archivo a una carpeta virtual específica de la intranet."""
-    # Solo Administrador o Supervisor pueden subir
-    if current_user.role.name not in ["Administrador", "Supervisor"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo los Supervisores o Administradores pueden subir documentos.")
+    # Verificar permisos de escritura en la carpeta
+    if current_user.role.name != "Administrador":
+        has_write_access = any(f.folder_name == folder and f.can_write for f in current_user.folder_permissions)
+        if not has_write_access:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para subir documentos en esta carpeta.")
 
     allowed_users_ids = []
     if not is_public and allowed_users:

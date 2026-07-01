@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from app.core.database import Base
-
+from app.models.it_asset import ITAsset
 class Workspace(Base):
     __tablename__ = "workspaces"
 

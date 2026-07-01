@@ -206,13 +206,6 @@
                 <span
                     class="ml-auto text-[10px] bg-[#79F2E6]/20 text-[#79F2E6] px-2 py-0.5 rounded-full font-bold">IT</span>
             </a>
-            <a href="/inventory-map"
-                class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'inventory-map' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
-                <i class="fa-solid fa-map text-base"></i>
-                <span>Mapa Interactivo</span>
-                <span
-                    class="ml-auto text-[10px] bg-[#79F2E6]/20 text-[#79F2E6] px-2 py-0.5 rounded-full font-bold">MAP</span>
-            </a>
             {% endif %}
 
             {% if user.role.name == 'Administrador' or 'it:manage' in user_perms %}

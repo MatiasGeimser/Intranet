@@ -164,6 +164,13 @@
                     <input type="text" id="user-password" required placeholder="Ingresar contraseña fuerte" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
                 </div>
                 
+                <div class="border-t border-gray-100 pt-3 mt-3">
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Permisos Gestión Documental</label>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2" id="folder-permissions-container">
+                        <!-- Se llena vía JS -->
+                    </div>
+                </div>
+                
                 <div class="flex items-center space-x-3 pt-3">
                     <button type="button" onclick="closeUserModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">Cancelar</button>
                     <button type="submit" class="flex-1 bg-[#049DD9] hover:bg-blue-corp/90 text-white rounded-xl py-2.5 text-xs font-semibold shadow-md shadow-blue-corp/20 transition-all">Guardar Colaborador</button>
@@ -410,6 +417,7 @@
         await loadRolesIntoSelect();
         await loadAreasIntoSelect();
         await loadSupervisorsIntoSelect();
+        renderFolderPermissions();
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -429,6 +437,7 @@
         await loadRolesIntoSelect(u.role_id);
         await loadAreasIntoSelect(u.area_id);
         await loadSupervisorsIntoSelect(u.supervisor_id);
+        renderFolderPermissions(u.folder_permissions || []);
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -484,6 +493,32 @@
         }
     }
 
+    function renderFolderPermissions(existingPerms = []) {
+        const folders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura'];
+        const container = document.getElementById('folder-permissions-container');
+        let html = '';
+        
+        folders.forEach(f => {
+            const perm = existingPerms.find(p => p.folder_name === f) || { can_read: false, can_write: false };
+            html += `
+                <div class="p-2 border border-gray-100 rounded-lg bg-gray-50/50">
+                    <div class="text-[10px] font-bold text-black-dark mb-1">${f}</div>
+                    <div class="flex items-center space-x-3">
+                        <label class="flex items-center space-x-1 cursor-pointer">
+                            <input type="checkbox" id="perm-read-${f}" value="${f}" ${perm.can_read ? 'checked' : ''} class="w-3 h-3 text-blue-corp border-gray-300 rounded focus:ring-blue-corp perm-read-cb">
+                            <span class="text-[9px] text-gray-600 font-semibold">Ver</span>
+                        </label>
+                        <label class="flex items-center space-x-1 cursor-pointer">
+                            <input type="checkbox" id="perm-write-${f}" value="${f}" ${perm.can_write ? 'checked' : ''} class="w-3 h-3 text-blue-corp border-gray-300 rounded focus:ring-blue-corp perm-write-cb">
+                            <span class="text-[9px] text-gray-600 font-semibold">Subir</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
     function closeUserModal() {
         document.getElementById('user-modal').classList.add('hidden');
     }
@@ -510,6 +545,14 @@
             gender: gender
         };
         if (password) payload.password = password;
+
+        // Recolectar permisos de carpeta
+        const folders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura'];
+        payload.folder_permissions = folders.map(f => {
+            const can_read = document.getElementById(`perm-read-${f}`).checked;
+            const can_write = document.getElementById(`perm-write-${f}`).checked;
+            return { folder_name: f, can_read, can_write };
+        }).filter(p => p.can_read || p.can_write); // Opcional: enviar solo los que tienen algun permiso, o enviar todos. Mejor enviar todos los marcados.
 
         try {
             let response;

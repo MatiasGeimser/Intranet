@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from app.schemas.area import AreaSimple
+from app.schemas.folder_access import FolderAccessCreate, FolderAccessResponse
+from typing import Optional, List
 
 class UserBase(BaseModel):
     email: str
@@ -16,6 +18,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, max_length=50)
     role_id: int
+    folder_permissions: Optional[List[FolderAccessCreate]] = None
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
@@ -27,6 +30,7 @@ class UserUpdate(BaseModel):
     supervisor_id: Optional[int] = None
     gender: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, max_length=50)
+    folder_permissions: Optional[List[FolderAccessCreate]] = None
 
 class RoleSimple(BaseModel):
     id: int
@@ -43,6 +47,7 @@ class UserResponse(UserBase):
     area: Optional[AreaSimple] = None
     supervisor_id: Optional[int] = None
     created_at: datetime
+    folder_permissions: Optional[List[FolderAccessResponse]] = None
 
     class Config:
         from_attributes = True
