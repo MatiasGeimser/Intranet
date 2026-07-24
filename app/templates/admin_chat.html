@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}Chat Institucional{% endblock %}
+{% block page_title %}Chat Institucional{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_280px] gap-5 h-[calc(100vh-10.5rem)] min-h-[620px]">
+    <section class="bg-white border border-gray-200 rounded-lg flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-gray-100">
+            <p class="text-xs font-bold text-gray-800">Equipo conectado</p>
+            <p class="text-[11px] text-gray-500 mt-1"><span id="online-count">0</span> conectados</p>
+        </div>
+        <div id="participants" class="p-2 space-y-1 overflow-y-auto"></div>
+    </section>
+
+    <section class="bg-white border border-gray-200 rounded-lg flex flex-col min-h-0 overflow-hidden">
+        <header class="flex items-center justify-between gap-4 p-4 border-b border-gray-100">
+            <div class="min-w-0">
+                <h1 class="text-sm font-bold text-gray-800">Canal de administracion</h1>
+                <p id="connection-status" class="text-[11px] text-gray-500 mt-0.5">Conectando...</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="notification-button" type="button" class="w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-[#049DD9] hover:border-[#049DD9]/40 transition-colors" title="Activar alertas de mensajes">
+                    <i class="fa-regular fa-bell text-xs"></i>
+                </button>
+                <span class="text-[10px] font-semibold text-[#049DD9] bg-[#049DD9]/10 px-2 py-1 rounded">ADMIN Y SUPERVISOR</span>
+            </div>
+        </header>
+        <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F8FAFB]"></div>
+        <form id="message-form" class="p-3 border-t border-gray-100">
+            <div id="attachment-queue" class="hidden mb-2 flex flex-wrap gap-2"></div>
+            <div class="flex items-end gap-2">
+                <input id="attachment-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.xlsx,.pptx,text/plain,.txt" class="hidden">
+                <button id="attachment-button" type="button" class="w-10 h-10 shrink-0 rounded-lg border border-gray-200 text-gray-500 hover:text-[#049DD9] hover:border-[#049DD9]/40 transition-colors" title="Adjuntar imagen, captura o documento">
+                    <i class="fa-solid fa-paperclip text-sm"></i>
+                </button>
+                <textarea id="message-input" rows="1" maxlength="2000" placeholder="Escribe un mensaje..." class="min-h-10 max-h-28 flex-1 resize-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#049DD9]"></textarea>
+                <button id="send-message-button" type="submit" class="w-10 h-10 shrink-0 rounded-lg bg-[#049DD9] text-white hover:bg-[#038bc2] transition-colors" title="Enviar mensaje">
+                    <i class="fa-solid fa-paper-plane text-sm"></i>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <section class="bg-white border border-gray-200 rounded-lg flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-gray-100">
+            <p class="text-xs font-bold text-gray-800">Llamadas internas</p>
+            <p class="text-[11px] text-gray-500 mt-1">Audio del equipo operativo</p>
+        </div>
+        <div id="call-panel" class="p-4 flex-1 flex flex-col justify-between">
+            <div id="call-state" class="text-center py-8">
+                <div class="w-12 h-12 mx-auto rounded-lg bg-[#049DD9]/10 text-[#049DD9] flex items-center justify-center"><i class="fa-solid fa-phone text-lg"></i></div>
+                <p class="mt-3 text-sm font-semibold text-gray-700">Sin llamada activa</p>
+                <p class="text-xs text-gray-500 mt-1">Selecciona un integrante conectado.</p>
+            </div>
+            <button id="hangup-button" class="hidden w-full py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-100 transition-colors">
+                <i class="fa-solid fa-phone-slash mr-1"></i> Finalizar llamada
+            </button>
+        </div>
+    </section>
+</div>
+<audio id="remote-audio" autoplay></audio>
+<script>
+(() => {
+    const CURRENT_USER = {{ user.id }};
+    const messages = document.getElementById('messages');
+    const participants = document.getElementById('participants');
+    const status = document.getElementById('connection-status');
+    const form = document.getElementById('message-form');
+    const input = document.getElementById('message-input');
+    const callState = document.getElementById('call-state');
+    const hangupButton = document.getElementById('hangup-button');
+    const remoteAudio = document.getElementById('remote-audio');
+    const notificationButton = document.getElementById('notification-button');
+    const attachmentButton = document.getElementById('attachment-button');
+    const attachmentInput = document.getElementById('attachment-input');
+    const attachmentQueue = document.getElementById('attachment-queue');
+    const sendMessageButton = document.getElementById('send-message-button');
+    let socket;
+    let allParticipants = [];
+    let onlineUsers = [];
+    let peerConnection;
+    let localStream;
+    let activePeerId;
+    let incomingCall;
+    let queuedIce = [];
+    let selectedContactId;
+    let audioContext;
+    let desktopNotificationsEnabled = false;
+    let pendingAttachments = [];
+
+    const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
+    const formatSize = bytes => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+    function updateNotificationButton() {
+        const granted = 'Notification' in window && Notification.permission === 'granted';
+        desktopNotificationsEnabled = granted;
+        notificationButton.className = `w-8 h-8 rounded-lg border transition-colors ${granted ? 'border-[#049DD9]/40 bg-[#049DD9]/10 text-[#049DD9]' : 'border-gray-200 text-gray-500 hover:text-[#049DD9] hover:border-[#049DD9]/40'}`;
+        notificationButton.title = granted ? 'Alertas de Chrome activadas' : 'Activar alertas de mensajes';
+        notificationButton.innerHTML = `<i class="fa-${granted ? 'solid' : 'regular'} fa-bell text-xs"></i>`;
+    }
+
+    function playNotificationSound() {
+        try {
+            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') audioContext.resume();
+            const now = audioContext.currentTime;
+            [0, 0.12].forEach((offset, index) => {
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                oscillator.frequency.value = index ? 880 : 660;
+                gain.gain.setValueAtTime(0.0001, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.12, now + offset + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+                oscillator.connect(gain).connect(audioContext.destination);
+                oscillator.start(now + offset);
+                oscillator.stop(now + offset + 0.18);
+            });
+        } catch (error) {
+            // Browser audio can be unavailable until the user interacts with the page.
+        }
+    }
+
+    function notifyUser(title, body) {
+        playNotificationSound();
+        showToast(`${title}: ${body}`, 'info');
+        if (desktopNotificationsEnabled && document.hidden) {
+            new Notification(title, {body, tag: 'intranet-admin-chat', renotify: true});
+        }
+    }
+
+    async function enableNotifications() {
+        if (!('Notification' in window)) {
+            showToast('Este navegador no admite notificaciones de escritorio.', 'error');
+            return;
+        }
+        playNotificationSound();
+        const permission = Notification.permission === 'default'
+            ? await Notification.requestPermission()
+            : Notification.permission;
+        updateNotificationButton();
+        if (permission === 'granted') showToast('Alertas de Chrome activadas.', 'success');
+        else showToast('Las alertas de Chrome no fueron autorizadas.', 'info');
+    }
+
+    function renderMessage(message) {
+        const mine = message.sender.id === CURRENT_USER;
+        const element = document.createElement('article');
+        element.className = `chat-message ${mine ? 'mine' : ''}`;
+        const attachments = (message.attachments || []).map(attachment => {
+            if (attachment.mime_type.startsWith('image/')) {
+                return `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-64 max-w-full rounded-lg border border-black/10 object-contain"></a>`;
+            }
+            return `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-lg border border-black/10 px-2 py-2 text-xs hover:bg-black/5"><i class="fa-solid fa-file-arrow-down"></i><span class="min-w-0 flex-1 truncate">${escapeHtml(attachment.name)}</span><span>${formatSize(attachment.size_bytes)}</span></a>`;
+        }).join('');
+        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
+        messages.appendChild(element);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function renderParticipants() {
+        document.getElementById('online-count').textContent = onlineUsers.length;
+        const onlineIds = new Set(onlineUsers.map(user => user.id));
+        participants.innerHTML = allParticipants.map(user => {
+            const online = onlineIds.has(user.id);
+            const isMe = user.id === CURRENT_USER;
+            const selected = user.id === selectedContactId;
+            const classes = selected
+                ? 'bg-[#049DD9]/10 border-[#049DD9]'
+                : online ? 'bg-[#F8FAFB] border-transparent hover:border-[#049DD9]/40' : 'border-transparent opacity-70';
+            return `<button type="button" data-select-user="${user.id}" ${isMe ? 'disabled' : ''} class="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-colors ${classes} ${isMe ? 'cursor-default' : 'cursor-pointer'}"><span class="w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-gray-300'}"></span><div class="min-w-0 flex-1"><p class="text-xs font-semibold text-gray-700 truncate">${escapeHtml(user.name)}${isMe ? ' (tu)' : ''}</p><p class="text-[10px] text-gray-500 truncate">${escapeHtml(user.role || 'Administrador')} · ${online ? 'Disponible' : 'Desconectado'}</p></div>${selected ? '<i class="fa-solid fa-check text-[#049DD9] text-xs"></i>' : ''}</button>`;
+        }).join('');
+        participants.querySelectorAll('[data-select-user]').forEach(button => button.addEventListener('click', () => selectContact(Number(button.dataset.selectUser))));
+    }
+
+    function send(payload) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            showToast('El chat aun no esta conectado.', 'error');
+            return false;
+        }
+        socket.send(JSON.stringify(payload));
+        return true;
+    }
+
+    function sendSignal(targetId, signal) { send({type: 'signal', target_id: targetId, signal}); }
+
+    function renderAttachmentQueue() {
+        attachmentQueue.classList.toggle('hidden', pendingAttachments.length === 0);
+        attachmentQueue.innerHTML = pendingAttachments.map(attachment => `<div class="max-w-full flex items-center gap-2 rounded-lg bg-[#049DD9]/10 px-2 py-1 text-xs text-[#262523]"><i class="fa-solid ${attachment.file.type.startsWith('image/') ? 'fa-image' : 'fa-file'} text-[#049DD9]"></i><span class="max-w-40 truncate">${escapeHtml(attachment.file.name)}</span><span class="text-gray-500">${formatSize(attachment.file.size)}</span><button type="button" data-remove-attachment="${attachment.id}" class="text-gray-500 hover:text-red-600" title="Quitar adjunto"><i class="fa-solid fa-xmark"></i></button></div>`).join('');
+        attachmentQueue.querySelectorAll('[data-remove-attachment]').forEach(button => button.addEventListener('click', () => {
+            pendingAttachments = pendingAttachments.filter(attachment => attachment.id !== button.dataset.removeAttachment);
+            renderAttachmentQueue();
+        }));
+    }
+
+    function queueAttachments(files) {
+        const candidates = Array.from(files);
+        const remaining = 5 - pendingAttachments.length;
+        if (candidates.length > remaining) showToast('Puedes enviar hasta 5 archivos por mensaje.', 'info');
+        candidates.slice(0, Math.max(remaining, 0)).forEach(file => {
+            if (file.size > 15 * 1024 * 1024) {
+                showToast(`${file.name} supera el limite de 15 MB.`, 'error');
+                return;
+            }
+            pendingAttachments.push({id: `${Date.now()}-${Math.random()}`, file});
+        });
+        attachmentInput.value = '';
+        renderAttachmentQueue();
+    }
+
+    async function uploadAttachment(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const csrfToken = getCookie('csrf_token');
+        const response = await fetch('/api/admin-chat/attachments', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: csrfToken ? {'x-csrf-token': csrfToken} : {},
+            body: formData,
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || 'No fue posible subir el archivo.');
+        }
+        return response.json();
+    }
+
+    async function createPeerConnection(targetId) {
+        activePeerId = targetId;
+        peerConnection = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) sendSignal(targetId, {kind: 'ice', candidate: event.candidate});
+        };
+        peerConnection.ontrack = event => { remoteAudio.srcObject = event.streams[0]; };
+        peerConnection.onconnectionstatechange = () => {
+            if (['failed', 'disconnected', 'closed'].includes(peerConnection.connectionState)) endCall(false);
+        };
+        localStream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    }
+
+    function updateCallPanel(title, subtitle, actions = '') {
+        callState.innerHTML = `<div class="w-12 h-12 mx-auto rounded-lg bg-[#049DD9]/10 text-[#049DD9] flex items-center justify-center"><i class="fa-solid fa-phone text-lg"></i></div><p class="mt-3 text-sm font-semibold text-gray-700">${escapeHtml(title)}</p><p class="text-xs text-gray-500 mt-1">${escapeHtml(subtitle)}</p>${actions}`;
+    }
+
+    function selectContact(userId) {
+        if (peerConnection || incomingCall) return;
+        selectedContactId = userId;
+        const contact = allParticipants.find(user => user.id === userId);
+        const online = onlineUsers.some(user => user.id === userId);
+        renderParticipants();
+        if (!contact) return;
+        if (!online) {
+            updateCallPanel(`${contact.name} no esta conectado`, 'Podras llamar cuando este disponible.');
+            return;
+        }
+        updateCallPanel(`Contacto seleccionado`, contact.name, '<button id="start-call-button" class="mt-5 w-full py-2.5 rounded-lg bg-[#049DD9] text-white text-sm font-semibold hover:bg-[#038bc2] transition-colors"><i class="fa-solid fa-phone mr-1"></i> Iniciar llamada</button>');
+        document.getElementById('start-call-button').onclick = () => startCall(userId);
+    }
+
+    async function startCall(targetId) {
+        if (peerConnection || incomingCall) return;
+        selectedContactId = targetId;
+        const target = allParticipants.find(user => user.id === targetId);
+        try {
+            updateCallPanel(`Llamando a ${target?.name || 'administrador'}`, 'Solicitando acceso al microfono...');
+            await createPeerConnection(targetId);
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            sendSignal(targetId, {kind: 'offer', offer});
+            hangupButton.classList.remove('hidden');
+            updateCallPanel(`Llamando a ${target?.name || 'administrador'}`, 'Esperando respuesta...');
+        } catch (error) {
+            endCall(false);
+            showToast('No fue posible acceder al microfono.', 'error');
+        }
+    }
+
+    async function acceptIncomingCall() {
+        if (!incomingCall) return;
+        const call = incomingCall;
+        incomingCall = null;
+        try {
+            updateCallPanel(`Conectando con ${call.user.name}`, 'Solicitando acceso al microfono...');
+            await createPeerConnection(call.from);
+            await peerConnection.setRemoteDescription(call.offer);
+            for (const candidate of queuedIce) await peerConnection.addIceCandidate(candidate);
+            queuedIce = [];
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            sendSignal(call.from, {kind: 'answer', answer});
+            hangupButton.classList.remove('hidden');
+            updateCallPanel(`En llamada con ${call.user.name}`, 'Audio seguro entre administradores.');
+        } catch (error) {
+            sendSignal(call.from, {kind: 'reject'});
+            endCall(false);
+            showToast('No fue posible iniciar la llamada.', 'error');
+        }
+    }
+
+    function rejectIncomingCall() {
+        if (!incomingCall) return;
+        sendSignal(incomingCall.from, {kind: 'reject'});
+        incomingCall = null;
+        queuedIce = [];
+        updateCallPanel('Sin llamada activa', 'Selecciona un integrante conectado.');
+    }
+
+    function endCall(notify = true) {
+        if (notify && activePeerId) sendSignal(activePeerId, {kind: 'end'});
+        if (peerConnection) peerConnection.close();
+        if (localStream) localStream.getTracks().forEach(track => track.stop());
+        peerConnection = undefined;
+        localStream = undefined;
+        activePeerId = undefined;
+        incomingCall = undefined;
+        queuedIce = [];
+        remoteAudio.srcObject = null;
+        hangupButton.classList.add('hidden');
+        updateCallPanel('Sin llamada activa', 'Selecciona un integrante conectado.');
+    }
+
+    async function handleSignal(from, signal) {
+        const user = allParticipants.find(participant => participant.id === from) || {name: 'administrador'};
+        if (signal.kind === 'offer') {
+            if (peerConnection || incomingCall) { sendSignal(from, {kind: 'reject'}); return; }
+            incomingCall = {from, user, offer: signal.offer};
+            notifyUser('Llamada entrante', user.name);
+            updateCallPanel(`Llamada de ${user.name}`, 'Audio interno entrante.', '<div class="mt-5 grid grid-cols-2 gap-2"><button id="reject-call" class="py-2 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold">Rechazar</button><button id="accept-call" class="py-2 rounded-lg bg-[#049DD9] text-white text-xs font-semibold">Contestar</button></div>');
+            document.getElementById('accept-call').onclick = acceptIncomingCall;
+            document.getElementById('reject-call').onclick = rejectIncomingCall;
+        } else if (signal.kind === 'answer' && peerConnection) {
+            await peerConnection.setRemoteDescription(signal.answer);
+            updateCallPanel(`En llamada con ${user.name}`, 'Audio seguro entre administradores.');
+        } else if (signal.kind === 'ice') {
+            const candidate = new RTCIceCandidate(signal.candidate);
+            if (peerConnection?.remoteDescription) await peerConnection.addIceCandidate(candidate);
+            else queuedIce.push(candidate);
+        } else if (signal.kind === 'reject') {
+            showToast(`${user.name} no pudo atender la llamada.`, 'info');
+            endCall(false);
+        } else if (signal.kind === 'end') {
+            endCall(false);
+        }
+    }
+
+    function connect() {
+        const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+        socket = new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);
+        socket.onopen = () => { status.textContent = 'Conectado'; status.className = 'text-[11px] text-emerald-600 mt-0.5'; };
+        socket.onclose = () => {
+            status.textContent = 'Reconectando...'; status.className = 'text-[11px] text-amber-600 mt-0.5';
+            setTimeout(connect, 2500);
+        };
+        socket.onmessage = async event => {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'presence') {
+                onlineUsers = payload.users;
+                const knownIds = new Set(allParticipants.map(user => user.id));
+                allParticipants = [...allParticipants, ...onlineUsers.filter(user => !knownIds.has(user.id))];
+                renderParticipants();
+            }
+            if (payload.type === 'chat_message') {
+                renderMessage(payload.message);
+                if (payload.message.sender.id !== CURRENT_USER) {
+                    notifyUser(`Nuevo mensaje de ${payload.message.sender.name}`, payload.message.content);
+                }
+            }
+            if (payload.type === 'signal') await handleSignal(payload.from, payload.signal);
+        };
+    }
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const content = input.value.trim();
+        if (!content && pendingAttachments.length === 0) return;
+        sendMessageButton.disabled = true;
+        sendMessageButton.classList.add('opacity-60');
+        try {
+            const attachments = await Promise.all(pendingAttachments.map(attachment => uploadAttachment(attachment.file)));
+            if (send({type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id)})) {
+                input.value = '';
+                pendingAttachments = [];
+                renderAttachmentQueue();
+            }
+        } catch (error) {
+            showToast(error.message || 'No fue posible enviar los adjuntos.', 'error');
+        } finally {
+            sendMessageButton.disabled = false;
+            sendMessageButton.classList.remove('opacity-60');
+        }
+    });
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
+    });
+    hangupButton.addEventListener('click', () => endCall(true));
+    notificationButton.addEventListener('click', enableNotifications);
+    attachmentButton.addEventListener('click', () => attachmentInput.click());
+    attachmentInput.addEventListener('change', event => queueAttachments(event.target.files));
+    updateNotificationButton();
+
+    async function loadInitialData() {
+        try {
+            const [messageResponse, participantResponse] = await Promise.all([
+                fetch('/api/admin-chat/messages', {credentials: 'same-origin'}),
+                fetch('/api/admin-chat/participants', {credentials: 'same-origin'})
+            ]);
+            if (!messageResponse.ok || !participantResponse.ok) throw new Error('No autorizado');
+            const history = await messageResponse.json();
+            allParticipants = await participantResponse.json();
+            history.forEach(renderMessage);
+            renderParticipants();
+        } catch (error) {
+            status.textContent = 'No fue posible cargar el chat.';
+            status.className = 'text-[11px] text-red-600 mt-0.5';
+        }
+    }
+
+    connect();
+    loadInitialData();
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chat-message { max-width: min(78%, 640px); }
+    .chat-message.mine { margin-left: auto; }
+    .chat-message .bubble { border-radius: 8px; }
+</style>
+{% endblock %}

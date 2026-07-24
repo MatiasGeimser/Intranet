@@ -187,12 +187,12 @@
         {% for perm in user.role.permissions %}
             {% set _ = user_perms.append(perm.code) %}
         {% endfor %}
+        {% if user.role.name == 'Administrador' %}
         <button onclick="openCreateModal()" id="btn-nueva-credencial"
             class="flex items-center gap-2 bg-[#049DD9] hover:bg-[#038bc2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#049DD9]/30 transition-all duration-200 hover:-translate-y-0.5">
             <i class="fa-solid fa-plus"></i>
             Nueva Credencial
         </button>
-        {% if user.role.name == 'Administrador' or 'credentials:manage' in user_perms %}
         <button onclick="openImportModal()" id="btn-importar"
             class="flex items-center gap-2 bg-white border border-[#8C8C8C]/20 text-[#262523] text-sm font-medium px-4 py-2.5 rounded-xl hover:border-[#049DD9] hover:text-[#049DD9] transition-all duration-200">
             <i class="fa-solid fa-file-import"></i>
@@ -272,9 +272,11 @@
     </div>
     <p class="font-semibold text-[#262523] text-sm">La bóveda está vacía</p>
     <p class="text-xs text-[#8C8C8C] mt-1">Crea tu primera credencial o importa desde Excel</p>
+    {% if user.role.name == 'Administrador' %}
     <button onclick="openCreateModal()" class="mt-4 bg-[#049DD9] text-white text-xs font-semibold px-5 py-2 rounded-xl hover:bg-[#038bc2] transition-colors">
         <i class="fa-solid fa-plus mr-1"></i>Nueva Credencial
     </button>
+    {% endif %}
 </div>
 
 <!-- ============================================================

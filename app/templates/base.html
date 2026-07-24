@@ -122,12 +122,26 @@
 
         <!-- Menú de Navegación -->
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            {% set is_natura_user = user.email and user.email.lower().endswith('@natura.cl') %}
 
+            {% if is_natura_user %}
+            <div class="pt-4 pb-2 px-4">
+                <p class="text-[10px] font-semibold text-[#8C8C8C] tracking-wider uppercase">Documentos</p>
+            </div>
+            <a href="/documents"
+                class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'documents' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-folder-open text-base"></i>
+                <span>Gestión Documental</span>
+            </a>
+            {% else %}
+
+            {% if user.role.name == 'Administrador' %}
             <a href="/dashboard"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-chart-line text-base"></i>
                 <span>Dashboard Principal</span>
             </a>
+            {% endif %}
 
             <div class="pt-4 pb-2 px-4">
                 <p class="text-[10px] font-semibold text-[#8C8C8C] tracking-wider uppercase">Módulos Corporativos</p>
@@ -149,7 +163,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name in ['Administrador', 'Supervisor'] or 'credentials:manage' in user_perms %}
+            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario'] or 'credentials:manage' in user_perms %}
             <a href="/vault"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'vault' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-key text-base"></i>
@@ -159,7 +173,15 @@
             </a>
             {% endif %}
 
-            {% if user.role.name == 'Administrador' or 'events:manage' in user_perms or user.role.name == 'Usuario' %}
+            {% if user.role.name in ['Administrador', 'Supervisor'] %}
+            <a href="/admin-chat"
+                class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'admin-chat' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-comments text-base"></i>
+                <span>Chat Institucional</span>
+            </a>
+            {% endif %}
+
+            {% if user.role.name == 'Administrador' %}
             <a href="/calendar"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'calendar' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-calendar-days text-base"></i>
@@ -173,8 +195,7 @@
                 <span>Directorio Corporativo</span>
             </a>
 
-            {% if user.role.name == 'Administrador' or 'documents:manage' in user_perms or user.role.name == 'Usuario'
-            %}
+            {% if user.role.name == 'Administrador' or 'documents:read' in user_perms %}
             <a href="/documents"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'documents' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-folder-open text-base"></i>
@@ -182,7 +203,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name == 'Administrador' or 'news:manage' in user_perms or user.role.name == 'Usuario' %}
+            {% if user.role.name == 'Administrador' %}
             <a href="/news"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'news' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-newspaper text-base"></i>
@@ -190,7 +211,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name == 'Administrador' or 'it:manage' in user_perms %}
+            {% if user.role.name == 'Administrador' %}
             <a href="/it-assets"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page in ['it-assets', 'network', 'phone-numbers'] %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-server text-base"></i>
@@ -232,13 +253,14 @@
                 <span>Consola de Control</span>
             </a>
             {% endif %}
+            {% endif %}
 
         </nav>
 
         <!-- Footer de Sidebar (Usuario Activo y Ajustes) -->
         <div class="p-4 border-t border-[#8C8C8C]/10 bg-[#262523]/50">
             <div class="flex items-center space-x-3 justify-between">
-                <a href="/profile"
+                <a href="{{ '/documents' if is_natura_user else '/profile' }}"
                     class="flex items-center space-x-3 group cursor-pointer overflow-hidden max-w-[160px]">
                     <img src="{{ user.avatar_url or '/static/images/default-avatar.png' }}" alt="Avatar"
                         class="w-10 h-10 rounded-xl object-cover border border-[#8C8C8C]/30 group-hover:border-[#79F2E6] transition-colors duration-200">
@@ -283,6 +305,7 @@
 
             <!-- Barra de búsqueda global e indicadores rápidos -->
             <div class="flex items-center space-x-6">
+                {% if not is_natura_user %}
                 <!-- Buscador simulado elegante -->
                 <div class="relative max-w-xs hidden md:block" id="global-search-container">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
@@ -298,18 +321,7 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Acceso Rápido 3CX Web Client -->
-                <div class="relative hidden sm:block">
-                    <a href="https://1325.3cx.cloud/webclient/" target="_blank"
-                        class="flex items-center space-x-2 bg-[#049DD9]/10 border border-[#049DD9]/30 px-3 py-1.5 rounded-xl hover:bg-[#049DD9] hover:text-white group transition-all duration-300"
-                        title="Abrir Marcador 3CX (Web Client)">
-                        <i class="fa-solid fa-phone-volume text-[#049DD9] group-hover:text-white transition-colors"></i>
-                        <span
-                            class="text-[10px] font-bold text-[#049DD9] group-hover:text-white tracking-wider uppercase transition-colors">3CX
-                            Web</span>
-                    </a>
-                </div>
+                {% endif %}
 
                 <!-- Notificaciones elegantes -->
                 <div class="relative">
@@ -446,11 +458,6 @@
             overlay.classList.toggle('hidden');
         }
     </script>
-    <!-- 3CX Live Chat / Talk Widget -->
-    <call-us-selector phonesystem-url="https://1325.3cx.cloud" party="SoporteIntranet"></call-us-selector>
-    <script defer src="https://downloads-global.3cx.com/downloads/livechatandtalk/v1/callus.js" id="tcx-callus-js"
-        charset="utf-8"></script>
-
     <script>
         // --- Búsqueda Global (Omnibar) ---
         const searchInput = document.getElementById('globalSearchInput');

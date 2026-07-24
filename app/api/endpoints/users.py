@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
-from app.schemas.user import UserResponse, UserCreate, UserUpdate
+from app.schemas.user import UserResponse, UserCreate, UserUpdate, NaturaManagersUpdate
 from app.models.user import User
 from app.models.role import Role
 from app.models.folder_access import FolderAccess
@@ -14,6 +14,52 @@ from datetime import datetime
 from app.core.config import settings
 
 router = APIRouter()
+
+
+def get_natura_folder_names(db: Session) -> list[str]:
+    return [
+        name for (name,) in db.query(FolderAccess.folder_name)
+        .filter(FolderAccess.folder_name.like("Natura / %"))
+        .distinct()
+        .all()
+    ]
+
+
+def get_natura_manager_ids(db: Session, folder_names: list[str]) -> set[int]:
+    if not folder_names:
+        return set()
+    required_count = len(folder_names)
+    candidates = db.query(FolderAccess).filter(
+        FolderAccess.folder_name.in_(folder_names),
+        FolderAccess.can_read.is_(True),
+        FolderAccess.can_write.is_(True),
+    ).all()
+    coverage: dict[int, set[str]] = {}
+    for permission in candidates:
+        coverage.setdefault(permission.user_id, set()).add(permission.folder_name)
+    return {user_id for user_id, folders in coverage.items() if len(folders) == required_count}
+
+
+def grant_natura_folder_access(db: Session, user_id: int, folder_names: list[str]) -> None:
+    existing = {
+        permission.folder_name: permission
+        for permission in db.query(FolderAccess).filter(
+            FolderAccess.user_id == user_id,
+            FolderAccess.folder_name.in_(folder_names),
+        ).all()
+    }
+    for folder_name in folder_names:
+        permission = existing.get(folder_name)
+        if permission:
+            permission.can_read = True
+            permission.can_write = True
+        else:
+            db.add(FolderAccess(
+                user_id=user_id,
+                folder_name=folder_name,
+                can_read=True,
+                can_write=True,
+            ))
 
 @router.get("/birthdays", response_model=List[UserResponse])
 def get_birthdays(
@@ -52,6 +98,69 @@ def get_users_minimal(
     if current_user.role.name not in ["Administrador", "Supervisor"]:
         return db.query(User).filter(User.is_active == True, User.area_id == current_user.area_id).all()
     return db.query(User).filter(User.is_active == True).all()
+
+
+@router.get("/natura-managers")
+def get_natura_managers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("users:update")),
+):
+    folder_names = get_natura_folder_names(db)
+    manager_ids = get_natura_manager_ids(db, folder_names)
+    managers = db.query(User).filter(User.id.in_(manager_ids)).all() if manager_ids else []
+    return {
+        "manager_ids": sorted(manager_ids),
+        "folder_count": len(folder_names),
+        "managers": [{"id": user.id, "full_name": user.full_name, "email": user.email} for user in managers],
+    }
+
+
+@router.put("/natura-managers")
+def update_natura_managers(
+    payload: NaturaManagersUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("users:update")),
+):
+    manager_ids = list(dict.fromkeys(payload.manager_ids))
+    if len(manager_ids) > 2:
+        raise HTTPException(status_code=400, detail="Puedes asignar como máximo dos responsables Natura.")
+
+    folder_names = get_natura_folder_names(db)
+    if not folder_names:
+        raise HTTPException(status_code=400, detail="No hay carpetas personales de Natura disponibles.")
+
+    selected_users = db.query(User).filter(User.id.in_(manager_ids), User.is_active.is_(True)).all()
+    if len(selected_users) != len(manager_ids):
+        raise HTTPException(status_code=400, detail="Selecciona usuarios activos y válidos.")
+    if any(user.email.lower().endswith("@natura.cl") for user in selected_users):
+        raise HTTPException(status_code=400, detail="Los responsables Natura deben ser cuentas corporativas internas.")
+    if any(
+        user.role.name != "Administrador"
+        and "documents:read" not in {permission.code for permission in user.role.permissions}
+        for user in selected_users
+    ):
+        raise HTTPException(status_code=400, detail="Los responsables deben tener acceso al gestor documental.")
+
+    previous_manager_ids = get_natura_manager_ids(db, folder_names)
+    for user_id in previous_manager_ids - set(manager_ids):
+        db.query(FolderAccess).filter(
+            FolderAccess.user_id == user_id,
+            FolderAccess.folder_name.in_(folder_names),
+        ).delete(synchronize_session=False)
+
+    for user_id in manager_ids:
+        grant_natura_folder_access(db, user_id, folder_names)
+
+    db.commit()
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="natura_managers_update",
+        ip_address=request.client.host if request.client else None,
+        details=f"Actualizó responsables de Natura: {manager_ids}. Carpetas asignadas: {len(folder_names)}.",
+    )
+    return {"manager_ids": manager_ids, "folder_count": len(folder_names)}
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

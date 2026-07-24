@@ -1,6 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -12,6 +13,31 @@ from app.services.audit_service import audit_service
 from app.models.user import User
 
 router = APIRouter()
+
+
+def user_can_manage_folder(folder: str, current_user: User) -> bool:
+    if current_user.role.name == "Administrador":
+        return True
+    return any(
+        permission.folder_name == folder and permission.can_write
+        for permission in current_user.folder_permissions
+    )
+
+
+def user_can_access_document(document: Document, current_user: User) -> bool:
+    """Comprueba carpeta y visibilidad antes de exponer un documento no administrativo."""
+    if current_user.role.name == "Administrador":
+        return True
+
+    allowed_folders = {permission.folder_name for permission in current_user.folder_permissions if permission.can_read}
+    if document.folder not in allowed_folders:
+        return False
+    return user_can_manage_folder(document.folder, current_user) or (
+        document.is_public
+        or document.uploader_id == current_user.id
+        or any(user.id == current_user.id for user in document.allowed_users)
+    )
+
 
 @router.get("", response_model=List[DocumentResponse])
 def get_documents(
@@ -29,13 +55,29 @@ def get_documents(
         query = query.filter(Document.folder.in_(allowed_folders))
         
         # Usuarios regulares / Supervisores solo ven documentos públicos, los subidos por ellos mismos o los que les han compartido explícitamente.
-        query = query.filter(
-            (Document.is_public == True) | 
-            (Document.uploader_id == current_user.id) | 
-            (Document.allowed_users.any(User.id == current_user.id))
+        managed_folders = [f.folder_name for f in current_user.folder_permissions if f.can_write]
+        visibility_filter = (
+            (Document.is_public == True)
+            | (Document.uploader_id == current_user.id)
+            | (Document.allowed_users.any(User.id == current_user.id))
         )
+        query = query.filter(or_(Document.folder.in_(managed_folders), visibility_filter))
         
     return query.order_by(Document.created_at.desc()).all()
+
+
+@router.get("/folders")
+def get_accessible_folders(
+    current_user: User = Depends(PermissionChecker("documents:read")),
+):
+    """Entrega las carpetas virtuales permitidas para construir la navegación personal."""
+    if current_user.role.name == "Administrador":
+        return []
+    return [
+        {"name": permission.folder_name, "can_write": permission.can_write}
+        for permission in current_user.folder_permissions
+        if permission.can_read
+    ]
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -46,14 +88,12 @@ def upload_document(
     is_public: bool = Form(True),
     allowed_users: str = Form(""),
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Sube un archivo a una carpeta virtual específica de la intranet."""
     # Verificar permisos de escritura en la carpeta
-    if current_user.role.name != "Administrador":
-        has_write_access = any(f.folder_name == folder and f.can_write for f in current_user.folder_permissions)
-        if not has_write_access:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para subir documentos en esta carpeta.")
+    if not user_can_manage_folder(folder, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para subir documentos en esta carpeta.")
 
     allowed_users_ids = []
     if not is_public and allowed_users:
@@ -168,12 +208,14 @@ def download_document(
     doc_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:manage"))
+    current_user: User = Depends(PermissionChecker("documents:read"))
 ):
     """Descarga de forma segura un archivo desde el almacenamiento de la Intranet."""
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+    if not user_can_access_document(doc, current_user):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este documento.")
 
     if not os.path.exists(doc.file_path):
         raise HTTPException(status_code=404, detail="El archivo físico no existe en el servidor.")
@@ -200,12 +242,14 @@ def delete_document(
     doc_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Elimina permanentemente un documento de la base de datos y del disco."""
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+    if not user_can_manage_folder(doc.folder, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para eliminar documentos en esta carpeta.")
 
     # Eliminar físicamente del disco si existe
     if os.path.exists(doc.file_path):

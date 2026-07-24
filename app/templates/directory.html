@@ -128,7 +128,7 @@
                         <input type="text" id="f-phone" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#049DD9] outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Anexo 3CX</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Anexo telefonico</label>
                         <input type="text" id="f-3cx" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#049DD9] outline-none">
                     </div>
                     <div>
@@ -336,7 +336,7 @@ function renderGrid(collaborators) {
             </a>` : '';
         const extHtml = c.extension_3cx ? `
             <a href="tel:${c.extension_3cx}" class="flex items-center gap-1.5 text-xs text-gray-600 hover:text-[#049DD9] p-1.5 rounded-lg hover:bg-[#049DD9]/10 transition-colors" onclick="event.stopPropagation()">
-                <i class="fa-solid fa-headset text-[#8C8C8C]"></i> Ext: ${c.extension_3cx}
+                <i class="fa-solid fa-phone text-[#8C8C8C]"></i> Anexo: ${c.extension_3cx}
             </a>` : '';
 
         // Botón admin para editar/eliminar (detiene propagación)
@@ -423,9 +423,10 @@ function openProfile(id) {
                 ${getStatusBadge(c.status)}
                 
                 <div class="w-full mt-6 space-y-2">
-                    ${c.email ? `<a href="mailto:${c.email}" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#049DD9] text-white rounded-xl shadow hover:bg-[#037bb0] transition-colors text-sm font-medium"><i class="fa-solid fa-paper-plane"></i> Enviar Correo</a>` : ''}
+                    ${c.email ? `<a href="mailto:${encodeURIComponent(c.email)}" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#049DD9] text-white rounded-xl shadow hover:bg-[#037bb0] transition-colors text-sm font-medium" title="Abre el cliente de correo predeterminado, por ejemplo Thunderbird"><i class="fa-solid fa-paper-plane"></i> Enviar correo</a>
+                    <a href="https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}" target="_blank" rel="noopener noreferrer" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl shadow-sm hover:bg-blue-100 transition-colors text-sm font-medium border border-blue-200"><i class="fa-brands fa-microsoft"></i> Abrir en Outlook</a>` : ''}
                     ${c.phone ? `<a href="tel:${c.phone}" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl shadow-sm hover:bg-gray-200 transition-colors text-sm font-medium"><i class="fa-solid fa-phone"></i> Llamar Móvil</a>` : ''}
-                    ${c.extension_3cx ? `<a href="tel:${c.extension_3cx}" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl shadow-sm hover:bg-blue-100 transition-colors text-sm font-medium border border-blue-200"><i class="fa-solid fa-headset"></i> Llamar 3CX (${c.extension_3cx})</a>` : ''}
+                    ${c.extension_3cx ? `<a href="tel:${c.extension_3cx}" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl shadow-sm hover:bg-gray-200 transition-colors text-sm font-medium"><i class="fa-solid fa-phone"></i> Llamar anexo (${c.extension_3cx})</a>` : ''}
                 </div>
             </div>
             

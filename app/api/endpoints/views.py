@@ -35,12 +35,16 @@ def get_current_user_optional(request: Request, db: Session) -> Optional[User]:
         return None
 
 
+def is_natura_user(user: User) -> bool:
+    return bool(user.email and user.email.lower().endswith("@natura.cl"))
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_view(request: Request, db: Session = Depends(get_db)):
     """Muestra la página de inicio de sesión. Si ya tiene sesión, redirige al Dashboard."""
     user = get_current_user_optional(request, db)
     if user and user.is_active:
-        return RedirectResponse(url="/dashboard")
+        return RedirectResponse(url="/documents" if is_natura_user(user) else "/dashboard")
     
     response = templates.TemplateResponse(request=request,name= "login.html", context={"project_name": settings.PROJECT_NAME})
     # Asegurar que se elimine cualquier cookie corrupta
@@ -71,6 +75,8 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
+    if is_natura_user(user):
+        return RedirectResponse(url="/documents", status_code=status.HTTP_303_SEE_OTHER)
         
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
         "user": user,
@@ -105,13 +111,25 @@ def vault_view(request: Request, db: Session = Depends(get_db)):
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
 
-    permissions = [p.code for p in user.role.permissions]
-    if user.role.name != "Administrador" and "credentials:manage" not in permissions:
-        return RedirectResponse(url="/dashboard")
-
     return templates.TemplateResponse(request=request, name="vault.html", context={
         "user": user,
         "active_page": "vault",
+        "project_name": settings.PROJECT_NAME
+    })
+
+
+@router.get("/admin-chat", response_class=HTMLResponse)
+def admin_chat_view(request: Request, db: Session = Depends(get_db)):
+    """Muestra el chat institucional y llamadas internas para el equipo operativo."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    if user.role.name not in {"Administrador", "Supervisor"}:
+        return RedirectResponse(url="/passwords", status_code=303)
+
+    return templates.TemplateResponse(request=request, name="admin_chat.html", context={
+        "user": user,
+        "active_page": "admin-chat",
         "project_name": settings.PROJECT_NAME
     })
 

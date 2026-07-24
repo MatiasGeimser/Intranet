@@ -1,0 +1,104 @@
+from jose import JWTError, jwt
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.api.deps import get_token_from_request
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.models.user import User
+
+
+class RoleAccessMiddleware(BaseHTTPMiddleware):
+    """Limita a usuarios no administradores a los tres modulos autorizados."""
+
+    public_paths = {"/", "/login", "/favicon.ico"}
+    member_pages = {"/passwords", "/vault", "/directory", "/profile"}
+    chat_roles = {"Administrador", "Supervisor"}
+
+    @staticmethod
+    def _is_natura_user(user: User) -> bool:
+        return bool(user.email and user.email.lower().endswith("@natura.cl"))
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        if path in self.public_paths or path.startswith("/static"):
+            return await call_next(request)
+
+        token = get_token_from_request(request)
+        if not token:
+            return await call_next(request)
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_id = int(payload.get("sub"))
+            if payload.get("type") != "access":
+                raise ValueError("Invalid token type")
+        except (JWTError, TypeError, ValueError):
+            return await call_next(request)
+
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+            if not user or user.role.name == "Administrador":
+                return await call_next(request)
+
+            if self._is_natura_user(user):
+                if self._is_allowed_natura_request(request):
+                    return await call_next(request)
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Las cuentas Natura solo tienen acceso a Gestión Documental."},
+                    )
+                return RedirectResponse(url="/documents", status_code=303)
+        finally:
+            db.close()
+
+        if self._is_allowed_member_request(request, user):
+            return await call_next(request)
+
+        if path.startswith("/api/"):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Este recurso es exclusivo para administradores."},
+            )
+
+        return RedirectResponse(url="/passwords", status_code=303)
+
+    @staticmethod
+    def _is_allowed_natura_request(request: Request) -> bool:
+        path = request.url.path
+        method = request.method
+
+        if path.startswith("/api/auth/"):
+            return True
+        return path == "/documents" or (path.startswith("/api/documents") and method == "GET")
+
+    @staticmethod
+    def _is_allowed_member_request(request: Request, user: User) -> bool:
+        path = request.url.path
+        method = request.method
+        role_name = user.role.name
+
+        if role_name in RoleAccessMiddleware.chat_roles and (
+            path == "/admin-chat" or path.startswith("/api/admin-chat")
+        ):
+            return True
+        if path in RoleAccessMiddleware.member_pages:
+            return True
+        if path.startswith("/api/auth/"):
+            return True
+        if path.startswith("/api/collaborators") and method == "GET":
+            return True
+        if path == "/documents" or (
+            path.startswith("/api/documents")
+            and (method == "GET" or any(permission.can_write for permission in user.folder_permissions))
+        ):
+            return True
+        if path.startswith("/api/credentials") and method == "GET":
+            return True
+        if path == "/api/users/me" and method in {"GET", "PUT"}:
+            return True
+        return False

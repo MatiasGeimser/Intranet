@@ -10,9 +10,10 @@ from app.core.database_seed import seed_database
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.middlewares.csrf_middleware import CSRFMiddleware
 from app.middlewares.rate_limit import RateLimitMiddleware
+from app.middlewares.role_access import RoleAccessMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators, search, inventory_map
+from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators, search, inventory_map, admin_chat
 
 # Crear Aplicación FastAPI
 app = FastAPI(
@@ -40,6 +41,9 @@ app.add_middleware(CSRFMiddleware)
 # 3. Registrar Middleware de Rate Limiting (Mitigación Fuerza Bruta)
 # Permite un máximo de 20 peticiones cada 2 segundos para APIs críticas
 app.add_middleware(RateLimitMiddleware, limit_seconds=2, max_requests=20)
+
+# Restrict operational modules for non-administrator users.
+app.add_middleware(RoleAccessMiddleware)
 
 # 4. Registrar Middleware CORS para permitir Zammad
 app.add_middleware(
@@ -84,6 +88,7 @@ app.include_router(duplicate_phones.router, prefix="/api/duplicate-phones", tags
 app.include_router(collaborators.router, prefix="/api/collaborators", tags=["Directorio Corporativo"])
 app.include_router(search.router, prefix="/api/search", tags=["Búsqueda Global"])
 app.include_router(inventory_map.router, tags=["Mapa de Inventario"])
+app.include_router(admin_chat.router, prefix="/api/admin-chat", tags=["Chat Institucional"])
 
 from app.services.scheduler_service import scheduler_service
 

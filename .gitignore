@@ -10,6 +10,7 @@ venv/
 .idea/
 *.xlsx
 !ejemplo_importacion.xlsx
+server*.log
 
 .vercel
 .env.vercel*

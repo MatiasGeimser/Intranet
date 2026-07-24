@@ -302,6 +302,27 @@
                     <span class="flex-1 truncate">Natura</span>
                     <span class="folder-count-badge" id="count-Natura">—</span>
                 </button>
+
+                <!-- FACTURACION -->
+                <button onclick="selectFolder('FACTURACION')" id="fold-FACTURACION"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-emerald-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-file-invoice-dollar text-sm text-emerald-600"></i>
+                    </span>
+                    <span class="flex-1 truncate">FACTURACION</span>
+                    <span class="folder-count-badge" id="count-FACTURACION">—</span>
+                </button>
+
+                <!-- REPORTES -->
+                <button onclick="selectFolder('REPORTES')" id="fold-REPORTES"
+                    class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
+                    <span class="w-7 h-7 rounded-lg bg-violet-500/8 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-chart-column text-sm text-violet-600"></i>
+                    </span>
+                    <span class="flex-1 truncate">REPORTES</span>
+                    <span class="folder-count-badge" id="count-REPORTES">—</span>
+                </button>
+                <div id="personal-folders" class="contents"></div>
             </div>
         </div>
 
@@ -369,7 +390,7 @@
                     <i class="fa-solid fa-folder-open text-blue-corp text-xs"></i>
                 </div>
                 <div>
-                    <p class="text-[9px] text-grey-main uppercase font-bold tracking-wider">Directorio activo</p>
+                    <p class="text-[9px] text-grey-main uppercase font-bold tracking-wider" id="active-folder-context">Directorio activo</p>
                     <h3 class="text-sm font-bold text-black-dark leading-none" id="active-folder-title">General</h3>
                 </div>
                 <span class="ml-1 text-[10px] bg-blue-corp/10 text-blue-corp font-bold px-2.5 py-0.5 rounded-full" id="toolbar-count">—</span>
@@ -460,11 +481,26 @@
     const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
     const userFolderPerms = [
         {% for perm in user.folder_permissions %}
-        { folder: "{{ perm.folder_name }}", read: {{ 'true' if perm.can_read else 'false' }}, write: {{ 'true' if perm.can_write else 'false' }} },
+        { folder: {{ perm.folder_name|tojson }}, read: {{ 'true' if perm.can_read else 'false' }}, write: {{ 'true' if perm.can_write else 'false' }} },
         {% endfor %}
     ];
 
     const folderCounts = {};
+    const STANDARD_FOLDERS = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura', 'FACTURACION', 'REPORTES'];
+
+    function isPersonalNaturaFolder(folder) {
+        return typeof folder === 'string' && folder.startsWith('Natura / ') && folder.split(' / ').length >= 3;
+    }
+
+    function getFolderLabel(folder) {
+        if (!isPersonalNaturaFolder(folder)) return folder;
+        const parts = folder.split(' / ');
+        return parts[parts.length - 1];
+    }
+
+    function canManageFolder(folder) {
+        return IS_ADMIN || Boolean(userFolderPerms.find(permission => permission.folder === folder && permission.write));
+    }
 
     /* ──────────────────────────────────────────────────────
        ICONOGRAFÍA POR TIPO DE ARCHIVO
@@ -501,18 +537,15 @@
 
     async function initDocuments() {
         if (!IS_ADMIN) {
-            const allFolders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura'];
-            allFolders.forEach(f => {
+            renderPersonalFolders();
+            STANDARD_FOLDERS.forEach(f => {
                 const perm = userFolderPerms.find(p => p.folder === f);
                 if (!perm || !perm.read) {
                     const btn = document.getElementById(`fold-${f}`);
                     if (btn) btn.style.display = 'none';
                 }
             });
-            const firstVisible = allFolders.find(f => {
-                const p = userFolderPerms.find(p => p.folder === f);
-                return p && p.read;
-            });
+            const firstVisible = userFolderPerms.find(p => p.read)?.folder;
             if (firstVisible) selectFolder(firstVisible);
             else selectFolder('General');
         } else {
@@ -523,6 +556,32 @@
             initDropzone();
         }
         loadAllFolderCounts();
+    }
+
+    function renderPersonalFolders() {
+        const container = document.getElementById('personal-folders');
+        const personalFolders = userFolderPerms.filter(permission => permission.read && !STANDARD_FOLDERS.includes(permission.folder));
+        container.innerHTML = '';
+        personalFolders.forEach(permission => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.id = `fold-${permission.folder}`;
+            button.className = 'folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200';
+            button.addEventListener('click', () => selectFolder(permission.folder));
+
+            const icon = document.createElement('span');
+            icon.className = 'w-7 h-7 rounded-lg bg-green-500/8 flex items-center justify-center flex-shrink-0';
+            icon.innerHTML = '<i class="fa-solid fa-lock text-sm text-green-600"></i>';
+            const name = document.createElement('span');
+            name.className = 'flex-1 truncate';
+            name.textContent = getFolderLabel(permission.folder);
+            const count = document.createElement('span');
+            count.className = 'folder-count-badge';
+            count.id = `count-${permission.folder}`;
+            count.textContent = '—';
+            button.append(icon, name, count);
+            container.appendChild(button);
+        });
     }
 
     function createModalInBody() {
@@ -644,7 +703,10 @@
 
     function selectFolder(folder) {
         activeFolder = folder;
-        document.getElementById('active-folder-title').textContent = folder;
+        document.getElementById('active-folder-title').textContent = getFolderLabel(folder);
+        document.getElementById('active-folder-context').textContent = isPersonalNaturaFolder(folder)
+            ? 'Carpeta personal'
+            : 'Directorio activo';
         document.getElementById('doc-search').value = '';
 
         document.querySelectorAll('.folder-btn').forEach(btn => {
@@ -713,7 +775,9 @@
        CONTADORES DE TODAS LAS CARPETAS (en paralelo)
        ────────────────────────────────────────────────────── */
     async function loadAllFolderCounts() {
-        const folders = ['General','IT','RRHH','Finanzas','Claves', 'Natura'];
+        const folders = IS_ADMIN
+            ? STANDARD_FOLDERS
+            : userFolderPerms.filter(permission => permission.read).map(permission => permission.folder);
         await Promise.allSettled(folders.map(async f => {
             try {
                 const r = await fetchAPI(`/api/documents?folder=${encodeURIComponent(f)}`);
@@ -794,6 +858,7 @@
 
         list.forEach((doc, i) => {
             const m = getFileMeta(doc.file_type);
+            const canManage = canManageFolder(doc.folder);
             const size = formatBytes(doc.size_bytes);
             const date = new Date(doc.created_at).toLocaleDateString('es-ES', {
                 day: 'numeric', month: 'short', year: 'numeric'
@@ -865,10 +930,10 @@
                             class="p-2 rounded-xl text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Descargar (auditado)">
                             <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
                         </a>
-                        <button onclick="deleteDocument(${doc.id})"
+                        ${canManage ? `<button onclick="deleteDocument(${doc.id})"
                             class="p-2 rounded-xl text-gray-400 hover:bg-red-500/8 hover:text-red-500 transition-all" title="Eliminar permanentemente">
                             <i class="fa-solid fa-trash text-xs"></i>
-                        </button>
+                        </button>` : ''}
                     </div>
                 </td>`;
             tbody.appendChild(tr);
@@ -895,6 +960,7 @@
 
         list.forEach((doc, i) => {
             const m = getFileMeta(doc.file_type);
+            const canManage = canManageFolder(doc.folder);
             const size = formatBytes(doc.size_bytes);
             const date = new Date(doc.created_at).toLocaleDateString('es-ES', {
                 day: 'numeric', month: 'short', year: 'numeric'
@@ -953,10 +1019,10 @@
                             class="p-1.5 rounded-lg text-gray-400 hover:bg-blue-corp/8 hover:text-blue-corp transition-all" title="Descargar">
                             <i class="fa-solid fa-cloud-arrow-down text-[11px]"></i>
                         </a>
-                        <button onclick="deleteDocument(${doc.id})"
+                        ${canManage ? `<button onclick="deleteDocument(${doc.id})"
                             class="p-1.5 rounded-lg text-gray-400 hover:bg-red-500/8 hover:text-red-500 transition-all" title="Eliminar">
                             <i class="fa-solid fa-trash text-[11px]"></i>
-                        </button>
+                        </button>` : ''}
                     </div>
                 </div>`;
             grid.appendChild(card);

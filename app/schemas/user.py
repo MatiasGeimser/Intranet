@@ -32,6 +32,10 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6, max_length=50)
     folder_permissions: Optional[List[FolderAccessCreate]] = None
 
+
+class NaturaManagersUpdate(BaseModel):
+    manager_ids: List[int] = Field(default_factory=list, max_length=2)
+
 class RoleSimple(BaseModel):
     id: int
     name: str

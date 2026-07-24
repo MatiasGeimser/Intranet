@@ -10,6 +10,7 @@ from app.models.note import Note  # noqa: F401 — ensures table is created
 from app.models.area import Area  # noqa: F401 — ensures table is created
 from app.core.security import get_password_hash
 from app.core.config import settings
+from app.models.admin_chat import AdminChatAttachment, AdminChatMessage  # noqa: F401
 
 def seed_database(db: Session):
     """Inicializa el esquema de la base de datos y siembra datos iniciales."""
