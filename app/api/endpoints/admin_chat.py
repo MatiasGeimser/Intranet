@@ -20,7 +20,8 @@ from app.models.user import User
 
 router = APIRouter()
 CHAT_ROLES = {"Administrador", "Supervisor"}
-CHAT_UPLOAD_DIR = Path("uploads/chat")
+# Vercel solo permite escritura en UPLOAD_DIR (/tmp en producción).
+CHAT_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "chat"
 MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 ALLOWED_ATTACHMENT_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
