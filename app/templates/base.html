@@ -397,7 +397,46 @@
             return null;
         }
 
-        // Utilidad global de Fetch API que integra CSRF e inyección de tokens de forma transparente
+        let refreshInFlight = null;
+        let lastSessionRefreshAt = 0;
+
+        async function refreshSession() {
+            if (refreshInFlight) return refreshInFlight;
+
+            refreshInFlight = (async () => {
+                const headers = {};
+                const csrfToken = getCookie('csrf_token');
+                if (csrfToken) headers['x-csrf-token'] = csrfToken;
+
+                const response = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers,
+                });
+                if (!response.ok) throw new Error('La sesión no pudo renovarse.');
+                lastSessionRefreshAt = Date.now();
+                return response;
+            })();
+
+            try {
+                return await refreshInFlight;
+            } finally {
+                refreshInFlight = null;
+            }
+        }
+
+        async function keepSessionAlive(force = false) {
+            if (!getCookie('csrf_token')) return;
+            if (!force && Date.now() - lastSessionRefreshAt < 5 * 60 * 1000) return;
+            try {
+                await refreshSession();
+            } catch (error) {
+                // La sesión se renovará de nuevo cuando el usuario realice una petición.
+                console.debug('Sesión pendiente de renovación:', error.message);
+            }
+        }
+
+        // Utilidad global de Fetch API que renueva la sesión una vez antes de pedir login.
         async function fetchAPI(url, options = {}) {
             options.headers = options.headers || {};
             options.credentials = options.credentials || 'include';
@@ -415,14 +454,15 @@
             }
 
             try {
-                const response = await fetch(url, options);
+                let response = await fetch(url, options);
 
-                // Si retorna 401 Unauthorized de forma inesperada, redirige al login
-                if (response.status === 401 && !url.includes('/api/auth/login')) {
-                    // Limpiar cookies locales
-                    document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                    document.cookie = "refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                    window.location.href = '/login';
+                if (response.status === 401 && !url.includes('/api/auth/')) {
+                    try {
+                        await refreshSession();
+                        response = await fetch(url, options);
+                    } catch (refreshError) {
+                        window.location.href = '/login?reason=session_expired';
+                    }
                 }
 
                 return response;
@@ -432,6 +472,12 @@
                 throw error;
             }
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') keepSessionAlive(true);
+        });
+        window.addEventListener('focus', () => keepSessionAlive(true));
+        window.setInterval(() => keepSessionAlive(), 10 * 60 * 1000);
 
         // Función global para cerrar sesión (Logout)
         async function logout() {

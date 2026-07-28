@@ -7,8 +7,25 @@ from app.services.audit_service import audit_service
 from app.api.deps import get_current_active_user
 from app.models.user import User
 from app.core.security import get_password_hash
+from app.core.config import settings
 
 router = APIRouter()
+
+
+def set_session_cookies(response: Response, request: Request, access_token: str, refresh_token: str) -> None:
+    """Persiste la sesión y usa cookies seguras cuando la petición llega por HTTPS."""
+    secure = request.url.scheme == "https"
+    max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    cookie_options = {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": secure,
+        "max_age": max_age,
+        "expires": max_age,
+        "path": "/",
+    }
+    response.set_cookie(key="access_token", value=access_token, **cookie_options)
+    response.set_cookie(key="refresh_token", value=refresh_token, **cookie_options)
 
 @router.post("/login", response_model=Token)
 def login(
@@ -65,6 +82,8 @@ def login(
         ip_address=request.client.host if request.client else None,
         details=f"Inicio de sesión exitoso de {user.full_name}"
     )
+
+    set_session_cookies(response, request, access_token, refresh_token)
 
     return {
         "access_token": access_token,
@@ -141,6 +160,8 @@ def refresh(
     # Actualizar cookies
     response.set_cookie(key="access_token", value=access_token, httponly=True, samesite="lax", secure=False)
     response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, samesite="lax", secure=False)
+
+    set_session_cookies(response, request, access_token, new_refresh_token)
 
     return {
         "access_token": access_token,
