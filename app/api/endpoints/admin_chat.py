@@ -16,6 +16,7 @@ from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import SessionLocal, get_db
 from app.models.admin_chat import AdminChatAttachment, AdminChatMessage
+from app.models.admin_chat_presence import AdminChatPresence
 from app.models.user import User
 
 router = APIRouter()
@@ -42,16 +43,17 @@ def require_chat_member(current_user: User = Depends(get_current_active_user)) -
 
 @router.get("/messages")
 def list_messages(
+    after_id: int = 0,
     db: Session = Depends(get_db),
     _: User = Depends(require_chat_member),
 ) -> list[dict[str, Any]]:
-    messages = (
+    query = (
         db.query(AdminChatMessage)
         .options(joinedload(AdminChatMessage.sender), joinedload(AdminChatMessage.attachments))
-        .order_by(AdminChatMessage.created_at.desc())
-        .limit(100)
-        .all()
     )
+    if after_id > 0:
+        query = query.filter(AdminChatMessage.id > after_id)
+    messages = query.order_by(AdminChatMessage.created_at.desc()).limit(100).all()
     return [_message_payload(message) for message in reversed(messages)]
 
 
@@ -68,6 +70,46 @@ def list_participants(
         .all()
     )
     return [{"id": user.id, "name": user.full_name, "email": user.email, "role": user.role.name} for user in users]
+
+
+@router.get("/presence")
+def list_presence(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_chat_member),
+) -> list[dict[str, Any]]:
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
+    from datetime import timedelta
+    cutoff -= timedelta(seconds=30)
+    rows = (
+        db.query(AdminChatPresence, User)
+        .join(User, User.id == AdminChatPresence.user_id)
+        .join(User.role)
+        .filter(
+            User.is_active.is_(True),
+            User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+            AdminChatPresence.last_seen >= cutoff,
+        )
+        .all()
+    )
+    return [
+        {"id": user.id, "name": user.full_name, "email": user.email, "role": user.role.name}
+        for _, user in rows
+    ]
+
+
+@router.post("/presence/heartbeat")
+def heartbeat_presence(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> dict[str, bool]:
+    presence = db.query(AdminChatPresence).filter(AdminChatPresence.user_id == current_user.id).first()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if presence:
+        presence.last_seen = now
+    else:
+        db.add(AdminChatPresence(user_id=current_user.id, last_seen=now))
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/attachments", status_code=201)

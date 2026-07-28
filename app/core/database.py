@@ -1,5 +1,8 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 # Determinar si estamos usando SQLite
@@ -17,6 +20,15 @@ engine = create_engine(
     connect_args=connect_args,
     pool_pre_ping=True  # Verifica si la conexión está viva antes de usarla
 )
+
+# Las funciones serverless no deben retener conexiones entre invocaciones.
+if os.environ.get("VERCEL"):
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        poolclass=NullPool,
+        pool_pre_ping=True,
+    )
 
 # Creador de sesiones
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

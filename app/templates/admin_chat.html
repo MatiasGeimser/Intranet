@@ -88,6 +88,10 @@
     let audioContext;
     let desktopNotificationsEnabled = false;
     let pendingAttachments = [];
+    const renderedMessageIds = new Set();
+    let lastMessageId = 0;
+    let presenceTimer;
+    let messagePollTimer;
 
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
@@ -145,6 +149,9 @@
     }
 
     function renderMessage(message) {
+        if (renderedMessageIds.has(message.id)) return;
+        renderedMessageIds.add(message.id);
+        lastMessageId = Math.max(lastMessageId, message.id);
         const mine = message.sender.id === CURRENT_USER;
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
@@ -374,10 +381,7 @@
         socket.onmessage = async event => {
             const payload = JSON.parse(event.data);
             if (payload.type === 'presence') {
-                onlineUsers = payload.users;
-                const knownIds = new Set(allParticipants.map(user => user.id));
-                allParticipants = [...allParticipants, ...onlineUsers.filter(user => !knownIds.has(user.id))];
-                renderParticipants();
+                refreshPresence();
             }
             if (payload.type === 'chat_message') {
                 renderMessage(payload.message);
@@ -387,6 +391,40 @@
             }
             if (payload.type === 'signal') await handleSignal(payload.from, payload.signal);
         };
+    }
+
+    async function refreshPresence() {
+        try {
+            const response = await fetchAPI('/api/admin-chat/presence');
+            if (!response.ok) return;
+            onlineUsers = await response.json();
+            renderParticipants();
+        } catch (error) {
+            console.debug('No fue posible actualizar presencia:', error.message);
+        }
+    }
+
+    async function sendPresenceHeartbeat() {
+        try {
+            await fetchAPI('/api/admin-chat/presence/heartbeat', {method: 'POST'});
+            await refreshPresence();
+        } catch (error) {
+            console.debug('No fue posible enviar heartbeat:', error.message);
+        }
+    }
+
+    async function pollNewMessages() {
+        try {
+            const response = await fetchAPI(`/api/admin-chat/messages?after_id=${lastMessageId}`);
+            if (!response.ok) return;
+            const newMessages = await response.json();
+            newMessages.forEach(message => {
+                renderMessage(message);
+                if (message.sender.id !== CURRENT_USER) notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+            });
+        } catch (error) {
+            console.debug('No fue posible sincronizar mensajes:', error.message);
+        }
     }
 
     form.addEventListener('submit', async event => {
@@ -430,6 +468,9 @@
             allParticipants = await participantResponse.json();
             history.forEach(renderMessage);
             renderParticipants();
+            await sendPresenceHeartbeat();
+            presenceTimer = window.setInterval(sendPresenceHeartbeat, 10000);
+            messagePollTimer = window.setInterval(pollNewMessages, 3000);
         } catch (error) {
             status.textContent = 'No fue posible cargar el chat.';
             status.className = 'text-[11px] text-red-600 mt-0.5';

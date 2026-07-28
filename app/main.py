@@ -106,9 +106,11 @@ def on_startup():
         db.close()
         
     # Iniciar el servicio de tareas programadas (schedulers)
-    scheduler_service.start()
+    if not os.environ.get("VERCEL"):
+        scheduler_service.start()
 
 @app.on_event("shutdown")
 def on_shutdown():
     """Detiene los servicios en segundo plano al apagar la aplicación."""
-    scheduler_service.stop()
+    if not os.environ.get("VERCEL"):
+        scheduler_service.stop()
