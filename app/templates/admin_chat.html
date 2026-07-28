@@ -59,6 +59,23 @@
         </div>
     </section>
 </div>
+<div id="floating-direct-chat" class="fixed bottom-5 right-5 z-40">
+    <button id="floating-chat-toggle" type="button" class="relative w-12 h-12 rounded-full bg-[#049DD9] text-white shadow-lg hover:bg-[#038bc2] transition-colors" title="Abrir chat con la persona seleccionada">
+        <i class="fa-solid fa-comments"></i>
+        <span id="floating-unread" class="hidden absolute -right-1 -top-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center">0</span>
+    </button>
+    <section id="floating-chat-panel" class="hidden absolute bottom-16 right-0 w-[min(360px,calc(100vw-2rem))] h-[430px] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden flex-col">
+        <header class="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-gray-100">
+            <div class="min-w-0"><p class="text-xs font-bold text-gray-800">Chat directo</p><p id="floating-contact-name" class="text-[10px] text-gray-500 truncate">Selecciona una persona</p></div>
+            <button id="floating-chat-close" type="button" class="w-7 h-7 rounded-lg text-gray-400 hover:bg-gray-100" title="Cerrar chat"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div id="floating-chat-messages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-[#F8FAFB]"><p class="text-xs text-gray-400 text-center py-12">Selecciona un contacto disponible.</p></div>
+        <form id="floating-chat-form" class="p-2 border-t border-gray-100 flex gap-2">
+            <input id="floating-chat-input" maxlength="2000" placeholder="Escribe un mensaje..." class="min-w-0 flex-1 border border-gray-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-[#049DD9]">
+            <button type="submit" class="w-9 h-9 shrink-0 rounded-lg bg-[#049DD9] text-white" title="Enviar mensaje"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+        </form>
+    </section>
+</div>
 <audio id="remote-audio" autoplay></audio>
 <script>
 (() => {
@@ -75,6 +92,14 @@
     const attachmentButton = document.getElementById('attachment-button');
     const attachmentInput = document.getElementById('attachment-input');
     const attachmentQueue = document.getElementById('attachment-queue');
+    const floatingToggle = document.getElementById('floating-chat-toggle');
+    const floatingPanel = document.getElementById('floating-chat-panel');
+    const floatingClose = document.getElementById('floating-chat-close');
+    const floatingContactName = document.getElementById('floating-contact-name');
+    const floatingMessages = document.getElementById('floating-chat-messages');
+    const floatingForm = document.getElementById('floating-chat-form');
+    const floatingInput = document.getElementById('floating-chat-input');
+    const floatingUnread = document.getElementById('floating-unread');
     const sendMessageButton = document.getElementById('send-message-button');
     let socket;
     let allParticipants = [];
@@ -92,6 +117,9 @@
     let lastMessageId = 0;
     let presenceTimer;
     let messagePollTimer;
+    let directMessagePollTimer;
+    const directRenderedMessageIds = new Set();
+    let directLastMessageId = 0;
 
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
@@ -169,7 +197,14 @@
     function renderParticipants() {
         document.getElementById('online-count').textContent = onlineUsers.length;
         const onlineIds = new Set(onlineUsers.map(user => user.id));
-        participants.innerHTML = allParticipants.map(user => {
+        const orderedParticipants = [...allParticipants].sort((a, b) => {
+            const onlineDifference = Number(onlineIds.has(b.id)) - Number(onlineIds.has(a.id));
+            if (onlineDifference) return onlineDifference;
+            if (a.id === CURRENT_USER) return 1;
+            if (b.id === CURRENT_USER) return -1;
+            return a.name.localeCompare(b.name, 'es');
+        });
+        participants.innerHTML = orderedParticipants.map(user => {
             const online = onlineIds.has(user.id);
             const isMe = user.id === CURRENT_USER;
             const selected = user.id === selectedContactId;
@@ -179,6 +214,37 @@
             return `<button type="button" data-select-user="${user.id}" ${isMe ? 'disabled' : ''} class="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-colors ${classes} ${isMe ? 'cursor-default' : 'cursor-pointer'}"><span class="w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-gray-300'}"></span><div class="min-w-0 flex-1"><p class="text-xs font-semibold text-gray-700 truncate">${escapeHtml(user.name)}${isMe ? ' (tu)' : ''}</p><p class="text-[10px] text-gray-500 truncate">${escapeHtml(user.role || 'Administrador')} · ${online ? 'Disponible' : 'Desconectado'}</p></div>${selected ? '<i class="fa-solid fa-check text-[#049DD9] text-xs"></i>' : ''}</button>`;
         }).join('');
         participants.querySelectorAll('[data-select-user]').forEach(button => button.addEventListener('click', () => selectContact(Number(button.dataset.selectUser))));
+    }
+
+    function renderDirectMessage(message) {
+        if (directRenderedMessageIds.has(message.id)) return;
+        directRenderedMessageIds.add(message.id);
+        directLastMessageId = Math.max(directLastMessageId, message.id);
+        const mine = message.sender.id === CURRENT_USER;
+        const element = document.createElement('article');
+        element.className = `chat-message ${mine ? 'mine' : ''}`;
+        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-xs ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : '<span class="italic">Adjunto</span>'}</div>`;
+        floatingMessages.appendChild(element);
+        floatingMessages.scrollTop = floatingMessages.scrollHeight;
+    }
+
+    async function loadDirectConversation() {
+        directRenderedMessageIds.clear();
+        directLastMessageId = 0;
+        floatingMessages.innerHTML = '';
+        if (!selectedContactId) {
+            floatingMessages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona una persona.</p>';
+            return;
+        }
+        try {
+            const response = await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedContactId}`);
+            if (!response.ok) throw new Error('No fue posible cargar la conversación.');
+            const history = await response.json();
+            if (!history.length) floatingMessages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Sin mensajes todavía.</p>';
+            history.forEach(renderDirectMessage);
+        } catch (error) {
+            floatingMessages.innerHTML = `<p class="text-xs text-red-500 text-center py-12">${escapeHtml(error.message)}</p>`;
+        }
     }
 
     function send(payload) {
@@ -276,6 +342,8 @@
         const online = onlineUsers.some(user => user.id === userId);
         renderParticipants();
         if (!contact) return;
+        floatingContactName.textContent = `${contact.name} · ${contact.role || 'Contacto'}`;
+        loadDirectConversation();
         if (!online) {
             updateCallPanel(`${contact.name} no esta conectado`, 'Podras llamar cuando este disponible.');
             return;
@@ -384,9 +452,18 @@
                 refreshPresence();
             }
             if (payload.type === 'chat_message') {
-                renderMessage(payload.message);
+                if (payload.message.recipient_id === null || payload.message.recipient_id === undefined) {
+                    renderMessage(payload.message);
+                } else if (selectedContactId && (payload.message.recipient_id === selectedContactId || payload.message.sender.id === selectedContactId)) {
+                    renderDirectMessage(payload.message);
+                }
                 if (payload.message.sender.id !== CURRENT_USER) {
                     notifyUser(`Nuevo mensaje de ${payload.message.sender.name}`, payload.message.content);
+                    if (payload.message.recipient_id !== null && payload.message.recipient_id !== undefined) {
+                        floatingUnread.textContent = String(Number(floatingUnread.textContent || 0) + 1);
+                        floatingUnread.classList.remove('hidden');
+                        floatingUnread.classList.add('flex');
+                    }
                 }
             }
             if (payload.type === 'signal') await handleSignal(payload.from, payload.signal);
@@ -427,6 +504,20 @@
         }
     }
 
+    async function pollDirectMessages() {
+        if (!selectedContactId) return;
+        try {
+            const response = await fetchAPI(`/api/admin-chat/messages?after_id=${directLastMessageId}&contact_id=${selectedContactId}`);
+            if (!response.ok) return;
+            (await response.json()).forEach(message => {
+                renderDirectMessage(message);
+                if (message.sender.id !== CURRENT_USER) notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+            });
+        } catch (error) {
+            console.debug('No fue posible sincronizar la conversación:', error.message);
+        }
+    }
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const content = input.value.trim();
@@ -455,6 +546,20 @@
     notificationButton.addEventListener('click', enableNotifications);
     attachmentButton.addEventListener('click', () => attachmentInput.click());
     attachmentInput.addEventListener('change', event => queueAttachments(event.target.files));
+    floatingToggle.addEventListener('click', () => {
+        floatingPanel.classList.toggle('hidden');
+        floatingPanel.classList.toggle('flex');
+        floatingUnread.textContent = '0';
+        floatingUnread.classList.add('hidden');
+        if (selectedContactId) floatingInput.focus();
+    });
+    floatingClose.addEventListener('click', () => { floatingPanel.classList.add('hidden'); floatingPanel.classList.remove('flex'); });
+    floatingForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const content = floatingInput.value.trim();
+        if (!selectedContactId || !content) return;
+        if (send({type: 'chat', content, recipient_id: selectedContactId})) floatingInput.value = '';
+    });
     updateNotificationButton();
 
     async function loadInitialData() {
@@ -471,6 +576,7 @@
             await sendPresenceHeartbeat();
             presenceTimer = window.setInterval(sendPresenceHeartbeat, 10000);
             messagePollTimer = window.setInterval(pollNewMessages, 3000);
+            directMessagePollTimer = window.setInterval(pollDirectMessages, 3000);
         } catch (error) {
             status.textContent = 'No fue posible cargar el chat.';
             status.className = 'text-[11px] text-red-600 mt-0.5';

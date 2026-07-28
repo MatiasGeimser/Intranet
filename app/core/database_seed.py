@@ -18,8 +18,20 @@ def seed_database(db: Session):
     # 1. Crear tablas si no existen
     Base.metadata.create_all(bind=engine)
 
-    # Migración dinámica de la columna note_id en la tabla tasks
     from sqlalchemy import text
+
+    # Mensajes directos del chat: nullable para conservar el canal institucional existente.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE admin_chat_messages ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE"))
+        else:
+            db.execute(text("ALTER TABLE admin_chat_messages ADD COLUMN recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (admin_chat_messages.recipient_id): {e} ======")
+
+    # Migración dinámica de la columna note_id en la tabla tasks
     try:
         if engine.name == "postgresql":
             db.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS note_id INTEGER REFERENCES notes(id) ON DELETE CASCADE"))

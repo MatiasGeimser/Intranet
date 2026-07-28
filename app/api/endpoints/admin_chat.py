@@ -10,6 +10,7 @@ import bleach
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from jose import JWTError, jwt
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_active_user
@@ -44,13 +45,37 @@ def require_chat_member(current_user: User = Depends(get_current_active_user)) -
 @router.get("/messages")
 def list_messages(
     after_id: int = 0,
+    contact_id: int | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_chat_member),
+    current_user: User = Depends(require_chat_member),
 ) -> list[dict[str, Any]]:
     query = (
         db.query(AdminChatMessage)
         .options(joinedload(AdminChatMessage.sender), joinedload(AdminChatMessage.attachments))
     )
+    if contact_id is not None:
+        if contact_id == current_user.id:
+            return []
+        contact = (
+            db.query(User)
+            .join(User.role)
+            .filter(
+                User.id == contact_id,
+                User.is_active.is_(True),
+                User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+            )
+            .first()
+        )
+        if not contact:
+            raise HTTPException(status_code=404, detail="Contacto no encontrado.")
+        query = query.filter(
+            or_(
+                and_(AdminChatMessage.sender_id == current_user.id, AdminChatMessage.recipient_id == contact_id),
+                and_(AdminChatMessage.sender_id == contact_id, AdminChatMessage.recipient_id == current_user.id),
+            )
+        )
+    else:
+        query = query.filter(AdminChatMessage.recipient_id.is_(None))
     if after_id > 0:
         query = query.filter(AdminChatMessage.id > after_id)
     messages = query.order_by(AdminChatMessage.created_at.desc()).limit(100).all()
@@ -303,13 +328,44 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
             )
             if len(attachments) != len(attachment_ids):
                 return
-        message = AdminChatMessage(sender_id=user.id, content=content, created_at=datetime.now(timezone.utc))
+        recipient_id = payload.get("recipient_id")
+        recipient = None
+        if recipient_id is not None:
+            try:
+                recipient_id = int(recipient_id)
+            except (TypeError, ValueError):
+                return
+            if recipient_id == user.id:
+                return
+            recipient = (
+                db.query(User)
+                .join(User.role)
+                .filter(
+                    User.id == recipient_id,
+                    User.is_active.is_(True),
+                    User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+                )
+                .first()
+            )
+            if not recipient:
+                return
+        message = AdminChatMessage(
+            sender_id=user.id,
+            recipient_id=recipient_id,
+            content=content,
+            created_at=datetime.now(timezone.utc),
+        )
         for attachment in attachments:
             attachment.message = message
         db.add(message)
         db.commit()
         db.refresh(message)
-        await manager.broadcast({"type": "chat_message", "message": _message_payload(message, user)})
+        event = {"type": "chat_message", "message": _message_payload(message, user)}
+        if recipient:
+            await manager.send_to(user.id, event)
+            await manager.send_to(recipient.id, event)
+        else:
+            await manager.broadcast(event)
     finally:
         db.close()
 
@@ -332,6 +388,7 @@ def _message_payload(message: AdminChatMessage, sender: User | None = None) -> d
         "id": message.id,
         "content": message.content,
         "created_at": message.created_at.isoformat(),
+        "recipient_id": message.recipient_id,
         "sender": {"id": author.id, "name": author.full_name, "email": author.email},
         "attachments": [_attachment_payload(attachment) for attachment in message.attachments],
     }
