@@ -7,6 +7,7 @@ from app.api.deps import get_token_from_request
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
+from sqlalchemy.orm import joinedload, selectinload
 
 
 class RoleAccessMiddleware(BaseHTTPMiddleware):
@@ -40,7 +41,12 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
 
         db = SessionLocal()
         try:
-            user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+            user = (
+                db.query(User)
+                .options(joinedload(User.role), selectinload(User.folder_permissions))
+                .filter(User.id == user_id, User.is_active.is_(True))
+                .first()
+            )
             if not user or user.role.name == "Administrador":
                 return await call_next(request)
 

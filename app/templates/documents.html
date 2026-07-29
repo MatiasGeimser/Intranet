@@ -1179,13 +1179,13 @@
                 loadDocuments();
                 loadAllFolderCounts();
             } else if (response) {
-                const data = await response.json();
-                showToast(data.detail || 'Error al subir documento.', 'error');
+                const data = await response.json().catch(() => ({}));
+                showToast(data.detail || `No fue posible cargar el archivo (HTTP ${response.status}).`, 'error');
             }
         } catch (err) {
             clearInterval(ticker);
             wrap.classList.add('hidden');
-            showToast('Error de conexión al cargar archivo.', 'error');
+            showToast(err.message || 'Error de conexión al cargar archivo.', 'error');
         }
 
         // Resetear el input para poder subir el mismo archivo dos veces
