@@ -219,6 +219,25 @@
         border-radius: 999px;
         transition: width 0.3s ease;
     }
+
+    /* Explorador documental: lectura rápida tipo Drive. */
+    .drive-sidebar { position: sticky; top: 1rem; }
+    #folders-menu { max-height: calc(100vh - 17rem); overflow-y: auto; padding-right: 3px; }
+    #natura-folder-tree { max-height: calc(100vh - 21rem); overflow-y: auto; }
+    .folder-btn-active { background: #E8F0FE; color: #1967D2; box-shadow: none; }
+    .folder-btn-active .folder-count-badge { background: #D2E3FC; color: #1967D2; }
+    #dropzone { min-height: 92px; padding: 1rem 1.25rem; flex-direction: row; gap: 1rem; text-align: left; }
+    #dropzone > div:first-of-type { margin-bottom: 0; flex-shrink: 0; }
+    #dropzone h4, #dropzone p { text-align: left; }
+    #dropzone p { max-width: none; }
+    #folder-breadcrumb { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
+    #folder-breadcrumb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #view-table, #view-grid, .drive-toolbar { border-radius: 16px; }
+    .drive-toolbar { background: #fff; border: 1px solid rgba(140,140,140,.14); }
+    @media (max-width: 1023px) {
+        .drive-sidebar { position: static; }
+        #folders-menu, #natura-folder-tree { max-height: 360px; }
+    }
 </style>
 {% endblock %}
 
@@ -228,12 +247,12 @@
     {% set _ = user_perms.append(perm.code) %}
 {% endfor %}
 
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)] gap-4 items-start">
 
     <!-- ═══════════════════════════════════════════════════
          BARRA LATERAL DE CARPETAS VIRTUALES
          ═══════════════════════════════════════════════════ -->
-    <div class="space-y-4">
+    <div class="space-y-4 drive-sidebar">
 
         <!-- Carpetas -->
         <div class="glass-card p-5 rounded-3xl shadow-sm">
@@ -356,7 +375,7 @@
     <!-- ═══════════════════════════════════════════════════
          ÁREA PRINCIPAL DE DOCUMENTOS
          ═══════════════════════════════════════════════════ -->
-    <div class="lg:col-span-3 space-y-4">
+    <div class="space-y-4 min-w-0">
 
         <!-- Dropzone mejorado (Solo Administradores y Supervisores) -->
         {% if user.role.name in ['Administrador', 'Supervisor'] %}
@@ -384,7 +403,7 @@
         {% endif %}
 
         <!-- Barra de herramientas: carpeta activa, búsqueda, toggle de vista -->
-        <div class="glass-card px-4 py-3 rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+        <div class="glass-card drive-toolbar px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
 
             <!-- Título de carpeta -->
             <div class="flex items-center gap-2">
@@ -392,6 +411,7 @@
                     <i class="fa-solid fa-folder-open text-blue-corp text-xs"></i>
                 </div>
                 <div>
+                    <nav id="folder-breadcrumb" class="text-[10px] text-gray-400 mb-1" aria-label="Ruta de carpeta"></nav>
                     <p class="text-[9px] text-grey-main uppercase font-bold tracking-wider" id="active-folder-context">Directorio activo</p>
                     <h3 class="text-sm font-bold text-black-dark leading-none" id="active-folder-title">General</h3>
                 </div>
@@ -615,6 +635,13 @@
         renderNaturaTree(userFolderPerms.filter(permission => permission.read).map(permission => permission.folder));
     }
 
+    function updateFolderBreadcrumb(folder) {
+        const breadcrumb = document.getElementById('folder-breadcrumb');
+        if (!breadcrumb) return;
+        const parts = folder.split(' / ');
+        breadcrumb.innerHTML = parts.map((part, index) => `${index ? '<i class="fa-solid fa-chevron-right text-[8px] text-gray-300"></i>' : ''}<span class="${index === parts.length - 1 ? 'font-semibold text-[#1967D2]' : ''}" title="${escapeHtml(part)}">${escapeHtml(part)}</span>`).join('');
+    }
+
     function createModalInBody() {
         const modalHTML = `
         <div id="upload-config-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);">
@@ -734,6 +761,7 @@
 
     function selectFolder(folder) {
         activeFolder = folder;
+        updateFolderBreadcrumb(folder);
         document.getElementById('active-folder-title').textContent = getFolderLabel(folder);
         document.getElementById('active-folder-context').textContent = isPersonalNaturaFolder(folder)
             ? 'Carpeta personal'
