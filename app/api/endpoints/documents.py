@@ -4,10 +4,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import BaseModel, Field
 from app.core.database import get_db
 from app.models.document import Document
 from app.schemas.document import DocumentResponse, DocumentContentUpdate
-from app.api.deps import PermissionChecker, get_current_active_user
+from app.api.deps import get_current_active_user
 from app.services.doc_service import doc_service
 from app.services.audit_service import audit_service
 from app.models.user import User
@@ -16,8 +17,23 @@ from app.models.folder_access import FolderAccess
 router = APIRouter()
 
 
+class FolderCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    parent: str = Field("Natura", min_length=1, max_length=100)
+
+
+def is_document_admin(current_user: User) -> bool:
+    return current_user.role.name == "Administrador" or current_user.is_document_admin
+
+
+def require_document_reader(current_user: User = Depends(get_current_active_user)) -> User:
+    if is_document_admin(current_user) or "documents:read" in {permission.code for permission in current_user.role.permissions}:
+        return current_user
+    raise HTTPException(status_code=403, detail="No tienes acceso al gestor documental.")
+
+
 def user_can_manage_folder(folder: str, current_user: User) -> bool:
-    if current_user.role.name == "Administrador":
+    if is_document_admin(current_user):
         return True
     return any(
         permission.folder_name == folder and permission.can_write
@@ -27,7 +43,7 @@ def user_can_manage_folder(folder: str, current_user: User) -> bool:
 
 def user_can_access_document(document: Document, current_user: User) -> bool:
     """Comprueba carpeta y visibilidad antes de exponer un documento no administrativo."""
-    if current_user.role.name == "Administrador":
+    if is_document_admin(current_user):
         return True
 
     allowed_folders = {permission.folder_name for permission in current_user.folder_permissions if permission.can_read}
@@ -44,14 +60,14 @@ def user_can_access_document(document: Document, current_user: User) -> bool:
 def get_documents(
     folder: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:read"))
+    current_user: User = Depends(require_document_reader)
 ):
     """Obtiene la lista de documentos, filtrando opcionalmente por carpeta virtual y aplicando controles de acceso."""
     query = db.query(Document)
     if folder:
         query = query.filter(Document.folder == folder)
         
-    if current_user.role.name != "Administrador":
+    if not is_document_admin(current_user):
         allowed_folders = [f.folder_name for f in current_user.folder_permissions if f.can_read]
         query = query.filter(Document.folder.in_(allowed_folders))
         
@@ -70,10 +86,10 @@ def get_documents(
 @router.get("/folders")
 def get_accessible_folders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:read")),
+    current_user: User = Depends(require_document_reader),
 ):
     """Entrega las carpetas virtuales permitidas para construir la navegación personal."""
-    if current_user.role.name == "Administrador":
+    if is_document_admin(current_user):
         names = {name for (name,) in db.query(FolderAccess.folder_name).distinct().all()}
         names.update(name for (name,) in db.query(Document.folder).distinct().all())
         return [{"name": name, "can_write": True} for name in sorted(names)]
@@ -82,6 +98,48 @@ def get_accessible_folders(
         for permission in current_user.folder_permissions
         if permission.can_read
     ]
+
+
+@router.post("/folders", status_code=status.HTTP_201_CREATED)
+def create_folder(
+    payload: FolderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Crea una carpeta virtual dentro del gestor documental."""
+    if not is_document_admin(current_user):
+        raise HTTPException(status_code=403, detail="Solo un administrador documental puede crear carpetas.")
+    name = " ".join(payload.name.strip().split())
+    parent = " / ".join(part.strip() for part in payload.parent.split(" / ") if part.strip())
+    if not name or "/" in name or parent != "Natura" and not parent.startswith("Natura / "):
+        raise HTTPException(status_code=400, detail="La carpeta debe pertenecer a Natura y tener un nombre válido.")
+    folder_name = f"{parent} / {name}"
+    if len(folder_name) > 100:
+        raise HTTPException(status_code=400, detail="La ruta de la carpeta es demasiado larga.")
+    if db.query(FolderAccess).filter(FolderAccess.folder_name == folder_name).first():
+        raise HTTPException(status_code=409, detail="La carpeta ya existe.")
+    db.add(FolderAccess(user_id=current_user.id, folder_name=folder_name, can_read=True, can_write=True))
+    db.commit()
+    return {"name": folder_name, "can_write": True}
+
+
+@router.delete("/folders")
+def delete_folder(
+    folder: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Elimina una carpeta virtual vacía y sus permisos asociados."""
+    if not is_document_admin(current_user):
+        raise HTTPException(status_code=403, detail="Solo un administrador documental puede eliminar carpetas.")
+    if folder == "Natura" or not folder.startswith("Natura / "):
+        raise HTTPException(status_code=400, detail="No se puede eliminar la raíz Natura.")
+    prefix = f"{folder} / "
+    if db.query(Document).filter(or_(Document.folder == folder, Document.folder.like(f"{prefix}%"))).first():
+        raise HTTPException(status_code=409, detail="La carpeta no está vacía.")
+    db.query(FolderAccess).filter(or_(FolderAccess.folder_name == folder, FolderAccess.folder_name.like(f"{prefix}%"))).delete(synchronize_session=False)
+    db.commit()
+    return {"detail": "Carpeta eliminada.", "folder": folder}
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -135,7 +193,7 @@ def preview_document(
     current_user: User = Depends(get_current_active_user)
 ):
     """Permite ver y editar contenidos simples directamente desde la Intranet (solo Administradores)."""
-    if current_user.role.name != "Administrador":
+    if not is_document_admin(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -172,7 +230,7 @@ def update_document_content(
     current_user: User = Depends(get_current_active_user)
 ):
     """Guarda cambios en el documento desde la vista de edición (solo Administradores)."""
-    if current_user.role.name != "Administrador":
+    if not is_document_admin(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -212,7 +270,7 @@ def download_document(
     doc_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("documents:read"))
+    current_user: User = Depends(require_document_reader)
 ):
     """Descarga de forma segura un archivo desde el almacenamiento de la Intranet."""
     doc = db.query(Document).filter(Document.id == doc_id).first()

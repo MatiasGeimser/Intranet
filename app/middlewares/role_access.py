@@ -62,6 +62,11 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         finally:
             db.close()
 
+        if user.is_document_admin and (
+            path == "/documents" or path.startswith("/api/documents")
+        ):
+            return await call_next(request)
+
         if self._is_allowed_member_request(request, user):
             return await call_next(request)
 

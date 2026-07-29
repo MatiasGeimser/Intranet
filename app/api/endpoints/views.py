@@ -160,7 +160,7 @@ def documents_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
+    if not user.is_document_admin and user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="documents.html", context={

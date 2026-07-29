@@ -1,3 +1,4 @@
+import unicodedata
 from sqlalchemy.orm import Session
 from app.core.database import Base, engine
 from app.models.role import Role, Permission
@@ -186,6 +187,25 @@ def seed_database(db: Session):
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (users.area_id): {e} ======")
+
+    # Permiso especial limitado al gestor documental.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_document_admin BOOLEAN NOT NULL DEFAULT FALSE"))
+        else:
+            db.execute(text("ALTER TABLE users ADD COLUMN is_document_admin BOOLEAN NOT NULL DEFAULT 0"))
+        db.commit()
+        for user in db.query(User).filter(User.is_active.is_(True)).all():
+            normalized_name = "".join(
+                char for char in unicodedata.normalize("NFKD", user.full_name or "").lower()
+                if not unicodedata.combining(char)
+            )
+            if "catalina" in normalized_name and "munoz" in normalized_name:
+                user.is_document_admin = True
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (users.is_document_admin): {e} ======")
 
     try:
         if engine.name == "postgresql":
