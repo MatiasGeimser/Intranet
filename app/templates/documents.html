@@ -234,6 +234,11 @@
     #folder-breadcrumb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #view-table, #view-grid, .drive-toolbar { border-radius: 16px; }
     .drive-toolbar { background: #fff; border: 1px solid rgba(140,140,140,.14); }
+    #drive-folder-browser { background: #fff; border: 1px solid rgba(140,140,140,.14); border-radius: 16px; }
+    #drive-folder-row { scrollbar-width: thin; }
+    .drive-folder-card { flex: 0 0 190px; border: 1px solid #E5E7EB; background: #fff; transition: all .16s ease; }
+    .drive-folder-card:hover { border-color: #AECBFA; background: #F8FBFF; box-shadow: 0 4px 14px rgba(25,103,210,.10); }
+    .drive-folder-card.active { border-color: #8AB4F8; background: #E8F0FE; }
     @media (max-width: 1023px) {
         .drive-sidebar { position: static; }
         #folders-menu, #natura-folder-tree { max-height: 360px; }
@@ -313,7 +318,7 @@
                 </button>
 
                 <!-- Natura -->
-                <button onclick="toggleNaturaTree()" id="fold-Natura"
+                <button onclick="selectFolder('Natura'); toggleNaturaTree()" id="fold-Natura"
                     class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
                     <span class="w-7 h-7 rounded-lg bg-green-500/8 flex items-center justify-center flex-shrink-0">
                         <i class="fa-solid fa-leaf text-sm text-green-500"></i>
@@ -403,6 +408,15 @@
         {% endif %}
 
         <!-- Barra de herramientas: carpeta activa, búsqueda, toggle de vista -->
+        <section id="drive-folder-browser" class="hidden p-3">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="fa-solid fa-folder-tree text-[#1967D2] text-xs"></i>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Carpetas</p>
+                <span id="drive-folder-hint" class="text-[10px] text-gray-400">Selecciona una carpeta</span>
+            </div>
+            <div id="drive-folder-row" class="flex gap-2 overflow-x-auto pb-1"></div>
+        </section>
+
         <div class="glass-card drive-toolbar px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
 
             <!-- Título de carpeta -->
@@ -579,11 +593,12 @@
                     if (btn) btn.style.display = 'none';
                 }
             });
-            const firstVisible = userFolderPerms.find(p => p.read)?.folder;
+            const hasNaturaFolders = userFolderPerms.some(permission => permission.read && permission.folder.startsWith('Natura / '));
+            const firstVisible = hasNaturaFolders ? 'Natura' : userFolderPerms.find(p => p.read)?.folder;
             if (firstVisible) selectFolder(firstVisible);
             else selectFolder('General');
         } else {
-            selectFolder('General');
+            selectFolder(folderCatalog.some(folder => folder.name.startsWith('Natura / ')) ? 'Natura' : 'General');
         }
 
         if (document.getElementById('dropzone')) {
@@ -640,6 +655,39 @@
         if (!breadcrumb) return;
         const parts = folder.split(' / ');
         breadcrumb.innerHTML = parts.map((part, index) => `${index ? '<i class="fa-solid fa-chevron-right text-[8px] text-gray-300"></i>' : ''}<span class="${index === parts.length - 1 ? 'font-semibold text-[#1967D2]' : ''}" title="${escapeHtml(part)}">${escapeHtml(part)}</span>`).join('');
+    }
+
+    function renderDriveFolderRow(folder) {
+        const browser = document.getElementById('drive-folder-browser');
+        const row = document.getElementById('drive-folder-row');
+        if (!browser || !row) return;
+        const paths = (IS_ADMIN ? folderCatalog.map(item => item.name) : userFolderPerms.filter(item => item.read).map(item => item.folder))
+            .filter(path => path.startsWith('Natura / '));
+        if (!folder.startsWith('Natura') || !paths.length) {
+            browser.classList.add('hidden');
+            return;
+        }
+        const parentParts = folder.split(' / ');
+        const children = [...new Set(paths.map(path => {
+            const parts = path.split(' / ');
+            if (parts.length <= parentParts.length || !parentParts.every((part, index) => parts[index] === part)) return null;
+            return parts.slice(0, parentParts.length + 1).join(' / ');
+        }).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+        if (!children.length) {
+            browser.classList.add('hidden');
+            return;
+        }
+        browser.classList.remove('hidden');
+        document.getElementById('drive-folder-hint').textContent = `${children.length} carpeta${children.length === 1 ? '' : 's'}`;
+        row.innerHTML = children.map(child => {
+            const childParts = child.split(' / ');
+            const label = childParts[childParts.length - 1];
+            const isLeaf = paths.includes(child);
+            const count = isLeaf ? (folderCounts[child] ?? '—') : '›';
+            const icon = label === 'CBE' ? 'fa-users' : label === 'Personas Natura' ? 'fa-building-user' : label.match(/Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre/) ? 'fa-calendar-days' : 'fa-folder';
+            return `<button type="button" data-drive-folder="${escapeHtml(child)}" class="drive-folder-card rounded-xl p-3 text-left"><div class="flex items-center justify-between gap-2"><span class="w-9 h-9 rounded-lg bg-[#E8F0FE] text-[#1967D2] flex items-center justify-center"><i class="fa-solid ${icon} text-sm"></i></span><span class="text-[10px] font-bold text-gray-400">${count}</span></div><p class="mt-2 text-xs font-semibold text-gray-700 truncate" title="${escapeHtml(label)}">${escapeHtml(label)}</p><p class="text-[10px] text-gray-400 mt-0.5">${isLeaf ? 'Abrir carpeta' : 'Ver subcarpetas'}</p></button>`;
+        }).join('');
+        row.querySelectorAll('[data-drive-folder]').forEach(button => button.addEventListener('click', () => selectFolder(button.dataset.driveFolder)));
     }
 
     function createModalInBody() {
@@ -761,6 +809,7 @@
 
     function selectFolder(folder) {
         activeFolder = folder;
+        renderDriveFolderRow(folder);
         updateFolderBreadcrumb(folder);
         document.getElementById('active-folder-title').textContent = getFolderLabel(folder);
         document.getElementById('active-folder-context').textContent = isPersonalNaturaFolder(folder)
