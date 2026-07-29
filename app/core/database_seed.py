@@ -12,6 +12,77 @@ from app.core.security import get_password_hash
 from app.core.config import settings
 from app.models.admin_chat import AdminChatAttachment, AdminChatMessage  # noqa: F401
 from app.models.admin_chat_presence import AdminChatPresence  # noqa: F401
+from app.models.document import Document  # noqa: F401
+from app.models.folder_access import FolderAccess  # noqa: F401
+
+
+NATURA_MONTHS = (
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+)
+
+
+def migrate_natura_document_structure(db: Session) -> None:
+    """Normaliza las rutas Natura y crea la rama compartida de Personas Natura."""
+    for permission in db.query(FolderAccess).all():
+        parts = [part.strip() for part in permission.folder_name.split(" / ")]
+        if len(parts) >= 3 and parts[0] == "Natura" and parts[1] not in {"CBE", "Personas Natura"}:
+            permission.folder_name = "Natura / CBE / " + " / ".join(parts[1:])
+
+    for document in db.query(Document).all():
+        parts = [part.strip() for part in document.folder.split(" / ")]
+        if len(parts) >= 3 and parts[0] == "Natura" and parts[1] not in {"CBE", "Personas Natura"}:
+            document.folder = "Natura / CBE / " + " / ".join(parts[1:])
+
+    shared_folders = ["Natura / Personas Natura / Contratos vigentes"]
+    shared_folders.extend(
+        f"Natura / Personas Natura / Boletas de honorarios / {month}"
+        for month in NATURA_MONTHS
+    )
+    shared_folders.extend(
+        f"Natura / Personas Natura / Comprobante de pago / {month}"
+        for month in NATURA_MONTHS
+    )
+    cbe_folders = [
+        name for (name,) in db.query(FolderAccess.folder_name)
+        .filter(FolderAccess.folder_name.like("Natura / CBE / %"))
+        .distinct()
+        .all()
+    ]
+    manager_ids = set()
+    if cbe_folders:
+        candidates = db.query(FolderAccess).filter(
+            FolderAccess.folder_name.in_(cbe_folders),
+            FolderAccess.can_read.is_(True),
+            FolderAccess.can_write.is_(True),
+        ).all()
+        coverage = {}
+        for permission in candidates:
+            coverage.setdefault(permission.user_id, set()).add(permission.folder_name)
+        manager_ids = {
+            user_id for user_id, folders in coverage.items()
+            if len(folders) == len(cbe_folders)
+        }
+    natura_users = db.query(User).filter(
+        User.is_active.is_(True),
+        User.email.ilike("%@natura.cl"),
+    ).all()
+    shared_access = [(user.id, False) for user in natura_users]
+    shared_access.extend((user_id, True) for user_id in manager_ids if user_id not in {user.id for user in natura_users})
+    for user_id, can_write in shared_access:
+        existing = {
+            permission.folder_name: permission
+            for permission in db.query(FolderAccess).filter(FolderAccess.user_id == user_id).all()
+        }
+        for folder_name in shared_folders:
+            permission = existing.get(folder_name)
+            if permission:
+                permission.can_read = True
+                permission.can_write = permission.can_write or can_write
+            else:
+                db.add(FolderAccess(user_id=user_id, folder_name=folder_name, can_read=True, can_write=can_write))
+
+    db.commit()
 
 def seed_database(db: Session):
     """Inicializa el esquema de la base de datos y siembra datos iniciales."""
@@ -30,6 +101,13 @@ def seed_database(db: Session):
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (admin_chat_messages.recipient_id): {e} ======")
+
+    try:
+        migrate_natura_document_structure(db)
+        print("====== ESTRUCTURA NATURA NORMALIZADA Y CARPETAS COMPARTIDAS VERIFICADAS ======")
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (estructura Natura): {e} ======")
 
     # Migración dinámica de la columna note_id en la tabla tasks
     try:

@@ -110,7 +110,7 @@ def main() -> None:
             for subfolder in dict.fromkeys(subfolders):
                 db.add(FolderAccess(
                     user_id=user.id,
-                    folder_name=f"Natura / {full_name} / {subfolder}",
+                    folder_name=f"Natura / CBE / {full_name} / {subfolder}",
                     can_read=True,
                     can_write=False,
                 ))

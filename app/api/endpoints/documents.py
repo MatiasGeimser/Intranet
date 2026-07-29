@@ -11,6 +11,7 @@ from app.api.deps import PermissionChecker, get_current_active_user
 from app.services.doc_service import doc_service
 from app.services.audit_service import audit_service
 from app.models.user import User
+from app.models.folder_access import FolderAccess
 
 router = APIRouter()
 
@@ -68,11 +69,14 @@ def get_documents(
 
 @router.get("/folders")
 def get_accessible_folders(
+    db: Session = Depends(get_db),
     current_user: User = Depends(PermissionChecker("documents:read")),
 ):
     """Entrega las carpetas virtuales permitidas para construir la navegación personal."""
     if current_user.role.name == "Administrador":
-        return []
+        names = {name for (name,) in db.query(FolderAccess.folder_name).distinct().all()}
+        names.update(name for (name,) in db.query(Document.folder).distinct().all())
+        return [{"name": name, "can_write": True} for name in sorted(names)]
     return [
         {"name": permission.folder_name, "can_write": permission.can_write}
         for permission in current_user.folder_permissions

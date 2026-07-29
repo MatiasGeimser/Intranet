@@ -294,7 +294,7 @@
                 </button>
 
                 <!-- Natura -->
-                <button onclick="selectFolder('Natura')" id="fold-Natura"
+                <button onclick="toggleNaturaTree()" id="fold-Natura"
                     class="folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200">
                     <span class="w-7 h-7 rounded-lg bg-green-500/8 flex items-center justify-center flex-shrink-0">
                         <i class="fa-solid fa-leaf text-sm text-green-500"></i>
@@ -302,6 +302,8 @@
                     <span class="flex-1 truncate">Natura</span>
                     <span class="folder-count-badge" id="count-Natura">—</span>
                 </button>
+
+                <div id="natura-folder-tree" class="ml-3 pl-2 border-l border-green-200 space-y-1"></div>
 
                 <!-- FACTURACION -->
                 <button onclick="selectFolder('FACTURACION')" id="fold-FACTURACION"
@@ -479,17 +481,18 @@
     
     const IS_ADMIN = {{ 'true' if user.role.name == 'Administrador' else 'false' }};
     const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
-    const userFolderPerms = [
+    let userFolderPerms = [
         {% for perm in user.folder_permissions %}
         { folder: {{ perm.folder_name|tojson }}, read: {{ 'true' if perm.can_read else 'false' }}, write: {{ 'true' if perm.can_write else 'false' }} },
         {% endfor %}
     ];
 
     const folderCounts = {};
+    let folderCatalog = [];
     const STANDARD_FOLDERS = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura', 'FACTURACION', 'REPORTES'];
 
     function isPersonalNaturaFolder(folder) {
-        return typeof folder === 'string' && folder.startsWith('Natura / ') && folder.split(' / ').length >= 3;
+        return typeof folder === 'string' && folder.startsWith('Natura / CBE / ') && folder.split(' / ').length >= 4;
     }
 
     function getFolderLabel(folder) {
@@ -536,11 +539,22 @@
     });
 
     async function initDocuments() {
+        if (IS_ADMIN) {
+            try {
+                const response = await fetchAPI('/api/documents/folders');
+                if (response.ok) {
+                    folderCatalog = await response.json();
+                    renderNaturaTree(folderCatalog.map(folder => folder.name));
+                }
+            } catch (error) {
+                console.debug('No fue posible cargar el árbol Natura:', error.message);
+            }
+        }
         if (!IS_ADMIN) {
             renderPersonalFolders();
             STANDARD_FOLDERS.forEach(f => {
                 const perm = userFolderPerms.find(p => p.folder === f);
-                if (!perm || !perm.read) {
+                if (f !== 'Natura' && (!perm || !perm.read)) {
                     const btn = document.getElementById(`fold-${f}`);
                     if (btn) btn.style.display = 'none';
                 }
@@ -558,30 +572,47 @@
         loadAllFolderCounts();
     }
 
-    function renderPersonalFolders() {
-        const container = document.getElementById('personal-folders');
-        const personalFolders = userFolderPerms.filter(permission => permission.read && !STANDARD_FOLDERS.includes(permission.folder));
-        container.innerHTML = '';
-        personalFolders.forEach(permission => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.id = `fold-${permission.folder}`;
-            button.className = 'folder-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-black-dark hover:bg-gray-50 text-left w-full transition-all duration-200';
-            button.addEventListener('click', () => selectFolder(permission.folder));
+    function toggleNaturaTree() {
+        document.getElementById('natura-folder-tree')?.classList.toggle('hidden');
+    }
 
-            const icon = document.createElement('span');
-            icon.className = 'w-7 h-7 rounded-lg bg-green-500/8 flex items-center justify-center flex-shrink-0';
-            icon.innerHTML = '<i class="fa-solid fa-lock text-sm text-green-600"></i>';
-            const name = document.createElement('span');
-            name.className = 'flex-1 truncate';
-            name.textContent = getFolderLabel(permission.folder);
-            const count = document.createElement('span');
-            count.className = 'folder-count-badge';
-            count.id = `count-${permission.folder}`;
-            count.textContent = '—';
-            button.append(icon, name, count);
-            container.appendChild(button);
+    function renderNaturaTree(paths) {
+        const container = document.getElementById('natura-folder-tree');
+        if (!container) return;
+        const naturaPaths = [...new Set(paths.filter(path => path.startsWith('Natura / ')))];
+        const rootButton = document.getElementById('fold-Natura');
+        if (rootButton) rootButton.style.display = naturaPaths.length ? 'flex' : 'none';
+        const root = {};
+        naturaPaths.forEach(path => {
+            let node = root;
+            path.split(' / ').slice(1).forEach(part => {
+                node.children ||= {};
+                node.children[part] ||= {};
+                node = node.children[part];
+            });
+            node.path = path;
         });
+
+        const renderBranch = (node, parentPath = '', depth = 0) => Object.entries(node.children || {}).sort(([a], [b]) => a.localeCompare(b, 'es')).map(([label, child]) => {
+            const path = parentPath ? `${parentPath} / ${label}` : label;
+            const hasChildren = child.children && Object.keys(child.children).length;
+            if (!hasChildren && child.path) {
+                return `<button type="button" data-folder-value="${escapeHtml(child.path)}" class="folder-btn flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold text-black-dark hover:bg-gray-50 text-left w-full"><i class="fa-solid fa-folder text-green-600 w-4"></i><span class="truncate flex-1">${escapeHtml(label)}</span><span class="folder-count-badge" data-count-folder="${escapeHtml(child.path)}">—</span></button>`;
+            }
+            return `<div class="natura-branch"><button type="button" data-natura-toggle class="flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold text-gray-700 hover:bg-gray-50 text-left w-full"><i class="fa-solid fa-chevron-down text-[9px] text-gray-400 w-4"></i><i class="fa-solid fa-folder text-green-600"></i><span class="truncate">${escapeHtml(label)}</span></button><div class="ml-3 pl-2 border-l border-gray-200 space-y-0.5">${renderBranch(child, path, depth + 1)}</div></div>`;
+        }).join('');
+
+        container.innerHTML = renderBranch(root);
+        container.querySelectorAll('[data-folder-value]').forEach(button => {
+            button.addEventListener('click', () => selectFolder(button.dataset.folderValue));
+        });
+        container.querySelectorAll('[data-natura-toggle]').forEach(button => {
+            button.addEventListener('click', () => button.nextElementSibling?.classList.toggle('hidden'));
+        });
+    }
+
+    function renderPersonalFolders() {
+        renderNaturaTree(userFolderPerms.filter(permission => permission.read).map(permission => permission.folder));
     }
 
     function createModalInBody() {
@@ -710,7 +741,7 @@
         document.getElementById('doc-search').value = '';
 
         document.querySelectorAll('.folder-btn').forEach(btn => {
-            const isActive = btn.id === `fold-${folder}`;
+            const isActive = btn.id === `fold-${folder}` || btn.dataset.folderValue === folder;
             if (isActive) btn.classList.add('folder-btn-active');
             else btn.classList.remove('folder-btn-active');
             btn.classList.toggle('text-black-dark', !isActive);
@@ -776,7 +807,7 @@
        ────────────────────────────────────────────────────── */
     async function loadAllFolderCounts() {
         const folders = IS_ADMIN
-            ? STANDARD_FOLDERS
+            ? [...STANDARD_FOLDERS.filter(folder => folder !== 'Natura'), ...folderCatalog.map(folder => folder.name)]
             : userFolderPerms.filter(permission => permission.read).map(permission => permission.folder);
         await Promise.allSettled(folders.map(async f => {
             try {
@@ -795,7 +826,8 @@
 
     function updateFolderCount(folder, count) {
         folderCounts[folder] = count;
-        const el = document.getElementById(`count-${folder}`);
+        const el = document.getElementById(`count-${folder}`)
+            || Array.from(document.querySelectorAll('[data-count-folder]')).find(node => node.dataset.countFolder === folder);
         if (el) el.textContent = count;
     }
 
