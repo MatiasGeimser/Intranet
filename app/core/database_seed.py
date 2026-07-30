@@ -191,6 +191,18 @@ def seed_database(db: Session):
     # Permiso especial limitado al gestor documental.
     try:
         if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_natura_user BOOLEAN NOT NULL DEFAULT FALSE"))
+        else:
+            db.execute(text("ALTER TABLE users ADD COLUMN is_natura_user BOOLEAN NOT NULL DEFAULT 0"))
+        db.commit()
+        db.execute(text("UPDATE users SET is_natura_user = TRUE WHERE lower(email) LIKE '%@natura.cl'"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (users.is_natura_user): {e} ======")
+
+    try:
+        if engine.name == "postgresql":
             db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_document_admin BOOLEAN NOT NULL DEFAULT FALSE"))
         else:
             db.execute(text("ALTER TABLE users ADD COLUMN is_document_admin BOOLEAN NOT NULL DEFAULT 0"))

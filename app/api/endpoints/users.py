@@ -1,6 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
@@ -20,6 +20,8 @@ router = APIRouter()
 
 
 def is_natura_account(user_or_email) -> bool:
+    if hasattr(user_or_email, "is_natura_user") and user_or_email.is_natura_user:
+        return True
     email = user_or_email.email if hasattr(user_or_email, "email") else user_or_email
     return bool(email and email.lower().strip().endswith("@natura.cl"))
 
@@ -30,7 +32,9 @@ def is_natura_manager_actor(db: Session, actor: User) -> bool:
 
 def ensure_supervisor_scope(db: Session, actor: User, target: User | None = None, email: str | None = None) -> None:
     """Supervisores y responsables administran exclusivamente cuentas Natura."""
-    if actor.role.name != "Supervisor" and not is_natura_manager_actor(db, actor):
+    if is_natura_manager_actor(db, actor):
+        return
+    if actor.role.name != "Supervisor":
         return
     if target is not None and not is_natura_account(target):
         raise HTTPException(status_code=403, detail="El supervisor solo puede administrar usuarios de Natura.")
@@ -124,7 +128,7 @@ def get_users(
 ):
     """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
     if current_user.role.name == "Supervisor" or is_natura_manager_actor(db, current_user):
-        return db.query(User).filter(func.lower(User.email).like("%@natura.cl")).all()
+        return db.query(User).filter(or_(User.is_natura_user.is_(True), func.lower(User.email).like("%@natura.cl"))).all()
     if current_user.role.name != "Administrador":
         return db.query(User).filter(User.area_id == current_user.area_id).all()
     return db.query(User).all()
@@ -249,6 +253,7 @@ def create_user(
         full_name=user_data.full_name,
         role_id=user_data.role_id,
         area_id=user_data.area_id,
+        is_natura_user=is_natura_manager_actor(db, admin_user),
         supervisor_id=user_data.supervisor_id,
         gender=user_data.gender,
         avatar_url=user_data.avatar_url or default_avatar,

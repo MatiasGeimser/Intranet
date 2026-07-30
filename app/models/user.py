@@ -12,6 +12,7 @@ class User(Base):
     full_name = Column(String(100), nullable=False)
     avatar_url = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    is_natura_user = Column(Boolean, default=False, nullable=False)
     is_document_admin = Column(Boolean, default=False, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)

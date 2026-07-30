@@ -20,7 +20,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _is_natura_user(user: User) -> bool:
-        return bool(user.email and user.email.lower().endswith("@natura.cl"))
+        return bool(user.is_natura_user or (user.email and user.email.lower().endswith("@natura.cl")))
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path

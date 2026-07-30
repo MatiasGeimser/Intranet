@@ -46,6 +46,7 @@ class RoleSimple(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    is_natura_user: bool = False
     is_document_admin: bool = False
     role_id: int
     role: RoleSimple

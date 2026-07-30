@@ -37,7 +37,7 @@ def get_current_user_optional(request: Request, db: Session) -> Optional[User]:
 
 
 def is_natura_user(user: User) -> bool:
-    return bool(user.email and user.email.lower().endswith("@natura.cl"))
+    return bool(user.is_natura_user or (user.email and user.email.lower().endswith("@natura.cl")))
 
 
 @router.get("/login", response_class=HTMLResponse)
