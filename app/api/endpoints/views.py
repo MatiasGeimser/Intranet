@@ -10,6 +10,7 @@ from app.api.deps import get_token_from_request
 from jose import jwt
 from app.core.config import settings
 from app.models.user import User
+from app.services.natura_access import is_natura_manager
 
 router = APIRouter()
 
@@ -160,11 +161,13 @@ def documents_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if not user.is_document_admin and user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
+    natura_manager = is_natura_manager(db, user)
+    if not natura_manager and user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="documents.html", context={
         "user": user,
+        "is_natura_manager": natura_manager,
         "active_page": "documents",
         "project_name": settings.PROJECT_NAME
     })
@@ -241,11 +244,13 @@ def profile_view(request: Request, db: Session = Depends(get_db)):
 def admin_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el panel de administración global (Solo Administrador)."""
     user = get_current_user_optional(request, db)
-    if not user or not user.is_active or user.role.name not in {"Administrador", "Supervisor"}:
+    natura_manager = bool(user and user.is_active and is_natura_manager(db, user))
+    if not user or not user.is_active or (user.role.name not in {"Administrador", "Supervisor"} and not natura_manager):
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="admin.html", context={
         "user": user,
+        "is_natura_manager": natura_manager,
         "active_page": "admin",
         "project_name": settings.PROJECT_NAME
     })

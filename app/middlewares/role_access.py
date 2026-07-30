@@ -7,6 +7,7 @@ from app.api.deps import get_token_from_request
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
+from app.services.natura_access import is_natura_manager
 from sqlalchemy.orm import joinedload, selectinload
 
 
@@ -50,6 +51,16 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             if not user or user.role.name == "Administrador":
                 return await call_next(request)
 
+            if is_natura_manager(db, user):
+                if self._is_allowed_natura_manager_request(request):
+                    return await call_next(request)
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Los responsables Natura solo tienen acceso a Gestión Documental."},
+                    )
+                return RedirectResponse(url="/documents", status_code=303)
+
             if self._is_natura_user(user):
                 if self._is_allowed_natura_request(request):
                     return await call_next(request)
@@ -61,11 +72,6 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(url="/documents", status_code=303)
         finally:
             db.close()
-
-        if user.is_document_admin and (
-            path == "/documents" or path.startswith("/api/documents")
-        ):
-            return await call_next(request)
 
         if self._is_allowed_member_request(request, user):
             return await call_next(request)
@@ -86,6 +92,18 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         if path.startswith("/api/auth/"):
             return True
         return path == "/documents" or (path.startswith("/api/documents") and method == "GET")
+
+    @staticmethod
+    def _is_allowed_natura_manager_request(request: Request) -> bool:
+        path = request.url.path
+        return (
+            path.startswith("/api/auth/")
+            or path in {"/documents", "/admin"}
+            or path.startswith("/api/documents")
+            or path.startswith("/api/users")
+            or path.startswith("/api/areas")
+            or path.startswith("/api/roles")
+        )
 
     @staticmethod
     def _is_allowed_member_request(request: Request, user: User) -> bool:

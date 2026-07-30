@@ -8,6 +8,8 @@ from app.schemas.user import UserResponse, UserCreate, UserUpdate, NaturaManager
 from app.models.user import User
 from app.models.role import Role
 from app.models.folder_access import FolderAccess
+from app.models.area import Area
+from app.services.natura_access import is_natura_manager
 from app.api.deps import get_current_active_user, PermissionChecker
 from app.core.security import get_password_hash
 from app.services.audit_service import audit_service
@@ -22,14 +24,41 @@ def is_natura_account(user_or_email) -> bool:
     return bool(email and email.lower().strip().endswith("@natura.cl"))
 
 
-def ensure_supervisor_scope(actor: User, target: User | None = None, email: str | None = None) -> None:
-    """Supervisores administran exclusivamente cuentas Natura."""
-    if actor.role.name != "Supervisor":
+def is_natura_manager_actor(db: Session, actor: User) -> bool:
+    return is_natura_manager(db, actor)
+
+
+def ensure_supervisor_scope(db: Session, actor: User, target: User | None = None, email: str | None = None) -> None:
+    """Supervisores y responsables administran exclusivamente cuentas Natura."""
+    if actor.role.name != "Supervisor" and not is_natura_manager_actor(db, actor):
         return
     if target is not None and not is_natura_account(target):
         raise HTTPException(status_code=403, detail="El supervisor solo puede administrar usuarios de Natura.")
     if email is not None and not is_natura_account(email):
         raise HTTPException(status_code=400, detail="Los usuarios creados por un supervisor deben usar correo @natura.cl.")
+
+
+def ensure_natura_manager_fields(db: Session, actor: User, role: Role, area_id: int | None) -> None:
+    if not is_natura_manager_actor(db, actor):
+        return
+    if role.name != "Usuario":
+        raise HTTPException(status_code=403, detail="Los responsables Natura solo pueden crear usuarios con rol Usuario.")
+    sales_area = db.query(Area).filter(Area.name == "Ventas").first()
+    if not sales_area or area_id != sales_area.id:
+        raise HTTPException(status_code=400, detail="Los usuarios Natura deben pertenecer al área Ventas.")
+
+
+def require_user_management(permission: str):
+    def checker(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+    ) -> User:
+        if current_user.role.name == "Administrador" or permission in {p.code for p in current_user.role.permissions}:
+            return current_user
+        if is_natura_manager_actor(db, current_user) and permission in {"users:create", "users:read", "users:update", "users:delete"}:
+            return current_user
+        raise HTTPException(status_code=403, detail=f"Permiso insuficiente. Requiere el permiso: {permission}")
+    return checker
 
 
 def get_natura_folder_names(db: Session) -> list[str]:
@@ -91,10 +120,10 @@ def get_birthdays(
 @router.get("", response_model=List[UserResponse])
 def get_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("users:read"))
+    current_user: User = Depends(require_user_management("users:read"))
 ):
     """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
-    if current_user.role.name == "Supervisor":
+    if current_user.role.name == "Supervisor" or is_natura_manager_actor(db, current_user):
         return db.query(User).filter(func.lower(User.email).like("%@natura.cl")).all()
     if current_user.role.name != "Administrador":
         return db.query(User).filter(User.area_id == current_user.area_id).all()
@@ -186,7 +215,7 @@ def create_user(
     request: Request,
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(PermissionChecker("users:create"))
+    admin_user: User = Depends(require_user_management("users:create"))
 ):
     """Crea un nuevo usuario en la intranet corporativa."""
     # Verificar si el correo ya existe
@@ -197,7 +226,7 @@ def create_user(
             detail="El correo electrónico ya está registrado en la plataforma."
         )
 
-    ensure_supervisor_scope(admin_user, email=user_data.email)
+    ensure_supervisor_scope(db, admin_user, email=user_data.email)
 
     # Verificar si el rol existe
     role = db.query(Role).filter(Role.id == user_data.role_id).first()
@@ -209,6 +238,7 @@ def create_user(
 
     if admin_user.role.name == "Supervisor" and role.name != "Usuario":
         raise HTTPException(status_code=403, detail="Un supervisor solo puede crear usuarios con rol Usuario.")
+    ensure_natura_manager_fields(db, admin_user, role, user_data.area_id)
 
     hashed_pw = get_password_hash(user_data.password)
     default_avatar = "/static/uploads/avatars/woman.png" if user_data.gender and user_data.gender.lower() == 'mujer' else "/static/uploads/avatars/man.png"
@@ -259,18 +289,18 @@ def update_user(
     request: Request,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(PermissionChecker("users:update"))
+    admin_user: User = Depends(require_user_management("users:update"))
 ):
     """Actualiza la información de un usuario específico."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    ensure_supervisor_scope(admin_user, target=user)
+    ensure_supervisor_scope(db, admin_user, target=user)
 
     # Si se actualiza el email, verificar unicidad
     if user_data.email and user_data.email != user.email:
-        ensure_supervisor_scope(admin_user, email=user_data.email)
+        ensure_supervisor_scope(db, admin_user, email=user_data.email)
         existing = db.query(User).filter(User.email == user_data.email).first()
         if existing:
             raise HTTPException(status_code=400, detail="El correo electrónico ya está en uso.")
@@ -283,10 +313,15 @@ def update_user(
             raise HTTPException(status_code=400, detail="El rol especificado no existe.")
         if admin_user.role.name == "Supervisor" and role.name != "Usuario":
             raise HTTPException(status_code=403, detail="Un supervisor solo puede mantener usuarios con rol Usuario.")
+        ensure_natura_manager_fields(db, admin_user, role, user_data.area_id or user.area_id)
         user.role_id = user_data.role_id
 
     # Si se actualiza el área
     if user_data.area_id is not None:
+        if is_natura_manager_actor(db, admin_user):
+            sales_area = db.query(Area).filter(Area.name == "Ventas").first()
+            if not sales_area or user_data.area_id != sales_area.id:
+                raise HTTPException(status_code=400, detail="Los usuarios Natura deben pertenecer al área Ventas.")
         user.area_id = user_data.area_id
 
     # Actualizar campos comunes
@@ -389,7 +424,7 @@ def delete_user(
     user_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(PermissionChecker("users:delete"))
+    admin_user: User = Depends(require_user_management("users:delete"))
 ):
     """Elimina un usuario de forma permanente de la intranet."""
     if user_id == admin_user.id:
@@ -405,7 +440,7 @@ def delete_user(
             detail="Usuario no encontrado."
         )
 
-    ensure_supervisor_scope(admin_user, target=user)
+    ensure_supervisor_scope(db, admin_user, target=user)
 
     # Eliminar/Desvincular dependencias no automatizadas por cascade en SQLAlchemy/DB
     from app.models.task import Task

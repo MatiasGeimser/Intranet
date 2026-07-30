@@ -124,7 +124,7 @@
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
             {% set is_natura_user = user.email and user.email.lower().endswith('@natura.cl') %}
 
-            {% if is_natura_user %}
+            {% if is_natura_user or is_natura_manager %}
             <div class="pt-4 pb-2 px-4">
                 <p class="text-[10px] font-semibold text-[#8C8C8C] tracking-wider uppercase">Documentos</p>
             </div>
@@ -133,6 +133,12 @@
                 <i class="fa-solid fa-folder-open text-base"></i>
                 <span>Gestión Documental</span>
             </a>
+            {% if is_natura_manager %}
+            <a href="/admin" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'admin' %} bg-[#049DD9] text-white {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-user-plus text-base"></i>
+                <span>Usuarios Natura</span>
+            </a>
+            {% endif %}
             {% else %}
 
             {% if user.role.name in ['Administrador', 'Supervisor'] %}
@@ -242,7 +248,7 @@
 
 
             <!-- MÓDULOS DE ADMINISTRADOR -->
-            {% if user.role.name in ['Administrador', 'Supervisor'] %}
+            {% if user.role.name in ['Administrador', 'Supervisor'] or is_natura_manager %}
             <div class="pt-6 pb-2 px-4 border-t border-[#8C8C8C]/10 mt-6">
                 <p class="text-[10px] font-semibold text-[#79F2E6] tracking-wider uppercase">Panel Administrativo</p>
             </div>

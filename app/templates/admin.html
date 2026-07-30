@@ -22,8 +22,8 @@
     <!-- Filtros y Crear Usuario -->
     <div class="flex items-center justify-between">
         <div>
-            <h3 class="text-sm font-bold text-black-dark">Usuarios del Sistema</h3>
-            <p class="text-[11px] text-grey-main">Modifica permisos, roles y estados en tiempo real</p>
+            <h3 class="text-sm font-bold text-black-dark">{{ 'Usuarios de Natura' if is_natura_manager else 'Usuarios del Sistema' }}</h3>
+            <p class="text-[11px] text-grey-main">{{ 'Gestiona colaboradores Natura del área Ventas' if is_natura_manager else 'Modifica permisos, roles y estados en tiempo real' }}</p>
         </div>
         
         <div class="flex items-center gap-2">
@@ -176,7 +176,7 @@
                     <input type="text" id="user-password" required placeholder="Ingresar contraseña fuerte" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
                 </div>
                 
-                <div class="border-t border-gray-100 pt-4 mt-2">
+                {% if not is_natura_manager %}<div class="border-t border-gray-100 pt-4 mt-2">
                     <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Permisos Gestión Documental</label>
                     <div class="flex items-center justify-between gap-3 mb-2.5">
                         <span class="text-[10px] text-grey-main">Ver y carga por carpeta</span>
@@ -184,7 +184,7 @@
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2" id="folder-permissions-container">
                         <!-- Se llena vía JS -->
                     </div>
-                </div>
+                </div>{% endif %}
                 
                 <div class="sticky bottom-0 -mx-5 md:-mx-6 px-5 md:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-100 flex items-center space-x-3">
                     <button type="button" onclick="closeUserModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">Cancelar</button>
@@ -238,6 +238,7 @@
 <script>
     let usersList = [];
     const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
+    const IS_NATURA_MANAGER = {{ 'true' if is_natura_manager else 'false' }};
 
     document.addEventListener("DOMContentLoaded", () => {
         loadUsers();
@@ -470,7 +471,7 @@
         await loadRolesIntoSelect();
         await loadAreasIntoSelect();
         await loadSupervisorsIntoSelect();
-        renderFolderPermissions();
+        if (!IS_NATURA_MANAGER) renderFolderPermissions();
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -490,7 +491,7 @@
         await loadRolesIntoSelect(u.role_id);
         await loadAreasIntoSelect(u.area_id);
         await loadSupervisorsIntoSelect(u.supervisor_id);
-        renderFolderPermissions(u.folder_permissions || []);
+        if (!IS_NATURA_MANAGER) renderFolderPermissions(u.folder_permissions || []);
         document.getElementById('user-modal').classList.remove('hidden');
     }
 
@@ -518,7 +519,8 @@
         try {
             const res = await fetchAPI('/api/areas');
             if (res && res.ok) {
-                const areas = await res.json();
+                let areas = await res.json();
+                if (IS_NATURA_MANAGER) areas = areas.filter(a => a.name === 'Ventas');
                 select.innerHTML = areas.map(a =>
                     `<option value="${a.id}" ${selectedAreaId == a.id ? 'selected' : ''}>${a.name}</option>`
                 ).join('');
@@ -673,7 +675,7 @@
 
         // Recolectar permisos de carpeta
         const folders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura', 'FACTURACION', 'REPORTES'];
-        payload.folder_permissions = folders.map(f => {
+        if (!IS_NATURA_MANAGER) payload.folder_permissions = folders.map(f => {
             const can_read = document.getElementById(`perm-read-${f}`).checked;
             const can_write = document.getElementById(`perm-write-${f}`).checked;
             return { folder_name: f, can_read, can_write };

@@ -13,6 +13,7 @@ from app.services.doc_service import doc_service
 from app.services.audit_service import audit_service
 from app.models.user import User
 from app.models.folder_access import FolderAccess
+from app.services.natura_access import is_natura_manager
 
 router = APIRouter()
 
@@ -22,34 +23,39 @@ class FolderCreate(BaseModel):
     parent: str = Field("Natura", min_length=1, max_length=100)
 
 
-def is_document_admin(current_user: User) -> bool:
-    return current_user.role.name == "Administrador" or current_user.is_document_admin
+def can_manage_documents(db: Session, current_user: User) -> bool:
+    return current_user.role.name == "Administrador" or is_natura_manager(db, current_user)
 
 
-def require_document_reader(current_user: User = Depends(get_current_active_user)) -> User:
-    if is_document_admin(current_user) or "documents:read" in {permission.code for permission in current_user.role.permissions}:
+def require_document_reader(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    if can_manage_documents(db, current_user) or "documents:read" in {permission.code for permission in current_user.role.permissions}:
         return current_user
     raise HTTPException(status_code=403, detail="No tienes acceso al gestor documental.")
 
 
-def user_can_manage_folder(folder: str, current_user: User) -> bool:
-    if is_document_admin(current_user):
+def user_can_manage_folder(folder: str, current_user: User, db: Session) -> bool:
+    if can_manage_documents(db, current_user):
         return True
+    if folder == "Natura" or folder.startswith("Natura / "):
+        return False
     return any(
         permission.folder_name == folder and permission.can_write
         for permission in current_user.folder_permissions
     )
 
 
-def user_can_access_document(document: Document, current_user: User) -> bool:
+def user_can_access_document(document: Document, current_user: User, db: Session) -> bool:
     """Comprueba carpeta y visibilidad antes de exponer un documento no administrativo."""
-    if is_document_admin(current_user):
+    if can_manage_documents(db, current_user):
         return True
 
     allowed_folders = {permission.folder_name for permission in current_user.folder_permissions if permission.can_read}
     if document.folder not in allowed_folders:
         return False
-    return user_can_manage_folder(document.folder, current_user) or (
+    return user_can_manage_folder(document.folder, current_user, db) or (
         document.is_public
         or document.uploader_id == current_user.id
         or any(user.id == current_user.id for user in document.allowed_users)
@@ -67,7 +73,7 @@ def get_documents(
     if folder:
         query = query.filter(Document.folder == folder)
         
-    if not is_document_admin(current_user):
+    if not can_manage_documents(db, current_user):
         allowed_folders = [f.folder_name for f in current_user.folder_permissions if f.can_read]
         query = query.filter(Document.folder.in_(allowed_folders))
         
@@ -89,7 +95,7 @@ def get_accessible_folders(
     current_user: User = Depends(require_document_reader),
 ):
     """Entrega las carpetas virtuales permitidas para construir la navegación personal."""
-    if is_document_admin(current_user):
+    if can_manage_documents(db, current_user):
         names = {name for (name,) in db.query(FolderAccess.folder_name).distinct().all()}
         names.update(name for (name,) in db.query(Document.folder).distinct().all())
         return [{"name": name, "can_write": True} for name in sorted(names)]
@@ -107,7 +113,7 @@ def create_folder(
     current_user: User = Depends(get_current_active_user),
 ):
     """Crea una carpeta virtual dentro del gestor documental."""
-    if not is_document_admin(current_user):
+    if not can_manage_documents(db, current_user):
         raise HTTPException(status_code=403, detail="Solo un administrador documental puede crear carpetas.")
     name = " ".join(payload.name.strip().split())
     parent = " / ".join(part.strip() for part in payload.parent.split(" / ") if part.strip())
@@ -130,7 +136,7 @@ def delete_folder(
     current_user: User = Depends(get_current_active_user),
 ):
     """Elimina una carpeta virtual vacía y sus permisos asociados."""
-    if not is_document_admin(current_user):
+    if not can_manage_documents(db, current_user):
         raise HTTPException(status_code=403, detail="Solo un administrador documental puede eliminar carpetas.")
     if folder == "Natura" or not folder.startswith("Natura / "):
         raise HTTPException(status_code=400, detail="No se puede eliminar la raíz Natura.")
@@ -154,7 +160,7 @@ def upload_document(
 ):
     """Sube un archivo a una carpeta virtual específica de la intranet."""
     # Verificar permisos de escritura en la carpeta
-    if not user_can_manage_folder(folder, current_user):
+    if not user_can_manage_folder(folder, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para subir documentos en esta carpeta.")
 
     allowed_users_ids = []
@@ -193,7 +199,7 @@ def preview_document(
     current_user: User = Depends(get_current_active_user)
 ):
     """Permite ver y editar contenidos simples directamente desde la Intranet (solo Administradores)."""
-    if not is_document_admin(current_user):
+    if not can_manage_documents(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -230,7 +236,7 @@ def update_document_content(
     current_user: User = Depends(get_current_active_user)
 ):
     """Guarda cambios en el documento desde la vista de edición (solo Administradores)."""
-    if not is_document_admin(current_user):
+    if not can_manage_documents(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -276,7 +282,7 @@ def download_document(
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Archivo no encontrado.")
-    if not user_can_access_document(doc, current_user):
+    if not user_can_access_document(doc, current_user, db):
         raise HTTPException(status_code=403, detail="No tienes acceso a este documento.")
 
     if not os.path.exists(doc.file_path):
@@ -310,7 +316,7 @@ def delete_document(
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Archivo no encontrado.")
-    if not user_can_manage_folder(doc.folder, current_user):
+    if not user_can_manage_folder(doc.folder, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para eliminar documentos en esta carpeta.")
 
     # Eliminar físicamente del disco si existe
