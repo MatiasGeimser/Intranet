@@ -241,7 +241,7 @@ def profile_view(request: Request, db: Session = Depends(get_db)):
 def admin_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el panel de administración global (Solo Administrador)."""
     user = get_current_user_optional(request, db)
-    if not user or not user.is_active or user.role.name != "Administrador":
+    if not user or not user.is_active or user.role.name not in {"Administrador", "Supervisor"}:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="admin.html", context={

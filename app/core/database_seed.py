@@ -286,7 +286,10 @@ def seed_database(db: Session):
     # Supervisor tiene permisos de lectura de usuarios y gestión de módulos
     supervisor_role = db_roles["Supervisor"]
     supervisor_permissions = [
+        db_permissions["users:create"],
         db_permissions["users:read"],
+        db_permissions["users:update"],
+        db_permissions["users:delete"],
         db_permissions["credentials:manage"],
         db_permissions["credentials:read"],
         db_permissions["events:manage"],

@@ -10,12 +10,13 @@
     <button onclick="switchTab('users')" id="tab-btn-users" class="pb-3 border-b-2 border-blue-corp text-blue-corp font-bold transition-all">
         <i class="fa-solid fa-users-gear mr-1.5"></i>Gestión de Usuarios
     </button>
-    <button onclick="switchTab('audit')" id="tab-btn-audit" class="pb-3 border-b-2 border-transparent text-grey-main hover:text-black-dark font-semibold transition-all">
+    {% if user.role.name == 'Administrador' %}<button onclick="switchTab('audit')" id="tab-btn-audit" class="pb-3 border-b-2 border-transparent text-grey-main hover:text-black-dark font-semibold transition-all">
         <i class="fa-solid fa-shield-halved mr-1.5"></i>Bitácora de Ciberseguridad
     </button>
 </div>
 
 <!-- ==================== PESTAÑA 1: GESTIÓN DE USUARIOS ==================== -->
+{% endif %}
 <div id="tab-content-users" class="space-y-6">
     
     <!-- Filtros y Crear Usuario -->
@@ -26,10 +27,10 @@
         </div>
         
         <div class="flex items-center gap-2">
-            <button onclick="openNaturaManagersModal()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold hover:bg-emerald-100 transition-all flex items-center space-x-1.5">
+            {% if user.role.name == 'Administrador' %}<button onclick="openNaturaManagersModal()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold hover:bg-emerald-100 transition-all flex items-center space-x-1.5">
                 <i class="fa-solid fa-user-shield text-xs"></i>
                 <span>Responsables Natura</span>
-            </button>
+            </button>{% endif %}
             <button onclick="openUserCreateModal()" class="bg-[#049DD9] text-white rounded-2xl py-2.5 px-4 text-xs font-semibold hover:bg-blue-corp/90 shadow-md shadow-blue-corp/25 transition-all flex items-center space-x-1.5">
                 <i class="fa-solid fa-user-plus text-xs"></i>
                 <span>Nuevo Colaborador</span>
@@ -236,6 +237,7 @@
 {% block extra_js %}
 <script>
     let usersList = [];
+    const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
 
     document.addEventListener("DOMContentLoaded", () => {
         loadUsers();
@@ -497,7 +499,8 @@
         try {
             const res = await fetchAPI('/api/roles');
             if (res && res.ok) {
-                const roles = await res.json();
+                let roles = await res.json();
+                if (IS_SUPERVISOR) roles = roles.filter(r => r.name === 'Usuario');
                 select.innerHTML = roles.map(r =>
                     `<option value="${r.id}" ${selectedRoleId == r.id ? 'selected' : ''}>${r.name}</option>`
                 ).join('');

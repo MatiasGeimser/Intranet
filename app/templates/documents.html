@@ -236,8 +236,8 @@
     .drive-toolbar { background: #fff; border: 1px solid rgba(140,140,140,.14); }
     #drive-folder-browser { background: #fff; border: 1px solid rgba(140,140,140,.14); border-radius: 16px; }
     #fold-Natura, #natura-folder-tree { display: none !important; }
-    #drive-folder-row { scrollbar-width: thin; }
-    .drive-folder-card { flex: 0 0 190px; border: 1px solid #E5E7EB; background: #fff; transition: all .16s ease; }
+    #drive-folder-row { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .5rem; overflow-x: visible !important; }
+    .drive-folder-card { min-width: 0; border: 1px solid #E5E7EB; background: #fff; transition: all .16s ease; }
     .drive-folder-card:hover { border-color: #AECBFA; background: #F8FBFF; box-shadow: 0 4px 14px rgba(25,103,210,.10); }
     .drive-folder-card.active { border-color: #8AB4F8; background: #E8F0FE; }
     @media (max-width: 1023px) {
@@ -438,6 +438,9 @@
             </div>
 
             <div class="flex items-center gap-2">
+                {% if user.role.name in ['Administrador', 'Supervisor'] or user.is_document_admin %}
+                <button id="quick-upload-button" type="button" class="h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
+                {% endif %}
                 <!-- Buscador -->
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
@@ -823,7 +826,11 @@
 
     function initDropzone() {
         const dz = document.getElementById('dropzone');
-        dz.addEventListener('click', () => document.getElementById('file-uploader').click());
+        const uploader = document.getElementById('file-uploader');
+        const quickUploadButton = document.getElementById('quick-upload-button');
+        if (!dz || !uploader) return;
+        dz.addEventListener('click', () => uploader.click());
+        quickUploadButton?.addEventListener('click', () => uploader.click());
         dz.addEventListener('dragover', e => {
             e.preventDefault();
             dz.classList.add('dropzone-active');

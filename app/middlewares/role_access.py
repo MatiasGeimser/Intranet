@@ -97,6 +97,8 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             path == "/admin-chat" or path.startswith("/api/admin-chat")
         ):
             return True
+        if role_name == "Supervisor" and (path == "/admin" or path.startswith("/api/users") or path.startswith("/api/areas") or path.startswith("/api/roles")):
+            return True
         if path in RoleAccessMiddleware.member_pages:
             return True
         if path.startswith("/api/auth/"):
