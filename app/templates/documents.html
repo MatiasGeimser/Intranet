@@ -219,6 +219,18 @@
         border-radius: 999px;
         transition: width 0.3s ease;
     }
+    #upload-progress-wrap {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 60;
+        width: min(300px, calc(100vw - 48px));
+        padding: 12px 14px;
+        background: #fff;
+        border: 1px solid rgba(4,157,217,.18);
+        border-radius: 12px;
+        box-shadow: 0 10px 28px rgba(38,37,35,.16);
+    }
 
     /* Explorador documental: lectura rápida tipo Drive. */
     .drive-sidebar { position: sticky; top: 1rem; }
@@ -385,13 +397,8 @@
 
         <!-- Dropzone mejorado (Solo Administradores y Supervisores) -->
         {% if user.role.name == 'Administrador' or is_natura_manager %}
-        <div id="dropzone"
-            class="hidden">
+        <div id="dropzone" class="hidden" style="display:none!important">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
-
-            <div class="w-11 h-11 rounded-2xl bg-blue-corp/10 group-hover:bg-blue-corp/18 flex items-center justify-center text-blue-corp mb-3 transition-all duration-300 group-hover:scale-110">
-                <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
-            </div>
         </div>
         {% endif %}
 
@@ -427,7 +434,7 @@
             <div class="flex items-center gap-2">
                 {% if user.role.name == 'Administrador' or is_natura_manager %}
                 <button id="quick-upload-button" type="button" class="h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
-                <div id="upload-progress-wrap" class="hidden w-36">
+                <div id="upload-progress-wrap" class="hidden">
                     <div class="w-full bg-gray-100 rounded-full h-[3px]"><div id="upload-progress-bar" style="width:0%"></div></div>
                     <p class="text-[10px] text-blue-corp font-semibold mt-1 truncate" id="upload-progress-label">Subiendo...</p>
                 </div>
