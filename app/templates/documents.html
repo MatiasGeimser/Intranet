@@ -386,24 +386,11 @@
         <!-- Dropzone mejorado (Solo Administradores y Supervisores) -->
         {% if user.role.name == 'Administrador' or is_natura_manager %}
         <div id="dropzone"
-            class="border-2 border-dashed border-[#8C8C8C]/30 hover:border-blue-corp rounded-3xl p-7 bg-white/50 hover:bg-blue-corp/4 transition-all text-center flex flex-col items-center justify-center cursor-pointer select-none group">
+            class="hidden">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
 
             <div class="w-11 h-11 rounded-2xl bg-blue-corp/10 group-hover:bg-blue-corp/18 flex items-center justify-center text-blue-corp mb-3 transition-all duration-300 group-hover:scale-110">
                 <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
-            </div>
-            <h4 class="text-xs font-bold text-black-dark">Arrastra tus archivos aquí o haz clic para subir</h4>
-            <p class="text-[10px] text-grey-main mt-1 leading-relaxed max-w-sm">
-                PDF, DOCX, XLSX, XLS, CSV, KEY, PEM, PFX, JSON e imágenes · <strong>carga directa segura</strong><br>
-                <span class="text-blue-corp font-semibold">Los contratos grandes se cargan directamente en almacenamiento privado.</span>
-            </p>
-
-            <!-- Barra de progreso de carga -->
-            <div id="upload-progress-wrap" class="hidden w-full max-w-xs mt-4">
-                <div class="w-full bg-gray-100 rounded-full h-[3px]">
-                    <div id="upload-progress-bar" style="width:0%"></div>
-                </div>
-                <p class="text-[10px] text-blue-corp font-semibold mt-1.5" id="upload-progress-label">Subiendo...</p>
             </div>
         </div>
         {% endif %}
@@ -440,6 +427,10 @@
             <div class="flex items-center gap-2">
                 {% if user.role.name == 'Administrador' or is_natura_manager %}
                 <button id="quick-upload-button" type="button" class="h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
+                <div id="upload-progress-wrap" class="hidden w-36">
+                    <div class="w-full bg-gray-100 rounded-full h-[3px]"><div id="upload-progress-bar" style="width:0%"></div></div>
+                    <p class="text-[10px] text-blue-corp font-semibold mt-1 truncate" id="upload-progress-label">Subiendo...</p>
+                </div>
                 {% endif %}
                 <!-- Buscador -->
                 <div class="relative">
@@ -836,9 +827,10 @@
         const dz = document.getElementById('dropzone');
         const uploader = document.getElementById('file-uploader');
         const quickUploadButton = document.getElementById('quick-upload-button');
-        if (!dz || !uploader) return;
-        dz.addEventListener('click', () => uploader.click());
+        if (!uploader) return;
         quickUploadButton?.addEventListener('click', () => uploader.click());
+        if (!dz) return;
+        dz.addEventListener('click', () => uploader.click());
         dz.addEventListener('dragover', e => {
             e.preventDefault();
             dz.classList.add('dropzone-active');
@@ -922,6 +914,8 @@
                 renderDocuments(rawDocumentsList);
                 updateFolderStats(rawDocumentsList);
                 updateFolderCount(activeFolder, rawDocumentsList.length);
+            } else {
+                showTableError();
             }
         } catch (e) {
             showTableError();
@@ -1411,7 +1405,14 @@
             setTimeout(() => wrap.classList.add('hidden'), 800);
 
             if (response && response.ok) {
-                showToast('Archivo cargado y sincronizado. Acción auditada.', 'success');
+                const savedDocument = await response.json();
+                if (savedDocument.folder === activeFolder) {
+                    rawDocumentsList = [savedDocument, ...rawDocumentsList.filter(d => d.id !== savedDocument.id)];
+                    renderDocuments(rawDocumentsList);
+                    updateFolderStats(rawDocumentsList);
+                    updateFolderCount(activeFolder, rawDocumentsList.length);
+                }
+                showToast('Archivo cargado y visible en la carpeta.', 'success');
                 loadDocuments();
                 loadAllFolderCounts();
             } else if (response) {
