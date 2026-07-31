@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel, Field
@@ -60,6 +60,13 @@ def user_can_access_document(document: Document, current_user: User, db: Session
         or document.uploader_id == current_user.id
         or any(user.id == current_user.id for user in document.allowed_users)
     )
+
+
+def get_natura_personal_owner(db: Session, folder: str) -> User | None:
+    parts = [part.strip() for part in folder.split(" / ")]
+    if len(parts) < 3 or parts[0] != "Natura" or parts[1] != "CBE":
+        return None
+    return db.query(User).filter(func.lower(User.full_name) == parts[2].lower()).first()
 
 
 @router.get("", response_model=List[DocumentResponse])
@@ -162,6 +169,15 @@ def upload_document(
     # Verificar permisos de escritura en la carpeta
     if not user_can_manage_folder(folder, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para subir documentos en esta carpeta.")
+
+    personal_owner = None
+    if can_manage_documents(db, current_user):
+        personal_owner = get_natura_personal_owner(db, folder)
+        if folder.startswith("Natura / CBE /") and not personal_owner:
+            raise HTTPException(status_code=400, detail="No se pudo identificar al usuario dueño de esta carpeta Natura.")
+        if personal_owner:
+            is_public = False
+            allowed_users = str(personal_owner.id)
 
     allowed_users_ids = []
     if not is_public and allowed_users:

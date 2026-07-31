@@ -394,7 +394,7 @@
             </div>
             <h4 class="text-xs font-bold text-black-dark">Arrastra tus archivos aquí o haz clic para subir</h4>
             <p class="text-[10px] text-grey-main mt-1 leading-relaxed max-w-sm">
-                PDF, DOCX, XLSX, XLS, CSV, KEY, PEM, PFX, JSON e imágenes · Límite <strong>50 MB</strong><br>
+                PDF, DOCX, XLSX, XLS, CSV, KEY, PEM, PFX, JSON e imágenes · Límite <strong>4 MB</strong><br>
                 <span class="text-blue-corp font-semibold">Si el archivo ya existe, se creará una versión incremental.</span>
             </p>
 
@@ -758,11 +758,14 @@
             <div class="modal-enter bg-white rounded-3xl w-full max-w-md shadow-2xl p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-1">Configuración de Acceso</h3>
                 <p class="text-xs text-gray-500 mb-4">Archivo: <span id="upload-filename-display" class="font-semibold text-blue-500"></span></p>
-                <div class="mb-4">
+                <div id="upload-public-setting" class="mb-4">
                     <label class="flex items-center space-x-3 cursor-pointer">
                         <input type="checkbox" id="upload-is-public" onchange="toggleUploadPublic(this)" checked class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="text-sm font-semibold text-gray-700">Público (Visible para todos)</span>
                     </label>
+                </div>
+                <div id="upload-personal-access-notice" class="hidden mb-4 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-700">
+                    Este archivo quedarÃ¡ visible Ãºnicamente para el usuario dueÃ±o de la carpeta seleccionada.
                 </div>
                 <div id="upload-users-container" class="hidden mb-6">
                     <label class="block text-xs font-semibold text-gray-600 mb-2">Selecciona quién puede verlo:</label>
@@ -1221,6 +1224,11 @@
        UPLOADER
        ────────────────────────────────────────────────────── */
     let pendingFileToUpload = null;
+    const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+    function isNaturaPersonalFolder() {
+        return IS_NATURA_MANAGER && activeFolder.startsWith('Natura / CBE / ');
+    }
 
     function filterUploadUsers() {
         const query = (document.getElementById('upload-user-search')?.value || '').trim().toLowerCase();
@@ -1233,6 +1241,11 @@
 
     async function handleFileSelect(e) {
         if (e.target.files.length > 0) {
+            if (e.target.files[0].size > MAX_UPLOAD_BYTES) {
+                showToast('Este entorno permite archivos de hasta 4 MB. Comprime el archivo o divídelo antes de subirlo.', 'error');
+                e.target.value = '';
+                return;
+            }
             pendingFileToUpload = e.target.files[0];
             showUploadConfigModal();
         }
@@ -1240,6 +1253,17 @@
 
     async function showUploadConfigModal() {
         if (!pendingFileToUpload) return;
+
+        const personalFolder = isNaturaPersonalFolder();
+        const publicCheckbox = document.getElementById('upload-is-public');
+        const personalNotice = document.getElementById('upload-personal-access-notice');
+        const usersContainer = document.getElementById('upload-users-container');
+        if (publicCheckbox) {
+            publicCheckbox.checked = !personalFolder;
+            publicCheckbox.disabled = personalFolder;
+        }
+        personalNotice?.classList.toggle('hidden', !personalFolder);
+        usersContainer?.classList.toggle('hidden', personalFolder || Boolean(publicCheckbox?.checked));
         
         // Cargar colaboradores para el select
         const select = document.getElementById('upload-allowed-users');
@@ -1333,9 +1357,9 @@
     async function confirmUpload() {
         if(!pendingFileToUpload) return;
         const file = pendingFileToUpload;
-        const isPublic = document.getElementById('upload-is-public').checked;
+        const isPublic = isNaturaPersonalFolder() ? false : document.getElementById('upload-is-public').checked;
         const select = document.getElementById('upload-allowed-users');
-        const allowedUsers = Array.from(select.selectedOptions).map(o => o.value).join(',');
+        const allowedUsers = isNaturaPersonalFolder() ? '' : Array.from(select.selectedOptions).map(o => o.value).join(',');
 
         closeUploadConfigModal();
 
