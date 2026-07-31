@@ -1,5 +1,6 @@
 import os
 import re
+import unicodedata
 import uuid
 from typing import Any, Optional
 from urllib.parse import quote, urlparse
@@ -70,7 +71,8 @@ class SupabaseStorage:
     @staticmethod
     def safe_object_name(name: str) -> str:
         name = os.path.basename(name or "archivo")
-        name = re.sub(r"[^\w.\- ]", "_", name).strip() or "archivo"
+        name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+        name = re.sub(r"[^A-Za-z0-9_.-]", "_", name).strip("._") or "archivo"
         return name[:100]
 
     def make_object_path(self, filename: str) -> str:
