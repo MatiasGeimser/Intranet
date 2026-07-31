@@ -1,12 +1,34 @@
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
+
+def get_runtime_database_url() -> str:
+    """Use Supavisor transaction mode for Vercel's short-lived functions."""
+    database_url = settings.DATABASE_URL
+    if os.environ.get("VERCEL") and "pooler.supabase.com" in database_url:
+        parsed = urlsplit(database_url)
+        if parsed.port == 5432:
+            hostname = parsed.hostname or ""
+            auth = ""
+            if parsed.username:
+                auth = parsed.username
+                if parsed.password:
+                    auth += f":{parsed.password}"
+                auth += "@"
+            netloc = f"{auth}{hostname}:6543"
+            database_url = urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+    return database_url
+
+
+runtime_database_url = get_runtime_database_url()
+
 # Determinar si estamos usando SQLite
-is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+is_sqlite = runtime_database_url.startswith("sqlite")
 
 # Configurar argumentos de conexión
 connect_args = {}
@@ -16,7 +38,7 @@ if is_sqlite:
 
 # Crear motor de base de datos
 engine = create_engine(
-    settings.DATABASE_URL,
+    runtime_database_url,
     connect_args=connect_args,
     pool_pre_ping=True  # Verifica si la conexión está viva antes de usarla
 )
@@ -24,7 +46,7 @@ engine = create_engine(
 # Las funciones serverless no deben retener conexiones entre invocaciones.
 if os.environ.get("VERCEL"):
     engine = create_engine(
-        settings.DATABASE_URL,
+        runtime_database_url,
         connect_args=connect_args,
         poolclass=NullPool,
         pool_pre_ping=True,
