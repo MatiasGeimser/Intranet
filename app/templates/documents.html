@@ -613,7 +613,8 @@
         if (document.getElementById('dropzone')) {
             initDropzone();
         }
-        loadAllFolderCounts();
+        // Primero se pinta la carpeta activa; los contadores secundarios no bloquean la vista.
+        window.setTimeout(loadAllFolderCounts, 800);
     }
 
     function toggleNaturaTree() {
@@ -912,10 +913,14 @@
         loadDocuments();
     }
 
+    let documentsRequestId = 0;
+
     async function loadDocuments() {
+        const requestId = ++documentsRequestId;
         showTableSkeleton();
         try {
             const response = await fetchAPI(`/api/documents?folder=${encodeURIComponent(activeFolder)}`);
+            if (requestId !== documentsRequestId) return;
             if (response && response.ok) {
                 rawDocumentsList = await response.json();
                 renderDocuments(rawDocumentsList);
@@ -960,14 +965,12 @@
         const folders = CAN_MANAGE_ALL_DOCUMENTS
             ? [...STANDARD_FOLDERS.filter(folder => folder !== 'Natura'), ...folderCatalog.map(folder => folder.name)]
             : userFolderPerms.filter(permission => permission.read).map(permission => permission.folder);
-        await Promise.allSettled(folders.map(async f => {
+        await Promise.allSettled(folders.filter(f => f !== activeFolder).map(async f => {
             try {
                 const r = await fetchAPI(`/api/documents?folder=${encodeURIComponent(f)}`);
                 if (r && r.ok) {
                     const list = await r.json();
                     updateFolderCount(f, list.length);
-                    // Si es la carpeta activa actualizar stats también
-                    if (f === activeFolder) updateFolderStats(list);
                 }
             } catch {}
         }));
