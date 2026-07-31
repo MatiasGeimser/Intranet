@@ -766,6 +766,10 @@
                 </div>
                 <div id="upload-users-container" class="hidden mb-6">
                     <label class="block text-xs font-semibold text-gray-600 mb-2">Selecciona quién puede verlo:</label>
+                    <div class="relative mb-2">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400"></i>
+                        <input id="upload-user-search" type="search" oninput="filterUploadUsers()" placeholder="Buscar por nombre, correo o rol..." class="w-full text-xs bg-gray-50 rounded-xl pl-8 pr-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] focus:ring-1 focus:ring-[#049DD9]/20">
+                    </div>
                     <select id="upload-allowed-users" multiple class="w-full text-sm border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 p-2" style="min-height: 120px;"></select>
                     <p class="text-[10px] text-gray-400 mt-1">Mantén presionado Ctrl (o Cmd) para seleccionar múltiples.</p>
                 </div>
@@ -1218,6 +1222,15 @@
        ────────────────────────────────────────────────────── */
     let pendingFileToUpload = null;
 
+    function filterUploadUsers() {
+        const query = (document.getElementById('upload-user-search')?.value || '').trim().toLowerCase();
+        const select = document.getElementById('upload-allowed-users');
+        if (!select) return;
+        Array.from(select.options).forEach(option => {
+            option.hidden = Boolean(query) && !(option.dataset.search || option.textContent.toLowerCase()).includes(query);
+        });
+    }
+
     async function handleFileSelect(e) {
         if (e.target.files.length > 0) {
             pendingFileToUpload = e.target.files[0];
@@ -1230,6 +1243,8 @@
         
         // Cargar colaboradores para el select
         const select = document.getElementById('upload-allowed-users');
+        const search = document.getElementById('upload-user-search');
+        if (search) search.value = '';
         
         // Clear all options safely
         while (select.firstChild) {
@@ -1265,6 +1280,7 @@
                     opt.value = c.id;
                     opt.className = 'text-black bg-white p-1';
                     opt.textContent = c.full_name + ' (' + (c.role ? c.role.name : 'N/A') + ')';
+                    opt.dataset.search = `${c.full_name} ${c.email || ''} ${c.role ? c.role.name : ''}`.toLowerCase();
                     select.appendChild(opt);
                     count++;
                 });

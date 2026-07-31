@@ -146,6 +146,11 @@ def get_users_minimal(
     current_user: User = Depends(get_current_active_user)
 ):
     """Obtiene la lista minimalista de todos los colaboradores activos para asignación, filtrado por área si no es admin."""
+    if is_natura_manager_actor(db, current_user):
+        return db.query(User).filter(
+            User.is_active.is_(True),
+            or_(User.is_natura_user.is_(True), func.lower(User.email).like("%@natura.cl")),
+        ).all()
     if current_user.role.name not in ["Administrador", "Supervisor"]:
         return db.query(User).filter(User.is_active == True, User.area_id == current_user.area_id).all()
     return db.query(User).filter(User.is_active == True).all()
