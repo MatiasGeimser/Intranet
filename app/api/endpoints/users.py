@@ -18,6 +18,13 @@ from app.core.config import settings
 
 router = APIRouter()
 
+NATURA_PERSONAL_SUBFOLDERS = (
+    "Contrato",
+    "Liquidaciones 2026",
+    "Boletas 2026",
+    "Certificados de Transferencia 2026",
+)
+
 
 def is_natura_account(user_or_email) -> bool:
     if hasattr(user_or_email, "is_natura_user") and user_or_email.is_natura_user:
@@ -109,6 +116,38 @@ def grant_natura_folder_access(db: Session, user_id: int, folder_names: list[str
                 can_read=True,
                 can_write=True,
             ))
+
+
+def provision_natura_personal_folders(db: Session, user: User) -> list[str]:
+    """Crea las carpetas privadas CBE del usuario y las habilita a los responsables Natura."""
+    catalog_before = get_natura_folder_names(db)
+    manager_ids = get_natura_manager_ids(db, catalog_before)
+    full_name = " ".join(user.full_name.split())
+    folder_names = [
+        f"Natura / CBE / {full_name} / {subfolder}"
+        for subfolder in NATURA_PERSONAL_SUBFOLDERS
+    ]
+    existing = {
+        permission.folder_name: permission
+        for permission in db.query(FolderAccess).filter(
+            FolderAccess.user_id == user.id,
+            FolderAccess.folder_name.in_(folder_names),
+        ).all()
+    }
+    for folder_name in folder_names:
+        if folder_name not in existing:
+            db.add(FolderAccess(
+                user_id=user.id,
+                folder_name=folder_name,
+                can_read=True,
+                can_write=False,
+            ))
+
+    # Los responsables existentes reciben las nuevas carpetas sin perder su cobertura completa.
+    for manager_id in manager_ids:
+        if manager_id != user.id:
+            grant_natura_folder_access(db, manager_id, folder_names)
+    return folder_names
 
 @router.get("/birthdays", response_model=List[UserResponse])
 def get_birthdays(
@@ -258,7 +297,7 @@ def create_user(
         full_name=user_data.full_name,
         role_id=user_data.role_id,
         area_id=user_data.area_id,
-        is_natura_user=is_natura_manager_actor(db, admin_user),
+        is_natura_user=is_natura_manager_actor(db, admin_user) or is_natura_account(user_data.email),
         supervisor_id=user_data.supervisor_id,
         gender=user_data.gender,
         avatar_url=user_data.avatar_url or default_avatar,
@@ -267,6 +306,11 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    if db_user.is_natura_user:
+        provision_natura_personal_folders(db, db_user)
+        db.commit()
+        db.refresh(db_user)
 
     # Añadir permisos de carpeta si los hay
     if user_data.folder_permissions is not None:
