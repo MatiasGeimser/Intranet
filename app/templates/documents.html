@@ -1224,6 +1224,8 @@
        UPLOADER
        ────────────────────────────────────────────────────── */
     let pendingFileToUpload = null;
+    let uploadUsersCache = null;
+    let uploadUsersPromise = null;
 
     function isNaturaPersonalFolder() {
         return IS_NATURA_MANAGER && activeFolder.startsWith('Natura / CBE / ');
@@ -1265,7 +1267,13 @@
         personalNotice?.classList.toggle('hidden', !personalFolder);
         usersContainer?.classList.toggle('hidden', personalFolder || Boolean(publicCheckbox?.checked));
         
-        // Cargar colaboradores para el select
+        document.getElementById('upload-filename-display').textContent = pendingFileToUpload.name;
+        document.getElementById('upload-config-modal').style.display = 'flex';
+
+        // Las carpetas personales no necesitan cargar la lista de usuarios.
+        if (personalFolder) return;
+
+        // Cargar colaboradores solo cuando se necesitan y reutilizar la respuesta.
         const select = document.getElementById('upload-allowed-users');
         const search = document.getElementById('upload-user-search');
         if (search) search.value = '';
@@ -1284,9 +1292,15 @@
         if(titleEl) titleEl.textContent = "Configuración de Acceso (Cargando...)";
 
         try {
-            const response = await fetchAPI('/api/users/list-minimal');
-            if (response && response.ok) {
-                const users = await response.json();
+            if (!uploadUsersCache) {
+                uploadUsersPromise ||= fetchAPI('/api/users/list-minimal').then(async response => {
+                    if (!response || !response.ok) throw new Error(`Error API: ${response ? response.status : 'Nula'}`);
+                    return response.json();
+                });
+                uploadUsersCache = await uploadUsersPromise;
+            }
+            {
+                const users = uploadUsersCache;
                 const currentUserRole = "{{ user.role.name }}";
                 
                 if(titleEl) titleEl.textContent = `Configuración de Acceso (Encontrados: ${users.length})`;
@@ -1316,13 +1330,6 @@
                     optEmpty.textContent = `No hay usuarios compatibles (Tu rol: ${currentUserRole})`;
                     select.appendChild(optEmpty);
                 }
-            } else {
-                while (select.firstChild) select.removeChild(select.firstChild);
-                const optErr = document.createElement('option');
-                optErr.disabled = true;
-                optErr.textContent = `Error API: ${response ? response.status : 'Nula'}`;
-                select.appendChild(optErr);
-                if(titleEl) titleEl.textContent = "Configuración de Acceso (Error API)";
             }
         } catch(e) { 
             console.error("Error al cargar usuarios", e); 
@@ -1333,9 +1340,6 @@
             select.appendChild(optErrJS);
             if(titleEl) titleEl.textContent = "Configuración de Acceso (Error JS)";
         }
-        
-        document.getElementById('upload-filename-display').textContent = pendingFileToUpload.name;
-        document.getElementById('upload-config-modal').style.display = 'flex';
     }
 
     function closeUploadConfigModal() {
