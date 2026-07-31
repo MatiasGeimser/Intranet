@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # Carpetas para subida de archivos
     UPLOAD_DIR: str = os.path.join("static", "uploads")
 
+    # Supabase Storage privado para documentos grandes
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_PUBLISHABLE_KEY: Optional[str] = None
+    SUPABASE_SECRET_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+    SUPABASE_STORAGE_BUCKET: str = "intranet-documents"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

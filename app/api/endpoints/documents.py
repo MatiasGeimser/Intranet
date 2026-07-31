@@ -1,6 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -14,6 +14,7 @@ from app.services.audit_service import audit_service
 from app.models.user import User
 from app.models.folder_access import FolderAccess
 from app.services.natura_access import is_natura_manager
+from app.services.supabase_storage import SupabaseStorageError, supabase_storage
 
 router = APIRouter()
 
@@ -21,6 +22,20 @@ router = APIRouter()
 class FolderCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     parent: str = Field("Natura", min_length=1, max_length=100)
+
+
+class StorageUploadRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    folder: str = Field(..., min_length=1, max_length=100)
+    size_bytes: int = Field(..., gt=0)
+    content_type: str = Field("application/octet-stream", max_length=150)
+    is_public: bool = True
+    allowed_users: List[int] = Field(default_factory=list)
+
+
+class StorageFinalizeRequest(StorageUploadRequest):
+    object_path: str = Field(..., min_length=1, max_length=500)
+    upload_token: str = Field(..., min_length=1, max_length=500)
 
 
 def can_manage_documents(db: Session, current_user: User) -> bool:
@@ -67,6 +82,19 @@ def get_natura_personal_owner(db: Session, folder: str) -> User | None:
     if len(parts) < 3 or parts[0] != "Natura" or parts[1] != "CBE":
         return None
     return db.query(User).filter(func.lower(User.full_name) == parts[2].lower()).first()
+
+
+def resolve_upload_access(db: Session, current_user: User, folder: str, is_public: bool, allowed_users: List[int]):
+    if not user_can_manage_folder(folder, current_user, db):
+        raise HTTPException(status_code=403, detail="No tienes permisos para subir documentos en esta carpeta.")
+    personal_owner = None
+    if can_manage_documents(db, current_user):
+        personal_owner = get_natura_personal_owner(db, folder)
+        if folder.startswith("Natura / CBE /") and not personal_owner:
+            raise HTTPException(status_code=400, detail="No se pudo identificar al usuario dueño de esta carpeta Natura.")
+        if personal_owner:
+            return False, [personal_owner.id]
+    return is_public, allowed_users
 
 
 @router.get("", response_model=List[DocumentResponse])
@@ -208,6 +236,71 @@ def upload_document(
     return db_doc
 
 
+@router.post("/storage/session")
+def create_storage_upload_session(
+    payload: StorageUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Autoriza una carga directa a Supabase sin transportar el archivo por Vercel."""
+    is_public, allowed_users = resolve_upload_access(
+        db, current_user, payload.folder, payload.is_public, payload.allowed_users
+    )
+    if not supabase_storage.enabled:
+        raise HTTPException(status_code=503, detail="Supabase Storage no está configurado en este entorno.")
+    object_path = supabase_storage.make_object_path(payload.name)
+    try:
+        upload = supabase_storage.create_signed_upload(object_path)
+    except SupabaseStorageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        **upload,
+        "name": payload.name,
+        "folder": payload.folder,
+        "size_bytes": payload.size_bytes,
+        "content_type": payload.content_type,
+        "is_public": is_public,
+        "allowed_users": allowed_users,
+    }
+
+
+@router.post("/storage/finalize", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+def finalize_storage_upload(
+    payload: StorageFinalizeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Verifica que la carga terminó en Storage y crea el documento en la BD."""
+    is_public, allowed_users = resolve_upload_access(
+        db, current_user, payload.folder, payload.is_public, payload.allowed_users
+    )
+    if not payload.object_path.startswith("documents/"):
+        raise HTTPException(status_code=400, detail="Ruta de almacenamiento no válida.")
+    try:
+        if not supabase_storage.object_exists(payload.object_path, payload.size_bytes):
+            raise HTTPException(status_code=409, detail="La carga no terminó correctamente en Supabase Storage.")
+        db_doc = doc_service.save_storage_document(
+            db=db,
+            object_path=f"supabase://{supabase_storage.bucket}/{payload.object_path}",
+            original_name=payload.name,
+            folder=payload.folder,
+            uploader_id=current_user.id,
+            size_bytes=payload.size_bytes,
+            file_type=os.path.splitext(payload.name)[1].lstrip(".").lower() or payload.content_type.split("/")[-1].lower(),
+            is_public=is_public,
+            allowed_users_ids=allowed_users,
+        )
+    except SupabaseStorageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit_service.log_action(
+        db=db, user_id=current_user.id, action="document_upload",
+        ip_address=request.client.host if request.client else None,
+        details=f"Subió el archivo '{db_doc.name}' (versión {db_doc.version}, {db_doc.size_bytes} bytes) en la carpeta '{db_doc.folder}'",
+    )
+    return db_doc
+
+
 @router.get("/{doc_id}/preview")
 def preview_document(
     doc_id: int,
@@ -221,6 +314,23 @@ def preview_document(
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+
+    if doc.file_path.startswith("supabase://"):
+        bucket, object_path = doc.file_path[len("supabase://"):].split("/", 1)
+        if bucket != supabase_storage.bucket:
+            raise HTTPException(status_code=404, detail="El archivo no está disponible.")
+        try:
+            preview_url = supabase_storage.signed_download_url(object_path)
+        except SupabaseStorageError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "document": {
+                "id": doc.id, "name": doc.name, "file_type": doc.file_type,
+                "version": doc.version, "folder": doc.folder,
+                "size_bytes": doc.size_bytes, "created_at": doc.created_at,
+            },
+            "preview": {"mode": "binary", "file_type": doc.file_type, "preview_url": preview_url},
+        }
 
     try:
         preview = doc_service.read_document_preview(doc)
@@ -301,9 +411,6 @@ def download_document(
     if not user_can_access_document(doc, current_user, db):
         raise HTTPException(status_code=403, detail="No tienes acceso a este documento.")
 
-    if not os.path.exists(doc.file_path):
-        raise HTTPException(status_code=404, detail="El archivo físico no existe en el servidor.")
-
     # Registrar en auditoría la descarga de información confidencial
     audit_service.log_action(
         db=db,
@@ -313,7 +420,18 @@ def download_document(
         details=f"Descargó el archivo '{doc.name}' (ID {doc.id}, versión {doc.version})"
     )
 
-    # Retornar el archivo directamente
+    if doc.file_path.startswith("supabase://"):
+        bucket, object_path = doc.file_path[len("supabase://"):].split("/", 1)
+        if bucket != supabase_storage.bucket:
+            raise HTTPException(status_code=404, detail="El archivo no está disponible.")
+        try:
+            return RedirectResponse(supabase_storage.signed_download_url(object_path), status_code=307)
+        except SupabaseStorageError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="El archivo físico no existe en el servidor.")
+
     return FileResponse(
         path=doc.file_path,
         filename=doc.name,
@@ -335,8 +453,14 @@ def delete_document(
     if not user_can_manage_folder(doc.folder, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para eliminar documentos en esta carpeta.")
 
-    # Eliminar físicamente del disco si existe
-    if os.path.exists(doc.file_path):
+    if doc.file_path.startswith("supabase://"):
+        bucket, object_path = doc.file_path[len("supabase://"):].split("/", 1)
+        if bucket == supabase_storage.bucket:
+            try:
+                supabase_storage.delete_object(object_path)
+            except SupabaseStorageError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+    elif os.path.exists(doc.file_path):
         try:
             os.remove(doc.file_path)
         except Exception as e:

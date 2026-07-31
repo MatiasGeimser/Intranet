@@ -99,6 +99,48 @@ class DocService:
         return db_doc
 
     @staticmethod
+    def save_storage_document(
+        db: Session,
+        object_path: str,
+        original_name: str,
+        folder: str,
+        uploader_id: int,
+        size_bytes: int,
+        file_type: str,
+        is_public: bool = True,
+        allowed_users_ids: List[int] = None,
+    ) -> Document:
+        """Registra un objeto ya cargado directamente en Supabase Storage."""
+        original_name = DocService.sanitize_filename(original_name)[:100]
+        existing_docs = db.query(Document).filter(
+            Document.name == original_name,
+            Document.folder == folder,
+        ).order_by(Document.created_at.desc()).all()
+        version_num = 1
+        if existing_docs:
+            match = re.match(r"v(\d+)\.0", existing_docs[0].version or "")
+            version_num = int(match.group(1)) + 1 if match else len(existing_docs) + 1
+
+        db_doc = Document(
+            name=original_name,
+            file_path=object_path,
+            file_type=file_type,
+            size_bytes=size_bytes,
+            folder=folder,
+            uploader_id=uploader_id,
+            version=f"v{version_num}.0",
+            is_public=is_public,
+        )
+        if not is_public and allowed_users_ids:
+            from app.models.user import User
+            users = db.query(User).filter(User.id.in_(allowed_users_ids)).all()
+            db_doc.allowed_users.extend(users)
+        db.add(db_doc)
+        db.commit()
+        db.refresh(db_doc)
+        return db_doc
+
+    @staticmethod
     def read_document_preview(doc: Document) -> dict:
         """Genera los datos necesarios para visualizar o editar un documento."""
         file_path = os.path.normpath(doc.file_path)
