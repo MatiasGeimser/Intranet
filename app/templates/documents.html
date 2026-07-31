@@ -915,9 +915,9 @@
 
     let documentsRequestId = 0;
 
-    async function loadDocuments() {
+    async function loadDocuments({ showLoading = true } = {}) {
         const requestId = ++documentsRequestId;
-        showTableSkeleton();
+        if (showLoading) showTableSkeleton();
         try {
             const response = await fetchAPI(`/api/documents?folder=${encodeURIComponent(activeFolder)}`);
             if (requestId !== documentsRequestId) return;
@@ -1416,6 +1416,8 @@
 
             if (response && response.ok) {
                 const savedDocument = await response.json();
+                // Descarta cualquier lectura iniciada antes de que el archivo quedara registrado.
+                ++documentsRequestId;
                 if (savedDocument.folder === activeFolder) {
                     rawDocumentsList = [savedDocument, ...rawDocumentsList.filter(d => d.id !== savedDocument.id)];
                     renderDocuments(rawDocumentsList);
@@ -1423,7 +1425,8 @@
                     updateFolderCount(activeFolder, rawDocumentsList.length);
                 }
                 showToast('Archivo cargado y visible en la carpeta.', 'success');
-                loadDocuments();
+                // Revalida sin volver a ocultar la fila recién creada con el skeleton.
+                window.setTimeout(() => loadDocuments({ showLoading: false }), 400);
                 loadAllFolderCounts();
             } else if (response) {
                 const data = await response.json().catch(() => ({}));
