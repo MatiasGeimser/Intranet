@@ -96,6 +96,9 @@ from app.services.scheduler_service import scheduler_service
 @app.on_event("startup")
 def on_startup():
     """Siembra y configura automáticamente la base de datos local o Postgres."""
+    if os.environ.get("VERCEL"):
+        print("====== INTRANET SERVERLESS: se omite la siembra de arranque ======")
+        return
     db = SessionLocal()
     try:
         seed_database(db)

@@ -208,11 +208,15 @@
             btnText.innerText = "Verificando...";
 
             try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 20000);
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCookie('csrf_token') },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ email, password }),
+                    signal: controller.signal
                 });
+                clearTimeout(timeout);
 
                 const data = await response.json();
 

@@ -35,6 +35,15 @@ connect_args = {}
 if is_sqlite:
     # Evitar problemas de múltiples hilos en SQLite
     connect_args = {"check_same_thread": False}
+else:
+    connect_args = {
+        "connect_timeout": 10,
+        "sslmode": "require",
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 3,
+    }
 
 # Crear motor de base de datos
 engine = create_engine(
