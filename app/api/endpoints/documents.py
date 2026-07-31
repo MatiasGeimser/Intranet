@@ -124,6 +124,30 @@ def get_documents(
     return query.order_by(Document.created_at.desc()).all()
 
 
+@router.get("/counts")
+def get_document_counts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_document_reader),
+):
+    """Entrega los conteos por carpeta en una sola consulta, sin cargar documentos completos."""
+    query = db.query(Document.folder, func.count(Document.id).label("count"))
+    if not can_manage_documents(db, current_user):
+        allowed_folders = [permission.folder_name for permission in current_user.folder_permissions if permission.can_read]
+        if not allowed_folders:
+            return []
+        visibility_filter = (
+            (Document.is_public == True)
+            | (Document.uploader_id == current_user.id)
+            | (Document.allowed_users.any(User.id == current_user.id))
+        )
+        query = query.filter(Document.folder.in_(allowed_folders)).filter(visibility_filter)
+
+    return [
+        {"folder": folder, "count": count}
+        for folder, count in query.group_by(Document.folder).all()
+    ]
+
+
 @router.get("/folders")
 def get_accessible_folders(
     db: Session = Depends(get_db),
