@@ -31,7 +31,7 @@
 {% block content %}
 
 <!-- FILA PRINCIPAL: TABLERO SCRUM ESTILO JIRA (ANCHO COMPLETO) -->
-{% if user.role.name != 'Usuario' %}
+{% if user.is_active %}
 <div class="glass-card p-6 rounded-3xl shadow-sm flex flex-col min-h-[600px] w-full">
     
     <!-- Encabezado del Tablero Scrum -->
@@ -853,7 +853,7 @@
             `;
         }
 
-        const isManagement = userRole === 'Administrador';
+        const canDelete = task.created_by_id === currentUserId && task.assigned_to_user_id === currentUserId;
 
         return `
             <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 cursor-grab active:cursor-grabbing bg-white/95" draggable="true" ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)">
@@ -861,7 +861,7 @@
                     <span class="text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 bg-blue-corp/5 text-blue-corp rounded-lg border border-blue-corp/10 truncate max-w-[130px]" title="${projectName}">
                         ${projectName}
                     </span>
-                    ${isManagement || task.created_by_id === currentUserId ? `
+                    ${canDelete ? `
                         <button onclick="deleteTask(${task.id}, event)" class="w-5 h-5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-all flex-shrink-0" title="Eliminar Tarea">
                             <i class="fa-regular fa-trash-can text-[10px]"></i>
                         </button>

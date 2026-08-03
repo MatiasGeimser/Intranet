@@ -117,6 +117,12 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             return True
         if role_name == "Supervisor" and (path == "/admin" or path.startswith("/api/users") or path.startswith("/api/areas") or path.startswith("/api/roles")):
             return True
+        if path in {"/", "/dashboard"}:
+            return True
+        if path.startswith("/api/notes") and method == "GET":
+            return True
+        if path.startswith("/api/tasks") and method in {"GET", "PUT"}:
+            return True
         if path in RoleAccessMiddleware.member_pages:
             return True
         if path.startswith("/api/auth/"):

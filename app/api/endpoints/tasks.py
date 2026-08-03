@@ -12,23 +12,24 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
+
+def is_task_assignee(task: Task, user: User) -> bool:
+    return task.assigned_to_user_id == user.id
+
+
+def is_task_owner(task: Task, user: User) -> bool:
+    """El creador conserva control total solo mientras la tarea sea para sí mismo."""
+    return task.created_by_id == user.id and is_task_assignee(task, user)
+
 @router.get("/", response_model=List[TaskOut])
 def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
-    if current_user.role.name == "Administrador":
-        tasks = db.query(Task).filter(Task.daily_task_config_id.is_(None)).order_by(Task.created_at.desc()).all()
-    else:
-        # Regular users (including Supervisors) see tasks assigned to them or created by them
-        tasks = db.query(Task).filter(
-            Task.daily_task_config_id.is_(None),
-            or_(
-                Task.assigned_to_user_id == current_user.id,
-                Task.created_by_id == current_user.id
-            )
-        ).order_by(Task.created_at.desc()).all()
-    return tasks
+    return db.query(Task).filter(
+        Task.daily_task_config_id.is_(None),
+        Task.assigned_to_user_id == current_user.id,
+    ).order_by(Task.created_at.desc()).all()
 
 @router.post("/", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
 def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -41,8 +42,18 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
             detail="Únicamente los administradores pueden crear tareas."
         )
 
+    if task_in.assigned_to_role_id is not None:
+        raise HTTPException(status_code=400, detail="Las tareas Scrum deben asignarse a una persona específica.")
+
+    assignee_id = task_in.assigned_to_user_id or current_user.id
+    assignee = db.query(User).filter(User.id == assignee_id, User.is_active.is_(True)).first()
+    if not assignee:
+        raise HTTPException(status_code=400, detail="Selecciona un usuario activo para asignar la tarea.")
+
+    task_data = task_in.dict()
+    task_data["assigned_to_user_id"] = assignee_id
     db_task = Task(
-        **task_in.dict(),
+        **task_data,
         created_by_id=current_user.id
     )
     db.add(db_task)
@@ -76,22 +87,24 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    is_management = current_user.role.name == "Administrador"
-    
-    # Check permissions
-    if not is_management and db_task.assigned_to_user_id != current_user.id:
+    if not is_task_assignee(db_task, current_user):
         raise HTTPException(status_code=403, detail="No tienes autorización para acceder o actualizar esta tarea")
-        
+
     old_assignee_id = db_task.assigned_to_user_id
-    
-    # Just update the fields
+    can_manage_before_update = is_task_owner(db_task, current_user)
     update_data = task_in.dict(exclude_unset=True)
-    
-    # Standard user can ONLY change the status of the task
-    if not is_management:
+
+    if not can_manage_before_update:
         allowed_fields = {"status"}
         update_data = {k: v for k, v in update_data.items() if k in allowed_fields}
-        
+    elif update_data.get("assigned_to_role_id") is not None:
+        raise HTTPException(status_code=400, detail="Las tareas Scrum deben asignarse a una persona específica.")
+    elif "assigned_to_user_id" in update_data:
+        assignee_id = update_data["assigned_to_user_id"]
+        assignee = db.query(User).filter(User.id == assignee_id, User.is_active.is_(True)).first() if assignee_id else None
+        if not assignee:
+            raise HTTPException(status_code=400, detail="Selecciona un usuario activo para asignar la tarea.")
+
     for field, value in update_data.items():
         setattr(db_task, field, value)
         
@@ -105,8 +118,8 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_task)
     
-    # Enviar correo si el asignado cambió y no es nulo (solo gestionado por admin/supervisor)
-    if is_management and db_task.assigned_to_user_id and db_task.assigned_to_user_id != old_assignee_id:
+    # Notificar solo si el creador reasignó una tarea propia a otra persona.
+    if can_manage_before_update and db_task.assigned_to_user_id != old_assignee_id:
         recipient = db.query(User).filter(User.id == db_task.assigned_to_user_id).first()
         if recipient:
             from app.models.note import Note
@@ -131,10 +144,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    is_management = current_user.role.name == "Administrador"
-    
-    # Creator or Admins/Supervisors can delete
-    if not is_management and db_task.created_by_id != current_user.id:
+    if not is_task_owner(db_task, current_user):
         raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         
     db.delete(db_task)

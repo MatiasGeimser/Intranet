@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from typing import List
 
 from app.core.database import get_db
@@ -17,19 +16,14 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Obtiene las notas pertenecientes al área del usuario (o todas si es admin) con sus tareas filtradas por rol.
     """
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
-    
     if current_user.role.name != "Administrador":
         db_notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
         notes_out = []
         for note in db_notes:
-            if is_management:
-                filtered_tasks = note.tasks
-            else:
-                filtered_tasks = [
-                    t for t in note.tasks 
-                    if t.assigned_to_user_id == current_user.id
-                ]
+            filtered_tasks = [
+                task for task in note.tasks
+                if task.daily_task_config_id is None and task.assigned_to_user_id == current_user.id
+            ]
             note_dict = {
                 "id": note.id,
                 "title": note.title,
@@ -41,7 +35,18 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
             notes_out.append(note_dict)
         return notes_out
     else:
-        return db.query(Note).order_by(Note.created_at.desc()).all()
+        notes = db.query(Note).order_by(Note.created_at.desc()).all()
+        return [{
+            "id": note.id,
+            "title": note.title,
+            "area_id": note.area_id,
+            "created_by_id": note.created_by_id,
+            "created_at": note.created_at,
+            "tasks": [
+                task for task in note.tasks
+                if task.daily_task_config_id is None and task.assigned_to_user_id == current_user.id
+            ],
+        } for note in notes]
 
 @router.post("", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(note_in: NoteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -77,10 +82,10 @@ def delete_note(note_id: int, db: Session = Depends(get_db), current_user: User 
     if not db_note:
         raise HTTPException(status_code=404, detail="Nota no encontrada.")
         
-    is_management = current_user.role.name in ["Administrador", "Supervisor"]
-    
-    if not is_management and db_note.created_by_id != current_user.id:
+    if db_note.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado para eliminar este proyecto/nota.")
+    if any(task.assigned_to_user_id != current_user.id for task in db_note.tasks if task.daily_task_config_id is None):
+        raise HTTPException(status_code=409, detail="No puedes eliminar un proyecto que contiene tareas asignadas a otras personas.")
         
     db.delete(db_note)
     db.commit()
