@@ -31,6 +31,14 @@ class Task(Base):
     assigned_role = relationship("Role", foreign_keys=[assigned_to_role_id], back_populates="tasks")
     note = relationship("Note", back_populates="tasks")
 
+    @property
+    def creator_name(self):
+        return self.creator.full_name if self.creator else None
+
+    @property
+    def assigned_to_name(self):
+        return self.assigned_user.full_name if self.assigned_user else None
+
 class DailyTaskConfig(Base):
     __tablename__ = "daily_task_configs"
 

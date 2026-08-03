@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List
 from datetime import datetime
@@ -26,7 +26,10 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
-    return db.query(Task).filter(
+    return db.query(Task).options(
+        selectinload(Task.creator),
+        selectinload(Task.assigned_user),
+    ).filter(
         Task.daily_task_config_id.is_(None),
         or_(
             Task.assigned_to_user_id == current_user.id,
@@ -162,9 +165,15 @@ def read_daily_task_instances(db: Session = Depends(get_db), current_user: User 
     Retrieve generated daily tasks (instances) assigned to the current user.
     """
     if current_user.role.name == "Administrador":
-        tasks = db.query(Task).filter(Task.daily_task_config_id.isnot(None)).order_by(Task.created_at.desc()).all()
+        tasks = db.query(Task).options(
+            selectinload(Task.creator),
+            selectinload(Task.assigned_user),
+        ).filter(Task.daily_task_config_id.isnot(None)).order_by(Task.created_at.desc()).all()
     else:
-        tasks = db.query(Task).filter(
+        tasks = db.query(Task).options(
+            selectinload(Task.creator),
+            selectinload(Task.assigned_user),
+        ).filter(
             Task.daily_task_config_id.isnot(None),
             or_(
                 Task.assigned_to_user_id == current_user.id,

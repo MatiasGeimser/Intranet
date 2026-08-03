@@ -26,6 +26,8 @@ class TaskUpdate(BaseModel):
 class TaskOut(TaskBase):
     id: int
     created_by_id: int
+    creator_name: Optional[str] = None
+    assigned_to_name: Optional[str] = None
     created_at: datetime
     daily_task_config_id: Optional[int] = None
     completed_at: Optional[datetime] = None

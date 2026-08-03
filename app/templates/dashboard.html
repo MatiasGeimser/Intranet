@@ -346,6 +346,30 @@
 </div>
 {% endif %}
 
+<!-- Detalle de tarea -->
+<div id="taskDetailsModal" onclick="if (event.target === this) closeTaskDetails()" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transform scale-95 transition-transform duration-200">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-blue-corp/10 text-blue-corp flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-clipboard-list text-sm"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-bold uppercase text-grey-main">Detalle de la tarea</p>
+                    <h3 id="taskDetailsTitle" class="text-sm font-bold text-black-dark truncate"></h3>
+                </div>
+            </div>
+            <button onclick="closeTaskDetails()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Cerrar">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="taskDetailsContent" class="p-6 space-y-5"></div>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <button onclick="closeTaskDetails()" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold transition-colors">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Tareas Diarias (Solo Admin/Supervisor) -->
 {% if user.role.name in ['Administrador', 'Supervisor'] %}
 <div id="dailyTasksModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
@@ -857,7 +881,7 @@
         const canUpdateStatus = task.assigned_to_user_id === currentUserId;
 
         return `
-            <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 ${canUpdateStatus ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'} bg-white/95" draggable="${canUpdateStatus}" ${canUpdateStatus ? `ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)"` : ''}>
+            <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 ${canUpdateStatus ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} bg-white/95" draggable="${canUpdateStatus}" onclick="openTaskDetails(${task.id})" role="button" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTaskDetails(${task.id}); }" ${canUpdateStatus ? `ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)"` : ''}>
                 <div class="flex items-start justify-between gap-2">
                     <span class="text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 bg-blue-corp/5 text-blue-corp rounded-lg border border-blue-corp/10 truncate max-w-[130px]" title="${projectName}">
                         ${projectName}
@@ -883,6 +907,90 @@
                 </div>
             </div>
         `;
+    }
+
+    function escapeTaskHtml(value) {
+        const element = document.createElement("div");
+        element.textContent = value || "";
+        return element.innerHTML;
+    }
+
+    function formatTaskDate(value, options = {}) {
+        if (!value) return "Sin fecha";
+        return new Date(value).toLocaleString("es-CL", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            ...options
+        });
+    }
+
+    function closeTaskDetails() {
+        const modal = document.getElementById("taskDetailsModal");
+        const content = modal.querySelector(".transform");
+        modal.classList.add("opacity-0");
+        content.classList.add("scale-95");
+        setTimeout(() => modal.classList.add("hidden"), 200);
+    }
+
+    function openTaskDetails(taskId) {
+        const task = tasksList.find(item => item.id === taskId);
+        if (!task) return;
+
+        const assignee = task.assigned_to_name || usersMap[task.assigned_to_user_id]?.full_name || "Sin asignar";
+        const creator = task.creator_name || usersMap[task.created_by_id]?.full_name || "No disponible";
+        const project = notesList.find(note => note.id === task.note_id)?.title || "General";
+        const statusLabels = {
+            pending: "Por hacer", todo: "Por hacer", inprogress: "En curso",
+            inreview: "En revisión", completed: "Finalizada", done: "Finalizada"
+        };
+        const status = statusLabels[task.status] || task.status;
+        const completedAt = task.completed_at ? `
+            <div>
+                <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Finalizada</p>
+                <p class="text-xs text-black-dark">${formatTaskDate(task.completed_at)}</p>
+            </div>` : "";
+
+        document.getElementById("taskDetailsTitle").textContent = task.title;
+        document.getElementById("taskDetailsContent").innerHTML = `
+            <div>
+                <p class="text-[10px] font-bold uppercase text-grey-main mb-1.5">Solicitud</p>
+                <p class="text-xs leading-relaxed text-black-dark whitespace-pre-wrap break-words">${escapeTaskHtml(task.description || "No se agregaron detalles para esta tarea.")}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-x-5 gap-y-4 border-y border-gray-100 py-4">
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Asignada por</p>
+                    <p class="text-xs font-semibold text-black-dark">${escapeTaskHtml(creator)}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Encargado</p>
+                    <p class="text-xs font-semibold text-black-dark">${escapeTaskHtml(assignee)}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Proyecto</p>
+                    <p class="text-xs text-black-dark">${escapeTaskHtml(project)}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Estado</p>
+                    <p class="text-xs font-semibold text-blue-corp">${escapeTaskHtml(status)}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Creada</p>
+                    <p class="text-xs text-black-dark">${formatTaskDate(task.created_at)}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Vencimiento</p>
+                    <p class="text-xs text-black-dark">${formatTaskDate(task.due_date, { timeStyle: undefined })}</p>
+                </div>
+                ${completedAt}
+            </div>`;
+
+        const modal = document.getElementById("taskDetailsModal");
+        const content = modal.querySelector(".transform");
+        modal.classList.remove("hidden");
+        setTimeout(() => {
+            modal.classList.remove("opacity-0");
+            content.classList.remove("scale-95");
+        }, 10);
     }
 
     // ============================================================
