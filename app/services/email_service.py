@@ -1,8 +1,10 @@
+import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class EmailService:
     @staticmethod
@@ -13,7 +15,7 @@ class EmailService:
         assigner_name: str,
         note_title: str
     ) -> bool:
-        """Envia un correo de asignación de tarea. Utiliza SMTP si está configurado; de lo contrario, simula el envío."""
+        """Envía una notificación institucional al asignar una tarea."""
         subject = f"Nueva tarea asignada: {task_title}"
         
         # Plantilla HTML con diseño corporativo premium
@@ -137,7 +139,7 @@ class EmailService:
                     </div>
                     
                     <div class="btn-container">
-                        <a href="http://localhost:8000/dashboard" class="btn" style="color: #FFFFFF;">Ver en Intranet</a>
+                        <a href="{settings.APP_BASE_URL.rstrip('/')}/dashboard" class="btn" style="color: #FFFFFF;">Ver en Intranet</a>
                     </div>
                 </div>
                 <div class="footer">
@@ -149,41 +151,37 @@ class EmailService:
         """
 
         # Verificar si SMTP está configurado
-        smtp_user = getattr(settings, "SMTP_USER", None)
-        smtp_password = getattr(settings, "SMTP_PASSWORD", None)
-        smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-        smtp_port = getattr(settings, "SMTP_PORT", 587)
-        smtp_sender = getattr(settings, "SMTP_SENDER", "noreply@intranet.local")
+        smtp_user = settings.SMTP_USER
+        smtp_password = settings.SMTP_PASSWORD
+        smtp_host = settings.SMTP_HOST
+        smtp_port = settings.SMTP_PORT
+        smtp_sender = settings.SMTP_SENDER
 
-        # Imprimir log de simulación (siempre se genera para auditoría)
-        print(f"\n====== [ENVIO DE CORREO DETECTADO] ======")
-        print(f"Para: {recipient_name} <{recipient_email}>")
-        print(f"Asunto: {subject}")
-        print(f"Asignador: {assigner_name}")
-        print(f"Proyecto: {note_title}")
-        print(f"===========================================\n")
+        logger.info("Enviando notificación de tarea a %s.", recipient_email)
 
         if not smtp_user or not smtp_password:
-            print("====== [AVISO] SMTP no configurado. Correo simulado correctamente. ======")
-            return True
+            logger.error("SMTP no configurado: no se pudo enviar la notificación a %s.", recipient_email)
+            return False
 
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = smtp_sender
+            msg["From"] = f"{settings.SMTP_FROM_NAME} <{smtp_sender}>"
             msg["To"] = recipient_email
 
             part = MIMEText(html_content, "html")
             msg.attach(part)
 
             # Enviar por SMTP
-            server = smtplib.SMTP(smtp_host, smtp_port)
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(smtp_user, smtp_password)
             server.sendmail(smtp_sender, [recipient_email], msg.as_string())
             server.quit()
-            print("====== [ÉXITO] Correo enviado exitosamente vía SMTP. ======")
+            logger.info("Notificación de tarea enviada a %s.", recipient_email)
             return True
-        except Exception as e:
-            print(f"====== [ERROR SMTP] No se pudo enviar el correo: {e} ======")
+        except Exception:
+            logger.exception("No se pudo enviar la notificación de tarea a %s.", recipient_email)
             return False

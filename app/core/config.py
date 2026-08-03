@@ -32,7 +32,9 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
-    SMTP_SENDER: str = "noreply@intranet.local"
+    SMTP_SENDER: str = "no-reply@geimser.cl"
+    SMTP_FROM_NAME: str = "GEIMSER Intranet"
+    APP_BASE_URL: str = "https://intranet.geimser.cl"
 
     # Carpetas para subida de archivos
     UPLOAD_DIR: str = os.path.join("static", "uploads")
