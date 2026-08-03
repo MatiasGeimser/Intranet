@@ -8,6 +8,7 @@ class EventBase(BaseModel):
     start_date: datetime
     end_date: datetime
     event_type: str = Field("internal", max_length=50) # birthday, internal, reminder
+    is_shared: bool = False
 
 class EventCreate(EventBase):
     @model_validator(mode='after')
@@ -22,6 +23,7 @@ class EventUpdate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     event_type: Optional[str] = None
+    is_shared: Optional[bool] = None
 
 class CreatorSimple(BaseModel):
     id: int
@@ -36,6 +38,7 @@ class EventResponse(EventBase):
     creator_id: int
     creator: CreatorSimple
     created_at: datetime
+    is_holiday: bool = False
 
     class Config:
         from_attributes = True

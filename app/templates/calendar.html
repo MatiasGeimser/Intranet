@@ -32,6 +32,7 @@
                     <option value="internal">Eventos Internos</option>
                     <option value="birthday">Cumpleaños</option>
                     <option value="reminder">Recordatorios</option>
+                    <option value="holiday">Feriados de Chile</option>
                 </select>
                 
                 {% if user.role.name == 'Administrador' or 'events:manage' in user_perms %}
@@ -46,18 +47,16 @@
         <!-- Cuadrícula del Calendario (Días de la semana y casillas) -->
         <div class="glass-card p-6 rounded-3xl shadow-sm">
             <!-- Cabecera de días -->
-            <div class="grid grid-cols-7 gap-2 text-center text-[10px] font-bold text-grey-main uppercase tracking-wider mb-4">
-                <div>Dom</div>
+            <div class="grid grid-cols-5 gap-2 text-center text-[10px] font-bold text-grey-main uppercase tracking-wider mb-4">
                 <div>Lun</div>
                 <div>Mar</div>
                 <div>Mié</div>
                 <div>Jue</div>
                 <div>Vie</div>
-                <div>Sáb</div>
             </div>
             
             <!-- Casillas del mes (JS dinámico) -->
-            <div id="calendar-grid" class="grid grid-cols-7 gap-2 min-h-[350px]">
+            <div id="calendar-grid" class="grid grid-cols-5 gap-2 min-h-[350px]">
                 <!-- Días inyectados dinámicamente -->
             </div>
         </div>
@@ -135,6 +134,14 @@
                         <option value="reminder">Alerta / Recordatorio Importante</option>
                     </select>
                 </div>
+
+                <label class="flex items-start gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl cursor-pointer">
+                    <input type="checkbox" id="event-shared" class="mt-0.5 w-4 h-4 text-[#049DD9] border-gray-300 rounded focus:ring-[#049DD9]">
+                    <span>
+                        <span class="block text-xs font-semibold text-black-dark">Compartir con la organización</span>
+                        <span class="block text-[10px] text-grey-main mt-0.5">Si no se activa, solo tú podrás ver este evento.</span>
+                    </span>
+                </label>
                 
                 <div class="flex items-center space-x-3 pt-3">
                     <button type="button" onclick="closeEventModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition-all">Cancelar</button>
@@ -158,7 +165,7 @@
 
     async function loadEvents() {
         try {
-            const response = await fetchAPI("/api/events");
+            const response = await fetchAPI(`/api/events?year=${currentDate.getFullYear()}`);
             if (response && response.ok) {
                 eventsData = await response.json();
                 renderCalendar();
@@ -173,8 +180,7 @@
     // Navegación de meses
     function navigateMonth(direction) {
         currentDate.setMonth(currentDate.getMonth() + direction);
-        renderCalendar();
-        renderSidebars();
+        loadEvents();
     }
 
     // Renderizar la cuadrícula del calendario
@@ -192,25 +198,27 @@
         ];
         document.getElementById("calendar-month-year").innerText = `${monthsNames[month]} ${year}`;
 
-        // Obtener el primer día del mes y total de días
-        const firstDayIndex = new Date(year, month, 1).getDay();
+        // El calendario laboral comienza el lunes y solo muestra lunes a viernes.
+        const firstDayIndex = (new Date(year, month, 1).getDay() + 6) % 7;
         const totalDays = new Date(year, month + 1, 0).getDate();
-        const totalDaysPrev = new Date(year, month, 0).getDate();
 
         // Filtro seleccionado
         const filterType = document.getElementById("event-type-filter").value;
 
-        // Inyectar días del mes anterior (para rellenar la primera fila)
-        for (let i = firstDayIndex - 1; i >= 0; i--) {
+        // Rellenar solo los días laborales previos del mes para alinear la primera semana.
+        for (let i = 0; i < Math.min(firstDayIndex, 5); i++) {
             const dayDiv = document.createElement("div");
-            dayDiv.className = "p-2 bg-gray-50 border border-gray-100 rounded-2xl min-h-[75px] opacity-40 select-none text-right text-[10px] font-bold text-gray-400";
-            dayDiv.innerText = totalDaysPrev - i;
+            dayDiv.className = "p-2 bg-gray-50 border border-gray-100 rounded-2xl min-h-[75px] opacity-40 select-none";
             grid.appendChild(dayDiv);
         }
 
         // Inyectar días del mes activo
         const today = new Date();
         for (let day = 1; day <= totalDays; day++) {
+            const cellDate = new Date(year, month, day);
+            const dayOfWeek = cellDate.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
             const dayDiv = document.createElement("div");
             
             // Comprobar si es "hoy" para destacarlo
@@ -225,17 +233,18 @@
             const dayEventsContainer = document.createElement("div");
             dayEventsContainer.className = "space-y-1 mt-1 overflow-y-auto max-h-[55px] pr-0.5";
             
-            const cellDate = new Date(year, month, day);
             cellDate.setHours(0,0,0,0);
             
             const dayEvents = eventsData.filter(e => {
                 const eventStart = new Date(e.start_date);
                 eventStart.setHours(0,0,0,0);
+                const eventEnd = new Date(e.end_date);
+                eventEnd.setHours(0,0,0,0);
                 
                 // Si hay filtro activo
                 if (filterType !== 'all' && e.event_type !== filterType) return false;
                 
-                return eventStart.getTime() === cellDate.getTime();
+                return eventStart.getTime() <= cellDate.getTime() && eventEnd.getTime() >= cellDate.getTime();
             });
 
             dayEvents.forEach(e => {
@@ -248,6 +257,7 @@
                 let colorClass = "bg-blue-corp text-white hover:bg-blue-corp/90";
                 if (e.event_type === 'birthday') colorClass = "bg-pink-500 text-white hover:bg-pink-500/90";
                 else if (e.event_type === 'reminder') colorClass = "bg-amber-500 text-white hover:bg-amber-500/90";
+                else if (e.event_type === 'holiday') colorClass = "bg-red-500 text-white hover:bg-red-600";
                 
                 evDiv.className = `w-full text-left text-[8px] font-extrabold px-1.5 py-0.5 rounded-md truncate transition-colors ${colorClass}`;
                 evDiv.innerText = e.title;
@@ -267,7 +277,9 @@
         
         let detailsText = `${e.title}\n\nHora: ${dateStr} a ${dateEndStr}\n\n`;
         if (e.description) detailsText += `Descripción: ${e.description}\n\n`;
-        detailsText += `Agendado por: ${e.creator.full_name}`;
+        detailsText += e.is_holiday
+            ? "Feriado oficial de Chile."
+            : `Agendado por: ${e.creator.full_name}${e.is_shared ? " (compartido)" : " (privado)"}`;
         
         alert(detailsText);
     }
@@ -287,6 +299,8 @@
         } else {
             birthdays.forEach(b => {
                 const bDate = new Date(b.start_date).getDate();
+                const isHoliday = u.event_type === 'holiday';
+                const accentClass = isHoliday ? 'bg-red-500/10 text-red-600' : 'bg-blue-corp/10 text-blue-corp';
                 const div = document.createElement("div");
                 div.className = "flex items-center space-x-3 p-2.5 bg-pink-500/5 hover:bg-pink-500/10 border border-pink-500/10 rounded-2xl transition-all";
                 div.innerHTML = `
@@ -325,13 +339,13 @@
                 const div = document.createElement("div");
                 div.className = "flex items-start space-x-3 p-2.5 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white transition-all";
                 div.innerHTML = `
-                    <div class="w-10 h-10 rounded-xl bg-blue-corp/10 flex flex-col items-center justify-center text-blue-corp flex-shrink-0">
+                    <div class="w-10 h-10 rounded-xl ${accentClass} flex flex-col items-center justify-center flex-shrink-0">
                         <span class="text-[9px] font-bold uppercase -mb-0.5">${evDate.toLocaleDateString('es-ES', {month: 'short'}).replace('.', '')}</span>
                         <span class="text-xs font-extrabold">${evDate.getDate()}</span>
                     </div>
                     <div class="min-w-0 flex-1">
                         <h5 class="text-xs font-bold text-black-dark truncate">${u.title}</h5>
-                        <p class="text-[9px] text-[#8C8C8C] font-semibold">${timeStr} • ${u.creator.full_name}</p>
+                        <p class="text-[9px] text-[#8C8C8C] font-semibold">${isHoliday ? 'Feriado de Chile' : `${timeStr} • ${u.creator.full_name}`}</p>
                     </div>
                 `;
                 uList.appendChild(div);
@@ -356,6 +370,7 @@
         const start_date = document.getElementById('event-start').value;
         const end_date = document.getElementById('event-end').value;
         const event_type = document.getElementById('event-type').value;
+        const is_shared = document.getElementById('event-shared').checked;
 
         if (new Date(start_date) > new Date(end_date)) {
             showToast("La fecha de cierre debe ser posterior a la de inicio.", "error");
@@ -365,7 +380,7 @@
         try {
             const response = await fetchAPI('/api/events', {
                 method: 'POST',
-                body: { title, description: description || null, start_date, end_date, event_type }
+                body: { title, description: description || null, start_date, end_date, event_type, is_shared }
             });
 
             if (response && response.ok) {

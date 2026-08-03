@@ -103,6 +103,17 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (admin_chat_messages.recipient_id): {e} ======")
 
+    # Los eventos son privados por defecto y solo se muestran a todos cuando su creador lo indica.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_shared BOOLEAN NOT NULL DEFAULT FALSE"))
+        else:
+            db.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS is_shared BOOLEAN NOT NULL DEFAULT 0"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (events.is_shared): {e} ======")
+
     try:
         migrate_natura_document_structure(db)
         print("====== ESTRUCTURA NATURA NORMALIZADA Y CARPETAS COMPARTIDAS VERIFICADAS ======")

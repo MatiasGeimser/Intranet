@@ -119,6 +119,8 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             return True
         if path in {"/", "/dashboard"}:
             return True
+        if path == "/calendar" or (path.startswith("/api/events") and method == "GET"):
+            return True
         if path.startswith("/api/notes") and method == "GET":
             return True
         if path.startswith("/api/tasks") and method in {"GET", "PUT"}:

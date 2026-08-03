@@ -143,7 +143,7 @@ def calendar_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name not in ["Administrador", "Usuario"] and "events:manage" not in permissions:
+    if user.role.name != "Administrador" and not {"events:read", "events:manage"}.intersection(permissions):
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="calendar.html", context={
