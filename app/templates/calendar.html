@@ -299,8 +299,6 @@
         } else {
             birthdays.forEach(b => {
                 const bDate = new Date(b.start_date).getDate();
-                const isHoliday = u.event_type === 'holiday';
-                const accentClass = isHoliday ? 'bg-red-500/10 text-red-600' : 'bg-blue-corp/10 text-blue-corp';
                 const div = document.createElement("div");
                 div.className = "flex items-center space-x-3 p-2.5 bg-pink-500/5 hover:bg-pink-500/10 border border-pink-500/10 rounded-2xl transition-all";
                 div.innerHTML = `
@@ -335,6 +333,8 @@
                 const evDate = new Date(u.start_date);
                 const dayStr = evDate.toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
                 const timeStr = evDate.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+                const isHoliday = u.event_type === 'holiday';
+                const accentClass = isHoliday ? 'bg-red-500/10 text-red-600' : 'bg-blue-corp/10 text-blue-corp';
                 
                 const div = document.createElement("div");
                 div.className = "flex items-start space-x-3 p-2.5 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white transition-all";
