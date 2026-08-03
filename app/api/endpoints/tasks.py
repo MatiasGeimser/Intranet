@@ -28,7 +28,10 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     return db.query(Task).filter(
         Task.daily_task_config_id.is_(None),
-        Task.assigned_to_user_id == current_user.id,
+        or_(
+            Task.assigned_to_user_id == current_user.id,
+            Task.created_by_id == current_user.id,
+        ),
     ).order_by(Task.created_at.desc()).all()
 
 @router.post("/", response_model=TaskOut, status_code=status.HTTP_201_CREATED)

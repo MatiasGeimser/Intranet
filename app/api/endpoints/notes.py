@@ -22,7 +22,8 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
         for note in db_notes:
             filtered_tasks = [
                 task for task in note.tasks
-                if task.daily_task_config_id is None and task.assigned_to_user_id == current_user.id
+                if task.daily_task_config_id is None
+                and (task.assigned_to_user_id == current_user.id or task.created_by_id == current_user.id)
             ]
             note_dict = {
                 "id": note.id,
@@ -44,7 +45,8 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
             "created_at": note.created_at,
             "tasks": [
                 task for task in note.tasks
-                if task.daily_task_config_id is None and task.assigned_to_user_id == current_user.id
+                if task.daily_task_config_id is None
+                and (task.assigned_to_user_id == current_user.id or task.created_by_id == current_user.id)
             ],
         } for note in notes]
 
