@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List
@@ -104,7 +104,13 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
     return db_task
 
 @router.put("/{task_id}", response_model=TaskOut)
-def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_task(
+    task_id: int,
+    task_in: TaskUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Update a task. Standard users can only update the task status if it is assigned to them.
     Admins and Supervisors can update any task fields.
@@ -162,13 +168,15 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
             )
 
     # Avisar al creador cada vez que el encargado mueve la tarea entre columnas.
+    # El SMTP no debe retrasar el movimiento de la tarjeta para quien la actualiza.
     if "status" in update_data and db_task.status != old_status:
         creator = db.query(User).filter(User.id == db_task.created_by_id, User.is_active.is_(True)).first()
         if creator:
             from app.models.note import Note
             from app.services.email_service import EmailService
             note = db.query(Note).filter(Note.id == db_task.note_id).first() if db_task.note_id else None
-            EmailService.send_task_status_changed_email(
+            background_tasks.add_task(
+                EmailService.send_task_status_changed_email,
                 recipient_email=creator.email,
                 recipient_name=creator.full_name,
                 task_title=db_task.title,

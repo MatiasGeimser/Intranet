@@ -1044,6 +1044,26 @@
         const taskId = draggedTaskId || event.dataTransfer.getData("text/plain");
         if (!taskId) return;
 
+        const taskIndex = tasksList.findIndex(task => String(task.id) === String(taskId));
+        if (taskIndex === -1) return;
+
+        const previousTask = { ...tasksList[taskIndex] };
+        if (previousTask.status === targetStatus) {
+            draggedTaskId = null;
+            return;
+        }
+
+        // Mover visualmente sin esperar a la red. Si la API rechaza el cambio,
+        // se restaura la tarjeta exactamente donde estaba.
+        tasksList[taskIndex] = {
+            ...previousTask,
+            status: targetStatus,
+            completed_at: ["done", "completed"].includes(targetStatus)
+                ? new Date().toISOString()
+                : null
+        };
+        renderScrumBoard();
+
         try {
             const response = await fetchAPI(`/api/tasks/${taskId}`, {
                 method: "PUT",
@@ -1053,18 +1073,20 @@
             if (response && response.ok) {
                 showToast("Estado de la tarea actualizado con éxito.", "success");
                 
-                // Actualizar localmente la lista de tareas y refrescar tablero
                 const updatedTask = await response.json();
-                const idx = tasksList.findIndex(t => t.id === updatedTask.id);
+                const idx = tasksList.findIndex(t => String(t.id) === String(updatedTask.id));
                 if (idx !== -1) {
                     tasksList[idx] = updatedTask;
                 }
-                renderScrumBoard();
             } else {
+                tasksList[taskIndex] = previousTask;
+                renderScrumBoard();
                 showToast("No tienes autorización para mover esta tarea.", "error");
             }
         } catch (e) {
             console.error("Error al mover tarea:", e);
+            tasksList[taskIndex] = previousTask;
+            renderScrumBoard();
             showToast("Error de conexión al mover la tarea.", "error");
         } finally {
             draggedTaskId = null;
