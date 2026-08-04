@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # SMTP Settings
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
+    SMTP_USE_SSL: bool = False
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     SMTP_SENDER: str = "no-reply@geimser.cl"

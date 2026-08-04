@@ -12,6 +12,23 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
+ASSIGNABLE_TASK_ROLES = {
+    "Administrador": {"Administrador", "Supervisor"},
+    "Supervisor": {"Administrador", "Usuario"},
+}
+
+
+def validate_task_assignee(creator: User, assignee: User) -> None:
+    allowed_roles = ASSIGNABLE_TASK_ROLES.get(creator.role.name)
+    if not allowed_roles:
+        raise HTTPException(status_code=403, detail="No tienes permiso para asignar tareas.")
+    if assignee.role.name not in allowed_roles:
+        allowed_label = " o ".join(sorted(allowed_roles))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Como {creator.role.name}, solo puedes asignar tareas a roles: {allowed_label}.",
+        )
+
 
 def is_task_assignee(task: Task, user: User) -> bool:
     return task.assigned_to_user_id == user.id
@@ -42,19 +59,22 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
     """
     Create a new task. Restricted to Admins and Supervisors.
     """
-    if current_user.role.name != "Administrador":
+    if current_user.role.name not in ASSIGNABLE_TASK_ROLES:
         raise HTTPException(
             status_code=403,
-            detail="Únicamente los administradores pueden crear tareas."
+            detail="Únicamente los administradores y supervisores pueden crear tareas."
         )
 
     if task_in.assigned_to_role_id is not None:
         raise HTTPException(status_code=400, detail="Las tareas Scrum deben asignarse a una persona específica.")
 
-    assignee_id = task_in.assigned_to_user_id or current_user.id
+    assignee_id = task_in.assigned_to_user_id
+    if not assignee_id:
+        raise HTTPException(status_code=400, detail="Selecciona un encargado para la tarea.")
     assignee = db.query(User).filter(User.id == assignee_id, User.is_active.is_(True)).first()
     if not assignee:
         raise HTTPException(status_code=400, detail="Selecciona un usuario activo para asignar la tarea.")
+    validate_task_assignee(current_user, assignee)
 
     task_data = task_in.dict()
     task_data["assigned_to_user_id"] = assignee_id
@@ -97,6 +117,7 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
         raise HTTPException(status_code=403, detail="No tienes autorización para acceder o actualizar esta tarea")
 
     old_assignee_id = db_task.assigned_to_user_id
+    old_status = db_task.status
     can_manage_before_update = is_task_owner(db_task, current_user)
     update_data = task_in.dict(exclude_unset=True)
 
@@ -110,6 +131,7 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
         assignee = db.query(User).filter(User.id == assignee_id, User.is_active.is_(True)).first() if assignee_id else None
         if not assignee:
             raise HTTPException(status_code=400, detail="Selecciona un usuario activo para asignar la tarea.")
+        validate_task_assignee(current_user, assignee)
 
     for field, value in update_data.items():
         setattr(db_task, field, value)
@@ -137,6 +159,23 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(get_db)
                 task_title=db_task.title,
                 assigner_name=current_user.full_name,
                 note_title=note.title if note else "General"
+            )
+
+    # Avisar al creador cada vez que el encargado mueve la tarea entre columnas.
+    if "status" in update_data and db_task.status != old_status:
+        creator = db.query(User).filter(User.id == db_task.created_by_id, User.is_active.is_(True)).first()
+        if creator:
+            from app.models.note import Note
+            from app.services.email_service import EmailService
+            note = db.query(Note).filter(Note.id == db_task.note_id).first() if db_task.note_id else None
+            EmailService.send_task_status_changed_email(
+                recipient_email=creator.email,
+                recipient_name=creator.full_name,
+                task_title=db_task.title,
+                previous_status=old_status,
+                current_status=db_task.status,
+                updated_by_name=current_user.full_name,
+                note_title=note.title if note else "General",
             )
             
     return db_task

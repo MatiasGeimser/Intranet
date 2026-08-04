@@ -52,7 +52,7 @@
                     <option value="all">Todos los proyectos</option>
                 </select>
                 <!-- Botón eliminar proyecto activo (solo Admin/Supervisor) -->
-                {% if user.role.name == 'Administrador' %}
+                {% if user.role.name in ['Administrador', 'Supervisor'] %}
                 <button id="delete-project-btn" onclick="handleDeleteProject()" class="hidden w-7 h-7 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center" title="Eliminar este proyecto y sus tareas">
                     <i class="fa-regular fa-trash-can text-xs"></i>
                 </button>
@@ -65,10 +65,14 @@
                     <i class="fa-solid fa-folder-plus text-[10px]"></i>
                     <span>Nuevo Proyecto</span>
                 </button>
+                {% endif %}
+                {% if user.role.name in ['Administrador', 'Supervisor'] %}
                 <button onclick="openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-plus text-[10px]"></i>
                     <span>Nueva Tarea</span>
                 </button>
+                {% endif %}
+                {% if user.role.name == 'Administrador' %}
                 <button onclick="openDailyTasksModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 hover:bg-purple-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
                     <span>Tareas Diarias</span>
@@ -1181,11 +1185,14 @@
 
         // Poblar selector de encargados en el modal
         const assigneeSelect = document.getElementById("taskAssignee");
-        assigneeSelect.innerHTML = '<option value="">Sin asignar / Libre</option>';
-        usersList.filter(u => u.role_name !== 'Supervisor').forEach(u => {
+        const allowedRoles = userRole === "Administrador"
+            ? ["Administrador", "Supervisor"]
+            : ["Administrador", "Usuario"];
+        assigneeSelect.innerHTML = '<option value="">Seleccionar encargado...</option>';
+        usersList.filter(u => allowedRoles.includes(u.role?.name)).forEach(u => {
             const opt = document.createElement("option");
             opt.value = u.id;
-            opt.textContent = `${u.full_name} (${u.role_name})`;
+            opt.textContent = `${u.full_name} (${u.role.name})`;
             assigneeSelect.appendChild(opt);
         });
     }

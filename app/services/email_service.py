@@ -1,5 +1,6 @@
 import logging
 import smtplib
+from html import escape
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
@@ -150,15 +151,60 @@ class EmailService:
         </html>
         """
 
-        # Verificar si SMTP está configurado
+        return EmailService._send_html_email(recipient_email, subject, html_content)
+
+    @staticmethod
+    def send_task_status_changed_email(
+        recipient_email: str,
+        recipient_name: str,
+        task_title: str,
+        previous_status: str,
+        current_status: str,
+        updated_by_name: str,
+        note_title: str,
+    ) -> bool:
+        """Avisa al creador cuando el encargado mueve una tarea en el tablero."""
+        status_labels = {
+            "pending": "Por hacer", "todo": "Por hacer", "inprogress": "En curso",
+            "inreview": "En revisión", "completed": "Finalizada", "done": "Finalizada",
+        }
+        previous_label = status_labels.get(previous_status, previous_status)
+        current_label = status_labels.get(current_status, current_status)
+        subject = f"Actualización de tarea: {task_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html><head><meta charset="utf-8"></head>
+        <body style="margin:0;padding:24px;background:#F8F9FA;font-family:Segoe UI,Arial,sans-serif;color:#1A1A1A;">
+            <div style="max-width:600px;margin:auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;">
+                <div style="padding:24px 28px;background:#049DD9;color:#FFFFFF;">
+                    <h1 style="margin:0;font-size:20px;">Actualización de tarea</h1>
+                </div>
+                <div style="padding:28px;">
+                    <p style="margin-top:0;">Hola, {escape(recipient_name)}:</p>
+                    <p>La tarea que asignaste cambió de estado en el tablero.</p>
+                    <div style="margin:20px 0;padding:18px;background:#F4F6F8;border-left:4px solid #049DD9;border-radius:8px;">
+                        <p style="margin:0 0 10px;"><strong>Tarea:</strong> {escape(task_title)}</p>
+                        <p style="margin:0 0 10px;"><strong>Proyecto:</strong> {escape(note_title)}</p>
+                        <p style="margin:0 0 10px;"><strong>Movimiento:</strong> {escape(previous_label)} → {escape(current_label)}</p>
+                        <p style="margin:0;"><strong>Actualizada por:</strong> {escape(updated_by_name)}</p>
+                    </div>
+                    <a href="{settings.APP_BASE_URL.rstrip('/')}/dashboard" style="display:inline-block;padding:12px 20px;background:#049DD9;color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:700;">Ver tarea en Intranet</a>
+                </div>
+            </div>
+        </body></html>
+        """
+        return EmailService._send_html_email(recipient_email, subject, html_content)
+
+    @staticmethod
+    def _send_html_email(recipient_email: str, subject: str, html_content: str) -> bool:
         smtp_user = settings.SMTP_USER
         smtp_password = settings.SMTP_PASSWORD
         smtp_host = settings.SMTP_HOST
         smtp_port = settings.SMTP_PORT
+        smtp_use_ssl = settings.SMTP_USE_SSL
         smtp_sender = settings.SMTP_SENDER
 
         logger.info("Enviando notificación de tarea a %s.", recipient_email)
-
         if not smtp_user or not smtp_password:
             logger.error("SMTP no configurado: no se pudo enviar la notificación a %s.", recipient_email)
             return False
@@ -168,15 +214,13 @@ class EmailService:
             msg["Subject"] = subject
             msg["From"] = f"{settings.SMTP_FROM_NAME} <{smtp_sender}>"
             msg["To"] = recipient_email
+            msg.attach(MIMEText(html_content, "html"))
 
-            part = MIMEText(html_content, "html")
-            msg.attach(part)
-
-            # Enviar por SMTP
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) if smtp_use_ssl else smtplib.SMTP(smtp_host, smtp_port, timeout=15)
             server.ehlo()
-            server.starttls()
-            server.ehlo()
+            if not smtp_use_ssl:
+                server.starttls()
+                server.ehlo()
             server.login(smtp_user, smtp_password)
             server.sendmail(smtp_sender, [recipient_email], msg.as_string())
             server.quit()
