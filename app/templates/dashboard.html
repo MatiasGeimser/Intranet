@@ -881,11 +881,15 @@
             `;
         }
 
-        const canDelete = task.created_by_id === currentUserId && task.assigned_to_user_id === currentUserId;
-        const canUpdateStatus = task.assigned_to_user_id === currentUserId;
+        // La API puede serializar los identificadores como texto o número según la
+        // sesión/cache del navegador. Normalizarlos evita ocultar el arrastre al
+        // usuario que efectivamente recibió la tarea.
+        const isCurrentUser = (userId) => String(userId) === String(currentUserId);
+        const canDelete = isCurrentUser(task.created_by_id) && isCurrentUser(task.assigned_to_user_id);
+        const canUpdateStatus = isCurrentUser(task.assigned_to_user_id);
 
         return `
-            <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 ${canUpdateStatus ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} bg-white/95" draggable="${canUpdateStatus}" onclick="openTaskDetails(${task.id})" role="button" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTaskDetails(${task.id}); }" ${canUpdateStatus ? `ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)"` : ''}>
+            <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 ${canUpdateStatus ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} bg-white/95" draggable="${canUpdateStatus ? 'true' : 'false'}" title="${canUpdateStatus ? 'Arrastra esta tarea a la columna de su nuevo estado.' : 'Solo la persona encargada puede cambiar el estado.'}" onclick="openTaskDetails(${task.id})" role="button" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTaskDetails(${task.id}); }" ${canUpdateStatus ? `ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)"` : ''}>
                 <div class="flex items-start justify-between gap-2">
                     <span class="text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 bg-blue-corp/5 text-blue-corp rounded-lg border border-blue-corp/10 truncate max-w-[130px]" title="${projectName}">
                         ${projectName}
