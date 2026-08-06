@@ -30,6 +30,7 @@ class Task(Base):
     assigned_user = relationship("User", foreign_keys=[assigned_to_user_id], back_populates="tasks")
     assigned_role = relationship("Role", foreign_keys=[assigned_to_role_id], back_populates="tasks")
     note = relationship("Note", back_populates="tasks")
+    comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
 
     @property
     def creator_name(self):
@@ -38,6 +39,23 @@ class Task(Base):
     @property
     def assigned_to_name(self):
         return self.assigned_user.full_name if self.assigned_user else None
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    task = relationship("Task", back_populates="comments")
+    author = relationship("User", back_populates="task_comments")
+
+    @property
+    def author_name(self):
+        return self.author.full_name if self.author else None
 
 class DailyTaskConfig(Base):
     __tablename__ = "daily_task_configs"

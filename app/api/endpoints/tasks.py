@@ -3,11 +3,15 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List
 from datetime import datetime
+import bleach
 
 from app.core.database import get_db
-from app.models.task import Task, DailyTaskConfig
+from app.models.task import Task, DailyTaskConfig, TaskComment
 from app.models.user import User
-from app.schemas.task import TaskCreate, TaskUpdate, TaskOut, DailyTaskConfigCreate, DailyTaskConfigUpdate, DailyTaskConfigOut
+from app.schemas.task import (
+    TaskCreate, TaskUpdate, TaskOut, TaskCommentCreate, TaskCommentOut,
+    DailyTaskConfigCreate, DailyTaskConfigUpdate, DailyTaskConfigOut,
+)
 from app.api.deps import get_current_user
 
 router = APIRouter()
@@ -36,7 +40,11 @@ def is_task_assignee(task: Task, user: User) -> bool:
 
 def is_task_owner(task: Task, user: User) -> bool:
     """El creador conserva control total solo mientras la tarea sea para sí mismo."""
-    return task.created_by_id == user.id and is_task_assignee(task, user)
+    return task.created_by_id == user.id
+
+
+def can_access_task(task: Task, user: User) -> bool:
+    return is_task_owner(task, user) or is_task_assignee(task, user)
 
 @router.get("/", response_model=List[TaskOut])
 def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -55,7 +63,12 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
     ).order_by(Task.created_at.desc()).all()
 
 @router.post("/", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
-def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_task(
+    task_in: TaskCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Create a new task. Restricted to Admins and Supervisors.
     """
@@ -93,7 +106,8 @@ def create_task(task_in: TaskCreate, db: Session = Depends(get_db), current_user
             from app.models.note import Note
             from app.services.email_service import EmailService
             note = db.query(Note).filter(Note.id == db_task.note_id).first() if db_task.note_id else None
-            EmailService.send_task_assigned_email(
+            background_tasks.add_task(
+                EmailService.send_task_assigned_email,
                 recipient_email=recipient.email,
                 recipient_name=recipient.full_name,
                 task_title=db_task.title,
@@ -112,14 +126,13 @@ def update_task(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Update a task. Standard users can only update the task status if it is assigned to them.
-    Admins and Supervisors can update any task fields.
+    The creator can edit its task; the assignee can only change its status.
     """
     db_task = db.query(Task).filter(Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    if not is_task_assignee(db_task, current_user):
+    if not can_access_task(db_task, current_user):
         raise HTTPException(status_code=403, detail="No tienes autorización para acceder o actualizar esta tarea")
 
     old_assignee_id = db_task.assigned_to_user_id
@@ -159,7 +172,8 @@ def update_task(
             from app.models.note import Note
             from app.services.email_service import EmailService
             note = db.query(Note).filter(Note.id == db_task.note_id).first() if db_task.note_id else None
-            EmailService.send_task_assigned_email(
+            background_tasks.add_task(
+                EmailService.send_task_assigned_email,
                 recipient_email=recipient.email,
                 recipient_name=recipient.full_name,
                 task_title=db_task.title,
@@ -187,6 +201,44 @@ def update_task(
             )
             
     return db_task
+
+
+@router.get("/{task_id}/comments", response_model=List[TaskCommentOut])
+def read_task_comments(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    if not can_access_task(task, current_user):
+        raise HTTPException(status_code=403, detail="No tienes autorización para ver los avances de esta tarea")
+
+    return db.query(TaskComment).options(selectinload(TaskComment.author)).filter(
+        TaskComment.task_id == task_id
+    ).order_by(TaskComment.created_at.asc()).all()
+
+
+@router.post("/{task_id}/comments", response_model=TaskCommentOut, status_code=status.HTTP_201_CREATED)
+def add_task_comment(
+    task_id: int,
+    comment_in: TaskCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    if not can_access_task(task, current_user):
+        raise HTTPException(status_code=403, detail="No tienes autorización para agregar avances a esta tarea")
+
+    content = bleach.clean(comment_in.content, tags=[], attributes={}, strip=True).strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Escribe un avance antes de guardarlo")
+
+    comment = TaskComment(task_id=task.id, author_id=current_user.id, content=content)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

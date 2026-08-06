@@ -8,7 +8,7 @@ from app.models.document import Document
 from app.models.news import News, Comment
 from app.models.audit import AuditLog
 from app.models.phone_number import PhoneNumber
-from app.models.task import Task
+from app.models.task import Task, TaskComment
 from app.models.note import Note
 from app.models.area import Area
 from app.models.collaborator import Collaborator
@@ -21,6 +21,6 @@ from app.models.admin_chat_presence import AdminChatPresence
 __all__ = [
     "User", "Role", "Permission", "Session", "Credential", "Event",
     "Document", "News", "Comment", "AuditLog", "ITAsset", "VLAN",
-    "NetworkDevice", "PhoneNumber", "Task", "Note", "Area", "Collaborator",
+    "NetworkDevice", "PhoneNumber", "Task", "TaskComment", "Note", "Area", "Collaborator",
     "Workspace", "FolderAccess", "AdminChatMessage", "AdminChatAttachment", "AdminChatPresence"
 ]

@@ -123,7 +123,10 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             return True
         if path.startswith("/api/notes") and method == "GET":
             return True
-        if path.startswith("/api/tasks") and method in {"GET", "PUT"}:
+        if path.startswith("/api/tasks") and (
+            method in {"GET", "PUT"}
+            or (method == "POST" and path.startswith("/api/tasks/") and path.endswith("/comments"))
+        ):
             return True
         if path in RoleAccessMiddleware.member_pages:
             return True

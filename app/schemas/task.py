@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 class TaskBase(BaseModel):
@@ -31,6 +31,22 @@ class TaskOut(TaskBase):
     created_at: datetime
     daily_task_config_id: Optional[int] = None
     completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TaskCommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class TaskCommentOut(BaseModel):
+    id: int
+    task_id: int
+    author_id: int
+    author_name: Optional[str] = None
+    content: str
+    created_at: datetime
 
     class Config:
         from_attributes = True

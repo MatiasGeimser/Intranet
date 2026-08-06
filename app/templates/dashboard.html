@@ -352,7 +352,7 @@
 
 <!-- Detalle de tarea -->
 <div id="taskDetailsModal" onclick="if (event.target === this) closeTaskDetails()" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
-    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transform scale-95 transition-transform duration-200">
+    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[88vh] shadow-2xl overflow-hidden transform scale-95 transition-transform duration-200 flex flex-col">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div class="flex items-center gap-2 min-w-0">
                 <div class="w-8 h-8 rounded-lg bg-blue-corp/10 text-blue-corp flex items-center justify-center flex-shrink-0">
@@ -367,7 +367,7 @@
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
-        <div id="taskDetailsContent" class="p-6 space-y-5"></div>
+        <div id="taskDetailsContent" class="p-6 space-y-5 overflow-y-auto"></div>
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
             <button onclick="closeTaskDetails()" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold transition-colors">Cerrar</button>
         </div>
@@ -932,6 +932,119 @@
         });
     }
 
+    function taskDateForInput(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${date.getFullYear()}-${month}-${day}`;
+    }
+
+    function getTaskAssigneeOptions(selectedUserId) {
+        const allowedRoles = userRole === "Administrador"
+            ? ["Administrador", "Supervisor"]
+            : ["Administrador", "Usuario"];
+
+        return usersList
+            .filter(user => allowedRoles.includes(user.role?.name))
+            .map(user => `<option value="${user.id}" ${String(user.id) === String(selectedUserId) ? "selected" : ""}>${escapeTaskHtml(user.full_name)} (${escapeTaskHtml(user.role.name)})</option>`)
+            .join("");
+    }
+
+    async function loadTaskComments(taskId) {
+        const container = document.getElementById("taskCommentsList");
+        if (!container) return;
+        container.innerHTML = '<p class="text-[11px] text-grey-main">Cargando avances...</p>';
+
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}/comments`);
+            if (!response || !response.ok) throw new Error("No fue posible cargar los avances");
+            const comments = await response.json();
+            container.innerHTML = comments.length
+                ? comments.map(comment => `
+                    <article class="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                        <div class="flex items-center justify-between gap-3 mb-1">
+                            <span class="text-[10px] font-bold text-black-dark truncate">${escapeTaskHtml(comment.author_name || "Colaborador")}</span>
+                            <time class="text-[9px] text-grey-main whitespace-nowrap">${formatTaskDate(comment.created_at)}</time>
+                        </div>
+                        <p class="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap break-words">${escapeTaskHtml(comment.content)}</p>
+                    </article>`).join("")
+                : '<p class="text-[11px] text-grey-main italic">Aún no hay avances registrados.</p>';
+        } catch (error) {
+            console.error("Error cargando avances de tarea:", error);
+            container.innerHTML = '<p class="text-[11px] text-red-500">No fue posible cargar los avances.</p>';
+        }
+    }
+
+    async function saveTaskDetails(event, taskId) {
+        event.preventDefault();
+        const payload = {
+            title: document.getElementById("taskDetailTitleInput").value.trim(),
+            description: document.getElementById("taskDetailDescriptionInput").value.trim() || null,
+            assigned_to_user_id: Number(document.getElementById("taskDetailAssignee").value),
+            due_date: document.getElementById("taskDetailDueDate").value
+                ? new Date(`${document.getElementById("taskDetailDueDate").value}T12:00:00`).toISOString()
+                : null,
+            status: document.getElementById("taskDetailStatus").value
+        };
+
+        if (!payload.title || !payload.assigned_to_user_id) {
+            showToast("Indica un título y un encargado válido.", "error");
+            return;
+        }
+
+        const saveButton = document.getElementById("saveTaskDetailsButton");
+        saveButton.disabled = true;
+        saveButton.textContent = "Guardando...";
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}`, { method: "PUT", body: payload });
+            if (!response || !response.ok) {
+                const data = response ? await response.json() : null;
+                throw new Error(data?.detail || "No fue posible guardar la tarea.");
+            }
+            const updatedTask = await response.json();
+            const index = tasksList.findIndex(task => String(task.id) === String(updatedTask.id));
+            if (index !== -1) tasksList[index] = updatedTask;
+            renderScrumBoard();
+            openTaskDetails(updatedTask.id);
+            showToast("Tarea actualizada correctamente.", "success");
+        } catch (error) {
+            console.error("Error actualizando tarea:", error);
+            showToast(error.message || "No fue posible guardar la tarea.", "error");
+            saveButton.disabled = false;
+            saveButton.textContent = "Guardar cambios";
+        }
+    }
+
+    async function addTaskComment(event, taskId) {
+        event.preventDefault();
+        const input = document.getElementById("taskCommentInput");
+        const content = input.value.trim();
+        if (!content) return;
+
+        const button = document.getElementById("addTaskCommentButton");
+        button.disabled = true;
+        try {
+            const response = await fetchAPI(`/api/tasks/${taskId}/comments`, {
+                method: "POST",
+                body: { content }
+            });
+            if (!response || !response.ok) {
+                const data = response ? await response.json() : null;
+                throw new Error(data?.detail || "No fue posible guardar el avance.");
+            }
+            input.value = "";
+            await loadTaskComments(taskId);
+            showToast("Avance registrado.", "success");
+        } catch (error) {
+            console.error("Error guardando avance:", error);
+            showToast(error.message || "No fue posible guardar el avance.", "error");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     function closeTaskDetails() {
         const modal = document.getElementById("taskDetailsModal");
         const content = modal.querySelector(".transform");
@@ -957,6 +1070,52 @@
                 <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Finalizada</p>
                 <p class="text-xs text-black-dark">${formatTaskDate(task.completed_at)}</p>
             </div>` : "";
+        const canEditTask = String(task.created_by_id) === String(currentUserId);
+        const statusOptions = [
+            ["todo", "Por hacer"], ["inprogress", "En curso"],
+            ["inreview", "En revisión"], ["done", "Finalizada"]
+        ].map(([value, label]) => `<option value="${value}" ${task.status === value || (value === "todo" && task.status === "pending") || (value === "done" && task.status === "completed") ? "selected" : ""}>${label}</option>`).join("");
+        const editSection = canEditTask ? `
+            <form onsubmit="saveTaskDetails(event, ${task.id})" class="rounded-xl border border-blue-corp/15 bg-blue-corp/[0.03] p-4 space-y-3">
+                <div class="flex items-center gap-2 text-[10px] font-bold uppercase text-blue-corp">
+                    <i class="fa-solid fa-pen-to-square"></i><span>Editar tarea</span>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Título</label>
+                    <input id="taskDetailTitleInput" value="${escapeTaskHtml(task.title)}" required class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Solicitud</label>
+                    <textarea id="taskDetailDescriptionInput" rows="3" class="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30">${escapeTaskHtml(task.description || "")}</textarea>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Encargado</label>
+                        <select id="taskDetailAssignee" required class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30">${getTaskAssigneeOptions(task.assigned_to_user_id)}</select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Vencimiento</label>
+                        <input id="taskDetailDueDate" type="date" value="${taskDateForInput(task.due_date)}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Estado</label>
+                    <select id="taskDetailStatus" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30">${statusOptions}</select>
+                </div>
+                <button id="saveTaskDetailsButton" type="submit" class="w-full rounded-lg bg-blue-corp px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#038bc2]">Guardar cambios</button>
+            </form>` : "";
+        const progressSection = `
+            <section class="border-t border-gray-100 pt-4 space-y-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-blue-corp text-xs"></i>
+                    <h4 class="text-[10px] font-bold uppercase text-grey-main">Avances</h4>
+                </div>
+                <div id="taskCommentsList" class="space-y-2 max-h-44 overflow-y-auto pr-1"></div>
+                <form onsubmit="addTaskComment(event, ${task.id})" class="space-y-2">
+                    <textarea id="taskCommentInput" rows="3" maxlength="4000" placeholder="Escribe un avance, bloqueo o comentario..." class="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/30"></textarea>
+                    <button id="addTaskCommentButton" type="submit" class="rounded-lg bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-black transition-colors">Registrar avance</button>
+                </form>
+            </section>`;
 
         document.getElementById("taskDetailsTitle").textContent = task.title;
         document.getElementById("taskDetailsContent").innerHTML = `
@@ -990,7 +1149,11 @@
                     <p class="text-xs text-black-dark">${formatTaskDate(task.due_date, { timeStyle: undefined })}</p>
                 </div>
                 ${completedAt}
-            </div>`;
+            </div>
+            ${editSection}
+            ${progressSection}`;
+
+        loadTaskComments(task.id);
 
         const modal = document.getElementById("taskDetailsModal");
         const content = modal.querySelector(".transform");
