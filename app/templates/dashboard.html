@@ -516,7 +516,7 @@
     // Variables globales para la gestión del tablero
     const currentUserId = {{ user.id }};
     const userRole = "{{ user.role.name }}";
-    const isLimitedScrumDashboard = {{ limited_scrum_dashboard|tojson }};
+    const isLimitedScrumDashboard = {{ is_limited_scrum_dashboard|default(false)|tojson }};
     let activeProjectId = "all"; // ID del filtro activo o "all"
     let notesList = []; // Lista de Proyectos (Notes)
     let tasksList = []; // Lista de todas las tareas
