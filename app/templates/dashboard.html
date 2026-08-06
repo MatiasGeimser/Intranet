@@ -61,7 +61,7 @@
             </div>
             
             <div class="flex items-center space-x-2">
-                {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
+                {% if can_manage_projects_and_daily_tasks|default(false) %}
                 <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-folder-plus text-[10px]"></i>
                     <span>Nuevo Proyecto</span>
@@ -73,7 +73,7 @@
                     <span>Nueva Tarea</span>
                 </button>
                 {% endif %}
-                {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
+                {% if can_manage_projects_and_daily_tasks|default(false) %}
                 <button onclick="openDailyTasksModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 hover:bg-purple-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
                     <span>Tareas Diarias</span>
@@ -242,7 +242,7 @@
                 </h4>
                 <p class="text-[10px] text-grey-main">Rutinas que debes cumplir hoy</p>
             </div>
-            {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
+            {% if can_manage_projects_and_daily_tasks|default(false) %}
             <button onclick="openDailyTasksModal()" class="text-[10px] text-purple-600 font-bold hover:underline uppercase">Configurar</button>
             {% endif %}
         </div>

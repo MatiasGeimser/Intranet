@@ -113,7 +113,10 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         is_task_comment = path.startswith("/api/tasks/") and path.endswith("/comments")
         return (
             path in {"/", "/dashboard"}
-            or (path.startswith("/api/notes") and method == "GET")
+            or (
+                path.startswith("/api/notes")
+                and method in {"GET", "POST", "DELETE"}
+            )
             or (path == "/api/users/list-minimal" and method == "GET")
             or (
                 path.startswith("/api/tasks")

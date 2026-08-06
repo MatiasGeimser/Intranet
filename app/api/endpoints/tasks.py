@@ -20,6 +20,21 @@ ASSIGNABLE_TASK_ROLES = {
     "Administrador": {"Administrador", "Supervisor"},
     "Supervisor": {"Administrador", "Usuario"},
 }
+SCRUM_MANAGEMENT_SUPERVISOR_AREAS = {"Administración", "Administracion", "Ventas"}
+
+
+def can_manage_daily_tasks(user: User) -> bool:
+    return bool(
+        user.role
+        and (
+            user.role.name == "Administrador"
+            or (
+                user.role.name == "Supervisor"
+                and user.area
+                and user.area.name in SCRUM_MANAGEMENT_SUPERVISOR_AREAS
+            )
+        )
+    )
 def validate_task_assignee(creator: User, assignee: User) -> None:
     allowed_roles = ASSIGNABLE_TASK_ROLES.get(creator.role.name)
     if not allowed_roles:
@@ -278,7 +293,7 @@ def read_daily_task_instances(db: Session = Depends(get_db), current_user: User 
     """
     Retrieve generated daily tasks (instances) assigned to the current user.
     """
-    if current_user.role.name == "Administrador":
+    if can_manage_daily_tasks(current_user):
         tasks = db.query(Task).options(
             selectinload(Task.creator),
             selectinload(Task.assigned_user),
@@ -301,7 +316,7 @@ def read_daily_tasks(db: Session = Depends(get_db), current_user: User = Depends
     """
     Retrieve daily tasks.
     """
-    if current_user.role.name == "Administrador":
+    if can_manage_daily_tasks(current_user):
         tasks = db.query(DailyTaskConfig).order_by(DailyTaskConfig.created_at.desc()).all()
     else:
         tasks = db.query(DailyTaskConfig).filter(
@@ -317,10 +332,10 @@ def create_daily_task(task_in: DailyTaskConfigCreate, db: Session = Depends(get_
     """
     Create a new daily task config. Restricted to Admins and Supervisors.
     """
-    if current_user.role.name != "Administrador":
+    if not can_manage_daily_tasks(current_user):
         raise HTTPException(
             status_code=403,
-            detail="Únicamente los administradores o supervisores pueden crear tareas diarias."
+            detail="No tienes permiso para crear tareas diarias."
         )
 
     db_task = DailyTaskConfig(
@@ -341,7 +356,7 @@ def update_daily_task(task_id: int, task_in: DailyTaskConfigUpdate, db: Session 
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
         
-    is_management = current_user.role.name == "Administrador"
+    is_management = can_manage_daily_tasks(current_user)
     if not is_management and db_task.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes autorización para actualizar esta tarea")
         
@@ -363,7 +378,7 @@ def delete_daily_task(task_id: int, db: Session = Depends(get_db), current_user:
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
     
-    is_management = current_user.role.name == "Administrador"
+    is_management = can_manage_daily_tasks(current_user)
     if not is_management and db_task.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         

@@ -100,7 +100,7 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
         "active_page": "dashboard",
         "project_name": settings.PROJECT_NAME,
         "is_limited_scrum_dashboard": limited_scrum_dashboard,
-        "has_full_scrum_access": full_scrum_access,
+        "can_manage_projects_and_daily_tasks": full_scrum_access,
     })
 
 
