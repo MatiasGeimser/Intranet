@@ -952,7 +952,7 @@
     function getTaskAssigneeOptions(selectedUserId) {
         const allowedRoles = userRole === "Administrador"
             ? ["Administrador", "Supervisor"]
-            : ["Administrador", "Usuario"];
+            : ["Administrador", "Supervisor", "Usuario"];
 
         return usersList
             .filter(user => allowedRoles.includes(user.role?.name))
@@ -1384,7 +1384,7 @@
         const assigneeSelect = document.getElementById("taskAssignee");
         const allowedRoles = userRole === "Administrador"
             ? ["Administrador", "Supervisor"]
-            : ["Administrador", "Usuario"];
+            : ["Administrador", "Supervisor", "Usuario"];
         assigneeSelect.innerHTML = '<option value="">Seleccionar encargado...</option>';
         usersList.filter(u => allowedRoles.includes(u.role?.name)).forEach(u => {
             const opt = document.createElement("option");
@@ -1648,10 +1648,10 @@
         // Cargar usuarios en el select
         const assigneeSelect = document.getElementById('dailyTaskAssignee');
         if (assigneeSelect && assigneeSelect.options.length <= 1) {
-            usersList.filter(u => u.role_name !== 'Supervisor').forEach(u => {
+            usersList.forEach(u => {
                 const opt = document.createElement("option");
                 opt.value = u.id;
-                opt.textContent = u.full_name;
+                opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
                 assigneeSelect.appendChild(opt);
             });
         }

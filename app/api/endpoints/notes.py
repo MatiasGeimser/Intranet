@@ -14,30 +14,10 @@ router = APIRouter()
 @router.get("", response_model=List[NoteOut])
 def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Obtiene las notas pertenecientes al área del usuario (o todas si es admin) con sus tareas filtradas por rol.
+    Obtiene el catálogo compartido de proyectos, con tareas filtradas por usuario.
     """
-    if current_user.role.name != "Administrador":
-        db_notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
-        notes_out = []
-        for note in db_notes:
-            filtered_tasks = [
-                task for task in note.tasks
-                if task.daily_task_config_id is None
-                and (task.assigned_to_user_id == current_user.id or task.created_by_id == current_user.id)
-            ]
-            note_dict = {
-                "id": note.id,
-                "title": note.title,
-                "area_id": note.area_id,
-                "created_by_id": note.created_by_id,
-                "created_at": note.created_at,
-                "tasks": filtered_tasks
-            }
-            notes_out.append(note_dict)
-        return notes_out
-    else:
-        notes = db.query(Note).order_by(Note.created_at.desc()).all()
-        return [{
+    notes = db.query(Note).order_by(Note.created_at.desc()).all()
+    return [{
             "id": note.id,
             "title": note.title,
             "area_id": note.area_id,

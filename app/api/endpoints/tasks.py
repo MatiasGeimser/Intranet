@@ -18,7 +18,7 @@ router = APIRouter()
 
 ASSIGNABLE_TASK_ROLES = {
     "Administrador": {"Administrador", "Supervisor"},
-    "Supervisor": {"Administrador", "Usuario"},
+    "Supervisor": {"Administrador", "Supervisor", "Usuario"},
 }
 SCRUM_MANAGEMENT_SUPERVISOR_AREAS = {"Administración", "Administracion", "Ventas"}
 
@@ -293,39 +293,25 @@ def read_daily_task_instances(db: Session = Depends(get_db), current_user: User 
     """
     Retrieve generated daily tasks (instances) assigned to the current user.
     """
-    if can_manage_daily_tasks(current_user):
-        tasks = db.query(Task).options(
-            selectinload(Task.creator),
-            selectinload(Task.assigned_user),
-        ).filter(Task.daily_task_config_id.isnot(None)).order_by(Task.created_at.desc()).all()
-    else:
-        tasks = db.query(Task).options(
-            selectinload(Task.creator),
-            selectinload(Task.assigned_user),
-        ).filter(
-            Task.daily_task_config_id.isnot(None),
-            or_(
-                Task.assigned_to_user_id == current_user.id,
-                Task.created_by_id == current_user.id
-            )
-        ).order_by(Task.created_at.desc()).all()
-    return tasks
+    return db.query(Task).options(
+        selectinload(Task.creator),
+        selectinload(Task.assigned_user),
+    ).filter(
+        Task.daily_task_config_id.isnot(None),
+        Task.assigned_to_user_id == current_user.id,
+    ).order_by(Task.created_at.desc()).all()
 
 @router.get("/daily", response_model=List[DailyTaskConfigOut])
 def read_daily_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Retrieve daily tasks.
     """
-    if can_manage_daily_tasks(current_user):
-        tasks = db.query(DailyTaskConfig).order_by(DailyTaskConfig.created_at.desc()).all()
-    else:
-        tasks = db.query(DailyTaskConfig).filter(
-            or_(
-                DailyTaskConfig.assigned_to_user_id == current_user.id,
-                DailyTaskConfig.created_by_id == current_user.id
-            )
-        ).order_by(DailyTaskConfig.created_at.desc()).all()
-    return tasks
+    return db.query(DailyTaskConfig).filter(
+        or_(
+            DailyTaskConfig.assigned_to_user_id == current_user.id,
+            DailyTaskConfig.created_by_id == current_user.id,
+        )
+    ).order_by(DailyTaskConfig.created_at.desc()).all()
 
 @router.post("/daily", response_model=DailyTaskConfigOut, status_code=status.HTTP_201_CREATED)
 def create_daily_task(task_in: DailyTaskConfigCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -356,8 +342,8 @@ def update_daily_task(task_id: int, task_in: DailyTaskConfigUpdate, db: Session 
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
         
-    is_management = can_manage_daily_tasks(current_user)
-    if not is_management and db_task.created_by_id != current_user.id:
+    is_management = can_manage_daily_tasks(current_user) and db_task.created_by_id == current_user.id
+    if not is_management:
         raise HTTPException(status_code=403, detail="No tienes autorización para actualizar esta tarea")
         
     update_data = task_in.dict(exclude_unset=True)
@@ -378,8 +364,8 @@ def delete_daily_task(task_id: int, db: Session = Depends(get_db), current_user:
     if not db_task:
         raise HTTPException(status_code=404, detail="Daily Task not found")
     
-    is_management = can_manage_daily_tasks(current_user)
-    if not is_management and db_task.created_by_id != current_user.id:
+    is_management = can_manage_daily_tasks(current_user) and db_task.created_by_id == current_user.id
+    if not is_management:
         raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         
     db.delete(db_task)
