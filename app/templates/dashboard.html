@@ -29,6 +29,7 @@
 {% endblock %}
 
 {% block content %}
+{% set limited_scrum_dashboard = is_limited_scrum_dashboard|default(false) %}
 
 <!-- FILA PRINCIPAL: TABLERO SCRUM ESTILO JIRA (ANCHO COMPLETO) -->
 {% if user.is_active %}
@@ -52,7 +53,7 @@
                     <option value="all">Todos los proyectos</option>
                 </select>
                 <!-- Botón eliminar proyecto activo (solo Admin/Supervisor) -->
-                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                {% if user.role.name in ['Administrador', 'Supervisor'] and not limited_scrum_dashboard %}
                 <button id="delete-project-btn" onclick="handleDeleteProject()" class="hidden w-7 h-7 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center" title="Eliminar este proyecto y sus tareas">
                     <i class="fa-regular fa-trash-can text-xs"></i>
                 </button>
@@ -60,19 +61,19 @@
             </div>
             
             <div class="flex items-center space-x-2">
-                {% if user.role.name == 'Administrador' %}
+                {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
                 <button onclick="openNewNoteModal()" class="px-3 py-1.5 rounded-xl bg-blue-corp/10 text-blue-corp hover:bg-blue-corp hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-folder-plus text-[10px]"></i>
                     <span>Nuevo Proyecto</span>
                 </button>
                 {% endif %}
-                {% if user.role.name in ['Administrador', 'Supervisor'] %}
+                {% if user.role.name in ['Administrador', 'Supervisor'] and not limited_scrum_dashboard %}
                 <button onclick="openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-plus text-[10px]"></i>
                     <span>Nueva Tarea</span>
                 </button>
                 {% endif %}
-                {% if user.role.name == 'Administrador' %}
+                {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
                 <button onclick="openDailyTasksModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 hover:bg-purple-500 hover:text-white transition-all flex items-center space-x-1 text-xs font-semibold">
                     <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
                     <span>Tareas Diarias</span>
@@ -150,6 +151,7 @@
 </div>
 {% endif %}
 
+{% if not limited_scrum_dashboard %}
 <!-- FILA SECUNDARIA: ACCESOS RÁPIDOS, EVENTOS Y AUDITORÍA -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
     
@@ -240,7 +242,7 @@
                 </h4>
                 <p class="text-[10px] text-grey-main">Rutinas que debes cumplir hoy</p>
             </div>
-            {% if user.role.name == 'Administrador' %}
+            {% if user.role.name == 'Administrador' and not limited_scrum_dashboard %}
             <button onclick="openDailyTasksModal()" class="text-[10px] text-purple-600 font-bold hover:underline uppercase">Configurar</button>
             {% endif %}
         </div>
@@ -265,6 +267,7 @@
     </div>
 
 </div>
+{% endif %}
 
 <!-- Modal Nuevo Proyecto / Nota -->
 <div id="newNoteModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
@@ -288,7 +291,7 @@
 </div>
 
 <!-- Modal Nueva Tarea (Solo Admin/Supervisor) -->
-{% if user.role.name in ['Administrador', 'Supervisor'] %}
+{% if user.role.name in ['Administrador', 'Supervisor'] and not limited_scrum_dashboard %}
 <div id="newTaskModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
     <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl transform scale-95 transition-transform duration-300">
         <div class="flex justify-between items-center mb-4">
@@ -375,7 +378,7 @@
 </div>
 
 <!-- Modal Tareas Diarias (Solo Admin/Supervisor) -->
-{% if user.role.name in ['Administrador', 'Supervisor'] %}
+{% if user.role.name in ['Administrador', 'Supervisor'] and not limited_scrum_dashboard %}
 <div id="dailyTasksModal" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm flex items-center justify-center opacity-0 transition-opacity duration-300">
     <div class="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl transform scale-95 transition-transform duration-300 max-h-[90vh] overflow-hidden flex flex-col">
         <div class="flex justify-between items-center mb-4">
@@ -513,6 +516,7 @@
     // Variables globales para la gestión del tablero
     const currentUserId = {{ user.id }};
     const userRole = "{{ user.role.name }}";
+    const isLimitedScrumDashboard = {{ limited_scrum_dashboard|tojson }};
     let activeProjectId = "all"; // ID del filtro activo o "all"
     let notesList = []; // Lista de Proyectos (Notes)
     let tasksList = []; // Lista de todas las tareas
@@ -521,22 +525,26 @@
     const usersMap = {}; // Caché mapeado de usuarios
 
     document.addEventListener("DOMContentLoaded", async () => {
-        // Cargar actividad de auditoría reciente
-        await loadAuditFeed();
+        if (!isLimitedScrumDashboard) {
+            // Cargar actividad de auditoría reciente
+            await loadAuditFeed();
 
-        // Cargar eventos del calendario
-        await loadCalendarEvents();
+            // Cargar eventos del calendario
+            await loadCalendarEvents();
 
-        // Cargar caché de colaboradores
-        await loadUsersCache();
+            // Cargar caché de colaboradores
+            await loadUsersCache();
+        }
 
         // Cargar proyectos y tareas del tablero
         await loadProjectsAndTasks();
 
-        // Cargar Noticias y Cumpleaños
-        await loadDashboardNews();
-        await loadDashboardBirthdays();
-        await loadDailyInstances();
+        if (!isLimitedScrumDashboard) {
+            // Cargar Noticias y Cumpleaños
+            await loadDashboardNews();
+            await loadDashboardBirthdays();
+            await loadDailyInstances();
+        }
     });
 
     // Cargar Noticias Recientes
@@ -848,7 +856,7 @@
     function getTaskCardHtml(task) {
         // Asignar encargado
         const assignee = usersMap[task.assigned_to_user_id];
-        const assigneeName = assignee ? assignee.full_name : "Sin asignar";
+        const assigneeName = assignee ? assignee.full_name : (task.assigned_to_name || "Sin asignar");
         const assigneeAvatar = assignee ? (assignee.avatar_url || '/static/images/default-avatar.png') : '/static/images/default-avatar.png';
         
         // Asignar proyecto
@@ -1342,7 +1350,7 @@
     // ============================================================
     // GESTIÓN DE TAREAS (CREACIÓN / ELIMINACIÓN)
     // ============================================================
-    {% if user.role.name in ['Administrador', 'Supervisor'] %}
+    {% if user.role.name in ['Administrador', 'Supervisor'] and not limited_scrum_dashboard %}
     function openNewTaskModal() {
         document.getElementById('newTaskForm').reset();
         

@@ -40,12 +40,23 @@ def is_natura_user(user: User) -> bool:
     return bool(user.is_natura_user or (user.email and user.email.lower().endswith("@natura.cl")))
 
 
+def can_natura_supervisor_view_dashboard(user: User) -> bool:
+    """Allows the Administration supervisor to follow its Scrum work without opening other modules."""
+    return bool(
+        user.role
+        and user.role.name in {"Administrador", "Supervisor"}
+        and user.area
+        and user.area.name in {"Administración", "Administracion"}
+    )
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_view(request: Request, db: Session = Depends(get_db)):
     """Muestra la página de inicio de sesión. Si ya tiene sesión, redirige al Dashboard."""
     user = get_current_user_optional(request, db)
     if user and user.is_active:
-        return RedirectResponse(url="/documents" if is_natura_user(user) else "/dashboard")
+        use_documents_home = is_natura_user(user) and not can_natura_supervisor_view_dashboard(user)
+        return RedirectResponse(url="/documents" if use_documents_home else "/dashboard")
     
     response = templates.TemplateResponse(request=request,name= "login.html", context={"project_name": settings.PROJECT_NAME})
     # Asegurar que se elimine cualquier cookie corrupta
@@ -76,13 +87,18 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if is_natura_user(user):
+    if is_natura_user(user) and not can_natura_supervisor_view_dashboard(user):
         return RedirectResponse(url="/documents", status_code=status.HTTP_303_SEE_OTHER)
         
+    limited_scrum_dashboard = can_natura_supervisor_view_dashboard(user) and (
+        is_natura_user(user) or is_natura_manager(db, user)
+    )
+
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
         "user": user,
         "active_page": "dashboard",
-        "project_name": settings.PROJECT_NAME
+        "project_name": settings.PROJECT_NAME,
+        "is_limited_scrum_dashboard": limited_scrum_dashboard,
     })
 
 

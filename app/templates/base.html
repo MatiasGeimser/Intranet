@@ -123,8 +123,17 @@
         <!-- Menú de Navegación -->
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
             {% set is_natura_user = user.is_natura_user or (user.email and user.email.lower().endswith('@natura.cl')) %}
+            {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
+            {% set can_natura_supervisor_view_dashboard = user.role.name in ['Administrador', 'Supervisor'] and is_administration_area %}
 
             {% if is_natura_user or is_natura_manager %}
+            {% if can_natura_supervisor_view_dashboard %}
+            <a href="/dashboard"
+                class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-chart-line text-base"></i>
+                <span>Dashboard Principal</span>
+            </a>
+            {% endif %}
             <div class="pt-4 pb-2 px-4">
                 <p class="text-[10px] font-semibold text-[#8C8C8C] tracking-wider uppercase">Documentos</p>
             </div>
@@ -141,7 +150,6 @@
             {% endif %}
             {% else %}
 
-            {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
             {% if user.role.name in ['Administrador', 'Supervisor'] or is_administration_area %}
             <a href="/dashboard"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
