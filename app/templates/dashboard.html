@@ -516,7 +516,6 @@
     // Variables globales para la gestión del tablero
     const currentUserId = {{ user.id }};
     const userRole = "{{ user.role.name }}";
-    const hasFullScrumAccess = {{ has_full_scrum_access|default(false)|tojson }};
     const isLimitedScrumDashboard = {{ is_limited_scrum_dashboard|default(false)|tojson }};
     let activeProjectId = "all"; // ID del filtro activo o "all"
     let notesList = []; // Lista de Proyectos (Notes)
@@ -894,8 +893,8 @@
         // sesión/cache del navegador. Normalizarlos evita ocultar el arrastre al
         // usuario que efectivamente recibió la tarea.
         const isCurrentUser = (userId) => String(userId) === String(currentUserId);
-        const canDelete = hasFullScrumAccess || (isCurrentUser(task.created_by_id) && isCurrentUser(task.assigned_to_user_id));
-        const canUpdateStatus = hasFullScrumAccess || isCurrentUser(task.assigned_to_user_id);
+        const canDelete = isCurrentUser(task.created_by_id) && isCurrentUser(task.assigned_to_user_id);
+        const canUpdateStatus = isCurrentUser(task.assigned_to_user_id);
 
         return `
             <div id="task-${task.id}" class="kanban-card glass-card p-3.5 rounded-2xl border border-gray-200/60 shadow-xs flex flex-col space-y-3 ${canUpdateStatus ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} bg-white/95" draggable="${canUpdateStatus ? 'true' : 'false'}" title="${canUpdateStatus ? 'Arrastra esta tarea a la columna de su nuevo estado.' : 'Solo la persona encargada puede cambiar el estado.'}" onclick="openTaskDetails(${task.id})" role="button" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTaskDetails(${task.id}); }" ${canUpdateStatus ? `ondragstart="dragStart(event, ${task.id})" ondragend="dragEnd(event)"` : ''}>
@@ -1079,7 +1078,7 @@
                 <p class="text-[10px] font-bold uppercase text-grey-main mb-1">Finalizada</p>
                 <p class="text-xs text-black-dark">${formatTaskDate(task.completed_at)}</p>
             </div>` : "";
-        const canEditTask = hasFullScrumAccess || String(task.created_by_id) === String(currentUserId);
+        const canEditTask = String(task.created_by_id) === String(currentUserId);
         const statusOptions = [
             ["todo", "Por hacer"], ["inprogress", "En curso"],
             ["inreview", "En revisión"], ["done", "Finalizada"]

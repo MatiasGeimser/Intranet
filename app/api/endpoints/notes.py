@@ -11,28 +11,12 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
-SCRUM_SUPERVISOR_AREAS = {"Administración", "Administracion", "Ventas"}
-
-
-def has_full_scrum_access(user: User) -> bool:
-    return bool(
-        user.role
-        and (
-            user.role.name == "Administrador"
-            or (
-                user.role.name == "Supervisor"
-                and user.area
-                and user.area.name in SCRUM_SUPERVISOR_AREAS
-            )
-        )
-    )
-
 @router.get("", response_model=List[NoteOut])
 def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Obtiene las notas pertenecientes al área del usuario (o todas si es admin) con sus tareas filtradas por rol.
     """
-    if not has_full_scrum_access(current_user):
+    if current_user.role.name != "Administrador":
         db_notes = db.query(Note).filter(Note.area_id == current_user.area_id).order_by(Note.created_at.desc()).all()
         notes_out = []
         for note in db_notes:
@@ -62,7 +46,7 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
             "tasks": [
                 task for task in note.tasks
                 if task.daily_task_config_id is None
-                and (has_full_scrum_access(current_user) or task.assigned_to_user_id == current_user.id or task.created_by_id == current_user.id)
+                and (task.assigned_to_user_id == current_user.id or task.created_by_id == current_user.id)
             ],
         } for note in notes]
 
@@ -100,9 +84,9 @@ def delete_note(note_id: int, db: Session = Depends(get_db), current_user: User 
     if not db_note:
         raise HTTPException(status_code=404, detail="Nota no encontrada.")
         
-    if db_note.created_by_id != current_user.id and not has_full_scrum_access(current_user):
+    if db_note.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado para eliminar este proyecto/nota.")
-    if not has_full_scrum_access(current_user) and any(task.assigned_to_user_id != current_user.id for task in db_note.tasks if task.daily_task_config_id is None):
+    if any(task.assigned_to_user_id != current_user.id for task in db_note.tasks if task.daily_task_config_id is None):
         raise HTTPException(status_code=409, detail="No puedes eliminar un proyecto que contiene tareas asignadas a otras personas.")
         
     db.delete(db_note)

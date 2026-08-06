@@ -109,11 +109,19 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
     def _is_allowed_full_scrum_request(request: Request) -> bool:
         path = request.url.path
         method = request.method
+        is_task_collection = path.rstrip("/") == "/api/tasks"
+        is_task_comment = path.startswith("/api/tasks/") and path.endswith("/comments")
         return (
             path in {"/", "/dashboard"}
-            or path.startswith("/api/notes")
+            or (path.startswith("/api/notes") and method == "GET")
             or (path == "/api/users/list-minimal" and method == "GET")
-            or path.startswith("/api/tasks")
+            or (
+                path.startswith("/api/tasks")
+                and (
+                    method in {"GET", "PUT", "DELETE"}
+                    or (method == "POST" and (is_task_collection or is_task_comment))
+                )
+            )
         )
 
     @staticmethod
