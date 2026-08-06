@@ -220,6 +220,7 @@ def read_task_comments(task_id: int, db: Session = Depends(get_db), current_user
 def add_task_comment(
     task_id: int,
     comment_in: TaskCommentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -237,6 +238,23 @@ def add_task_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    recipient_id = task.assigned_to_user_id if current_user.id == task.created_by_id else task.created_by_id
+    if recipient_id and recipient_id != current_user.id:
+        recipient = db.query(User).filter(User.id == recipient_id, User.is_active.is_(True)).first()
+        if recipient:
+            from app.models.note import Note
+            from app.services.email_service import EmailService
+            note = db.query(Note).filter(Note.id == task.note_id).first() if task.note_id else None
+            background_tasks.add_task(
+                EmailService.send_task_comment_email,
+                recipient_email=recipient.email,
+                recipient_name=recipient.full_name,
+                task_title=task.title,
+                comment_content=comment.content,
+                author_name=current_user.full_name,
+                note_title=note.title if note else "General",
+            )
     return comment
 
 

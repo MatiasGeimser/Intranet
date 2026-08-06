@@ -196,6 +196,40 @@ class EmailService:
         return EmailService._send_html_email(recipient_email, subject, html_content)
 
     @staticmethod
+    def send_task_comment_email(
+        recipient_email: str,
+        recipient_name: str,
+        task_title: str,
+        comment_content: str,
+        author_name: str,
+        note_title: str,
+    ) -> bool:
+        """Avisa a la otra parte cuando se registra un avance en una tarea."""
+        subject = f"Nuevo avance en tarea: {task_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html><head><meta charset="utf-8"></head>
+        <body style="margin:0;padding:24px;background:#F8F9FA;font-family:Segoe UI,Arial,sans-serif;color:#1A1A1A;">
+            <div style="max-width:600px;margin:auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;">
+                <div style="padding:24px 28px;background:#049DD9;color:#FFFFFF;">
+                    <h1 style="margin:0;font-size:20px;">Nuevo avance de tarea</h1>
+                </div>
+                <div style="padding:28px;">
+                    <p style="margin-top:0;">Hola, {escape(recipient_name)}:</p>
+                    <p>{escape(author_name)} registró un avance en una tarea compartida contigo.</p>
+                    <div style="margin:20px 0;padding:18px;background:#F4F6F8;border-left:4px solid #049DD9;border-radius:8px;">
+                        <p style="margin:0 0 10px;"><strong>Tarea:</strong> {escape(task_title)}</p>
+                        <p style="margin:0 0 10px;"><strong>Proyecto:</strong> {escape(note_title)}</p>
+                        <p style="margin:0;"><strong>Avance:</strong><br>{escape(comment_content).replace(chr(10), '<br>')}</p>
+                    </div>
+                    <a href="{settings.APP_BASE_URL.rstrip('/')}/dashboard" style="display:inline-block;padding:12px 20px;background:#049DD9;color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:700;">Ver tarea en Intranet</a>
+                </div>
+            </div>
+        </body></html>
+        """
+        return EmailService._send_html_email(recipient_email, subject, html_content)
+
+    @staticmethod
     def _send_html_email(recipient_email: str, subject: str, html_content: str) -> bool:
         smtp_user = settings.SMTP_USER
         smtp_password = settings.SMTP_PASSWORD
