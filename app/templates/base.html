@@ -124,10 +124,10 @@
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
             {% set is_natura_user = user.is_natura_user or (user.email and user.email.lower().endswith('@natura.cl')) %}
             {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
-            {% set can_natura_supervisor_view_dashboard = user.role.name in ['Administrador', 'Supervisor'] and is_administration_area %}
+            {% set is_full_scrum_supervisor = user.role.name in ['Administrador', 'Supervisor'] and user.area and user.area.name in ['Administración', 'Administracion', 'Ventas'] %}
 
             {% if is_natura_user or is_natura_manager %}
-            {% if can_natura_supervisor_view_dashboard %}
+            {% if is_full_scrum_supervisor %}
             <a href="/dashboard"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-chart-line text-base"></i>

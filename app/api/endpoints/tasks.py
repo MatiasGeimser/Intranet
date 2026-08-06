@@ -20,6 +20,7 @@ ASSIGNABLE_TASK_ROLES = {
     "Administrador": {"Administrador", "Supervisor"},
     "Supervisor": {"Administrador", "Usuario"},
 }
+SCRUM_SUPERVISOR_AREAS = {"Administración", "Administracion", "Ventas"}
 
 
 def validate_task_assignee(creator: User, assignee: User) -> None:
@@ -38,29 +39,42 @@ def is_task_assignee(task: Task, user: User) -> bool:
     return task.assigned_to_user_id == user.id
 
 
+def has_full_scrum_access(user: User) -> bool:
+    return bool(
+        user.role
+        and (
+            user.role.name == "Administrador"
+            or (
+                user.role.name == "Supervisor"
+                and user.area
+                and user.area.name in SCRUM_SUPERVISOR_AREAS
+            )
+        )
+    )
+
 def is_task_owner(task: Task, user: User) -> bool:
     """El creador conserva control total solo mientras la tarea sea para sí mismo."""
     return task.created_by_id == user.id
 
 
 def can_access_task(task: Task, user: User) -> bool:
-    return is_task_owner(task, user) or is_task_assignee(task, user)
+    return has_full_scrum_access(user) or is_task_owner(task, user) or is_task_assignee(task, user)
 
 @router.get("/", response_model=List[TaskOut])
 def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Retrieve tasks assigned to the current user (if standard user) or all tasks (if Admin/Supervisor).
     """
-    return db.query(Task).options(
+    query = db.query(Task).options(
         selectinload(Task.creator),
         selectinload(Task.assigned_user),
-    ).filter(
-        Task.daily_task_config_id.is_(None),
-        or_(
+    ).filter(Task.daily_task_config_id.is_(None))
+    if not has_full_scrum_access(current_user):
+        query = query.filter(or_(
             Task.assigned_to_user_id == current_user.id,
             Task.created_by_id == current_user.id,
-        ),
-    ).order_by(Task.created_at.desc()).all()
+        ))
+    return query.order_by(Task.created_at.desc()).all()
 
 @router.post("/", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
 def create_task(
@@ -137,7 +151,7 @@ def update_task(
 
     old_assignee_id = db_task.assigned_to_user_id
     old_status = db_task.status
-    can_manage_before_update = is_task_owner(db_task, current_user)
+    can_manage_before_update = has_full_scrum_access(current_user) or is_task_owner(db_task, current_user)
     update_data = task_in.dict(exclude_unset=True)
 
     if not can_manage_before_update:
@@ -267,7 +281,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    if not is_task_owner(db_task, current_user):
+    if not (has_full_scrum_access(current_user) or is_task_owner(db_task, current_user)):
         raise HTTPException(status_code=403, detail="No tienes autorización para eliminar esta tarea")
         
     db.delete(db_task)

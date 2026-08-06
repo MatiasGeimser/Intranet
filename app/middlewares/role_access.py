@@ -23,12 +23,12 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         return bool(user.is_natura_user or (user.email and user.email.lower().endswith("@natura.cl")))
 
     @staticmethod
-    def _can_natura_supervisor_view_dashboard(user: User) -> bool:
+    def _has_full_scrum_access(user: User) -> bool:
         return bool(
             user.role
             and user.role.name in {"Administrador", "Supervisor"}
             and user.area
-            and user.area.name in {"Administración", "Administracion"}
+            and user.area.name in {"Administración", "Administracion", "Ventas"}
         )
 
     async def dispatch(self, request: Request, call_next):
@@ -60,7 +60,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             if not user or user.role.name == "Administrador":
                 return await call_next(request)
 
-            if self._can_natura_supervisor_view_dashboard(user) and self._is_allowed_natura_dashboard_request(request):
+            if self._has_full_scrum_access(user) and self._is_allowed_full_scrum_request(request):
                 return await call_next(request)
 
             if is_natura_manager(db, user):
@@ -106,19 +106,14 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         return path == "/documents" or (path.startswith("/api/documents") and method == "GET")
 
     @staticmethod
-    def _is_allowed_natura_dashboard_request(request: Request) -> bool:
+    def _is_allowed_full_scrum_request(request: Request) -> bool:
         path = request.url.path
         method = request.method
         return (
             path in {"/", "/dashboard"}
-            or (path.startswith("/api/notes") and method == "GET")
-            or (
-                path.startswith("/api/tasks")
-                and (
-                    method in {"GET", "PUT"}
-                    or (method == "POST" and path.startswith("/api/tasks/") and path.endswith("/comments"))
-                )
-            )
+            or path.startswith("/api/notes")
+            or (path == "/api/users/list-minimal" and method == "GET")
+            or path.startswith("/api/tasks")
         )
 
     @staticmethod

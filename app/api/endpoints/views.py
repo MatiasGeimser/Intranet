@@ -40,13 +40,13 @@ def is_natura_user(user: User) -> bool:
     return bool(user.is_natura_user or (user.email and user.email.lower().endswith("@natura.cl")))
 
 
-def can_natura_supervisor_view_dashboard(user: User) -> bool:
-    """Allows the Administration supervisor to follow its Scrum work without opening other modules."""
+def has_full_scrum_access(user: User) -> bool:
+    """Allows Administration and Sales supervisors to manage the Scrum Board."""
     return bool(
         user.role
         and user.role.name in {"Administrador", "Supervisor"}
         and user.area
-        and user.area.name in {"Administración", "Administracion"}
+        and user.area.name in {"Administración", "Administracion", "Ventas"}
     )
 
 
@@ -55,7 +55,7 @@ def login_view(request: Request, db: Session = Depends(get_db)):
     """Muestra la página de inicio de sesión. Si ya tiene sesión, redirige al Dashboard."""
     user = get_current_user_optional(request, db)
     if user and user.is_active:
-        use_documents_home = is_natura_user(user) and not can_natura_supervisor_view_dashboard(user)
+        use_documents_home = is_natura_user(user) and not has_full_scrum_access(user)
         return RedirectResponse(url="/documents" if use_documents_home else "/dashboard")
     
     response = templates.TemplateResponse(request=request,name= "login.html", context={"project_name": settings.PROJECT_NAME})
@@ -87,10 +87,11 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if is_natura_user(user) and not can_natura_supervisor_view_dashboard(user):
+    if is_natura_user(user) and not has_full_scrum_access(user):
         return RedirectResponse(url="/documents", status_code=status.HTTP_303_SEE_OTHER)
-        
-    limited_scrum_dashboard = can_natura_supervisor_view_dashboard(user) and (
+
+    full_scrum_access = has_full_scrum_access(user)
+    limited_scrum_dashboard = not full_scrum_access and (
         is_natura_user(user) or is_natura_manager(db, user)
     )
 
@@ -99,6 +100,7 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
         "active_page": "dashboard",
         "project_name": settings.PROJECT_NAME,
         "is_limited_scrum_dashboard": limited_scrum_dashboard,
+        "has_full_scrum_access": full_scrum_access,
     })
 
 
