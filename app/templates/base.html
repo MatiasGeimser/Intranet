@@ -141,7 +141,8 @@
             {% endif %}
             {% else %}
 
-            {% if user.role.name in ['Administrador', 'Supervisor'] %}
+            {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
+            {% if user.role.name in ['Administrador', 'Supervisor'] or is_administration_area %}
             <a href="/dashboard"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-chart-line text-base"></i>
