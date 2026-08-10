@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -11,6 +12,21 @@ from app.models.user import User
 router = APIRouter()
 
 
+def ensure_phone_number_status_column(db: Session) -> None:
+    """Aplica la migración ligera en entornos serverless donde no corre startup."""
+    columns = {column["name"] for column in inspect(db.bind).get_columns("phone_numbers")}
+    if "is_active" in columns:
+        return
+
+    is_postgresql = db.bind.dialect.name == "postgresql"
+    default_value = "TRUE" if is_postgresql else "1"
+    if_not_exists = " IF NOT EXISTS" if is_postgresql else ""
+    db.execute(text(
+        f"ALTER TABLE phone_numbers ADD COLUMN{if_not_exists} is_active BOOLEAN NOT NULL DEFAULT {default_value}"
+    ))
+    db.commit()
+
+
 @router.get("", response_model=List[PhoneNumberResponse])
 def get_phone_numbers(
     cliente   : Optional[str] = None,
@@ -21,6 +37,7 @@ def get_phone_numbers(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Lista todos los números contratados con filtros opcionales."""
+    ensure_phone_number_status_column(db)
     query = db.query(PhoneNumber)
 
     if cliente:
@@ -47,6 +64,7 @@ def create_phone_number(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Registra un nuevo número contratado."""
+    ensure_phone_number_status_column(db)
     # Verificar duplicado por número
     existing = db.query(PhoneNumber).filter(PhoneNumber.numero == data.numero.strip()).first()
     if existing:
@@ -86,6 +104,7 @@ def update_phone_number(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Actualiza los datos de un número contratado."""
+    ensure_phone_number_status_column(db)
     phone = db.query(PhoneNumber).filter(PhoneNumber.id == phone_id).first()
     if not phone:
         raise HTTPException(status_code=404, detail="Número no encontrado.")
@@ -118,6 +137,7 @@ def delete_phone_number(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Elimina un número contratado."""
+    ensure_phone_number_status_column(db)
     phone = db.query(PhoneNumber).filter(PhoneNumber.id == phone_id).first()
     if not phone:
         raise HTTPException(status_code=404, detail="Número no encontrado.")
