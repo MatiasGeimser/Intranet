@@ -172,12 +172,14 @@ def create_folder(
     current_user: User = Depends(get_current_active_user),
 ):
     """Crea una carpeta virtual dentro del gestor documental."""
-    if not can_manage_documents(db, current_user):
-        raise HTTPException(status_code=403, detail="Solo un administrador documental puede crear carpetas.")
     name = " ".join(payload.name.strip().split())
     parent = " / ".join(part.strip() for part in payload.parent.split(" / ") if part.strip())
-    if not name or "/" in name or parent != "Natura" and not parent.startswith("Natura / "):
-        raise HTTPException(status_code=400, detail="La carpeta debe pertenecer a Natura y tener un nombre válido.")
+    if not name or "/" in name:
+        raise HTTPException(status_code=400, detail="Indica un nombre de carpeta válido.")
+    if parent == "Natura" or parent.startswith("Natura / "):
+        raise HTTPException(status_code=403, detail="No está permitido crear subcarpetas en Natura.")
+    if not user_can_manage_folder(parent, current_user, db):
+        raise HTTPException(status_code=403, detail="No tienes permisos para crear subcarpetas en esta carpeta.")
     folder_name = f"{parent} / {name}"
     if len(folder_name) > 100:
         raise HTTPException(status_code=400, detail="La ruta de la carpeta es demasiado larga.")

@@ -173,7 +173,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             and (method == "GET" or any(permission.can_write for permission in user.folder_permissions))
         ):
             return True
-        if path.startswith("/api/credentials") and method == "GET":
+        if path.startswith("/api/credentials") and method in {"GET", "POST", "PUT", "DELETE"}:
             return True
         if path == "/api/users/me" and method in {"GET", "PUT"}:
             return True

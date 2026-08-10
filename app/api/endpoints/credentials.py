@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.credential import Credential
@@ -10,6 +11,44 @@ from app.services.audit_service import audit_service
 from app.models.user import User
 
 router = APIRouter()
+
+TECHNOLOGY_AREAS = {"Tecnología", "Tecnologia", "Tecnología (IT)", "Tecnologia (IT)", "IT"}
+INFRASTRUCTURE_CREDENTIAL_TERMS = ("wifi", "wi-fi", "cpanel", "c-panel")
+
+
+def is_technology_administrator(user: User) -> bool:
+    return bool(
+        user.role
+        and user.role.name == "Administrador"
+        and user.area
+        and user.area.name in TECHNOLOGY_AREAS
+    )
+
+
+def is_infrastructure_credential(credential: Credential) -> bool:
+    searchable = " ".join(filter(None, [credential.title, credential.url, credential.category])).casefold()
+    return any(term in searchable for term in INFRASTRUCTURE_CREDENTIAL_TERMS)
+
+
+def credential_is_visible_to(credential: Credential, user: User) -> bool:
+    if is_infrastructure_credential(credential):
+        return is_technology_administrator(user)
+    return credential.owner_id == user.id
+
+
+def credential_visibility_filter(user: User):
+    owner_filter = Credential.owner_id == user.id
+    if not is_technology_administrator(user):
+        return owner_filter
+    infrastructure_filter = or_(*[
+        or_(
+            Credential.title.ilike(f"%{term}%"),
+            Credential.url.ilike(f"%{term}%"),
+            Credential.category.ilike(f"%{term}%"),
+        )
+        for term in INFRASTRUCTURE_CREDENTIAL_TERMS
+    ])
+    return or_(owner_filter, infrastructure_filter)
 
 @router.get("", response_model=List[CredentialResponse])
 def get_credentials(
@@ -23,37 +62,7 @@ def get_credentials(
     if not include_inactive:
         query = query.filter(Credential.is_active.is_(True))
     
-    # El Administrador y Supervisor pueden ver todo.
-    # El usuario normal ve solo las suyas.
-    if current_user.role.name != "Administrador":
-        from sqlalchemy import or_
-        filters = []
-        
-        # 1. Base rule: can see their own credentials
-        filters.append(Credential.owner_id == current_user.id)
-        filters.append(Credential.username == current_user.email)
-        
-        # 2. Supervisor can see ALL executive credentials
-        if current_user.role.name == "Supervisor":
-            from sqlalchemy import and_
-            filters.append(and_(
-                Credential.title.like("% - %"),
-                Credential.category.in_(["Correo Corporativo", "CRM", "Telefonía", "Sistemas"])
-            ))
-            
-        matching_creds_query = db.query(Credential).filter(Credential.username == current_user.email)
-        if not include_inactive:
-            matching_creds_query = matching_creds_query.filter(Credential.is_active.is_(True))
-        matching_creds = matching_creds_query.all()
-        person_names = set()
-        for c in matching_creds:
-            if " - " in c.title:
-                person_names.add(c.title.split(" - ", 1)[1].strip())
-        
-        for name in person_names:
-            filters.append(Credential.title.endswith(f" - {name}"))
-            
-        query = query.filter(or_(*filters))
+    query = query.filter(credential_visibility_filter(current_user))
         
     if category:
         query = query.filter(Credential.category == category)
@@ -112,27 +121,11 @@ def decrypt_credential_password(
             detail="Credencial inactiva. No se permite revelar la contraseña."
         )
         
-    # Solo el Administrador puede verlo todo. Los demás aplican reglas de negocio.
-    if current_user.role.name != "Administrador":
-        is_allowed = False
-        if cred.owner_id == current_user.id or cred.username == current_user.email:
-            is_allowed = True
-        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
-            is_allowed = True
-        elif " - " in cred.title:
-            person_name = cred.title.split(" - ", 1)[1].strip()
-            has_matching = db.query(Credential).filter(
-                Credential.username == current_user.email,
-                Credential.title.endswith(f" - {person_name}")
-            ).first()
-            if has_matching:
-                is_allowed = True
-
-        if not is_allowed:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Acceso denegado. No tienes permisos para ver esta credencial."
-            )
+    if not credential_is_visible_to(cred, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. No tienes permisos para ver esta credencial."
+        )
 
     # Desencriptar e inyectar auditoría
     decrypted_pw = crypto_service.decrypt_password(
@@ -159,15 +152,8 @@ def update_credential(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name != "Administrador":
-        is_allowed = False
-        if cred.owner_id == current_user.id:
-            is_allowed = True
-        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
-            is_allowed = True
-            
-        if not is_allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    if not credential_is_visible_to(cred, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     if cred_data.title:
         cred.title = cred_data.title
@@ -211,8 +197,6 @@ def update_executive_status(
 ):
     """Actualiza el estado de activo/inactivo para todas las credenciales de un ejecutivo."""
     query = db.query(Credential).filter(Credential.owner_id == current_user.id)
-    if current_user.role.name in ["Administrador", "Supervisor"]:
-        query = db.query(Credential)
         
     from sqlalchemy import or_
     creds = query.filter(or_(
@@ -252,15 +236,8 @@ def delete_credential(
     if not cred:
         raise HTTPException(status_code=404, detail="Credencial no encontrada.")
         
-    if current_user.role.name != "Administrador":
-        is_allowed = False
-        if cred.owner_id == current_user.id:
-            is_allowed = True
-        elif current_user.role.name == "Supervisor" and (" - " in cred.title and cred.category in ["Correo Corporativo", "CRM", "Telefonía", "Sistemas"]):
-            is_allowed = True
-            
-        if not is_allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    if not credential_is_visible_to(cred, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
     title = cred.title
     db.delete(cred)
@@ -280,7 +257,7 @@ def delete_credential(
 
 @router.get("/template/download")
 def download_credential_template(
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Descarga una plantilla Excel vacía para la importación masiva de credenciales."""
     import openpyxl
@@ -322,7 +299,7 @@ def download_credential_template(
 def delete_last_import(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Elimina el último lote de credenciales importadas (agrupadas por timestamp de creación)."""
     from datetime import timedelta
@@ -373,7 +350,7 @@ def import_credentials(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(PermissionChecker("credentials:manage"))
+    current_user: User = Depends(get_current_active_user)
 ):
     """Importa credenciales masivamente desde un archivo Excel con múltiples sistemas."""
     from app.services.credential_import_service import CredentialImportService

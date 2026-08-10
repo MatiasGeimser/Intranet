@@ -594,6 +594,7 @@
             }
         }
         if (!CAN_MANAGE_ALL_DOCUMENTS) {
+            folderCatalog = userFolderPerms.map(permission => ({name: permission.folder, can_write: permission.write}));
             renderPersonalFolders();
             STANDARD_FOLDERS.forEach(f => {
                 const perm = userFolderPerms.find(p => p.folder === f);
@@ -673,24 +674,29 @@
         const backButton = document.getElementById('drive-back-button');
         const newFolderButton = document.getElementById('drive-new-folder-button');
         if (!browser || !row) return;
-        const paths = (CAN_MANAGE_ALL_DOCUMENTS ? folderCatalog.map(item => item.name) : userFolderPerms.filter(item => item.read).map(item => item.folder))
-            .filter(path => path.startsWith('Natura / '));
-        if (!folder.startsWith('Natura') || !paths.length) {
-            browser.classList.add('hidden');
-            return;
-        }
-        browser.classList.remove('hidden');
+        const isNaturaFolder = folder === 'Natura' || folder.startsWith('Natura / ');
+        const paths = (CAN_MANAGE_ALL_DOCUMENTS ? folderCatalog.map(item => item.name) : userFolderPerms.filter(item => item.read).map(item => item.folder));
+        const canCreateSubfolder = !isNaturaFolder && canManageFolder(folder);
         const parentParts = folder.split(' / ');
-        const parentFolder = parentParts.length > 1 ? parentParts.slice(0, -1).join(' / ') : null;
-        backButton.classList.toggle('hidden', !parentFolder);
-        backButton.onclick = () => parentFolder && selectFolder(parentFolder);
-        newFolderButton.classList.toggle('hidden', !CAN_MANAGE_ALL_DOCUMENTS);
-        newFolderButton.onclick = createDriveFolder;
         const children = [...new Set(paths.map(path => {
             const parts = path.split(' / ');
             if (parts.length <= parentParts.length || !parentParts.every((part, index) => parts[index] === part)) return null;
             return parts.slice(0, parentParts.length + 1).join(' / ');
         }).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+        if (isNaturaFolder && !paths.some(path => path.startsWith('Natura / '))) {
+            browser.classList.add('hidden');
+            return;
+        }
+        if (!isNaturaFolder && !children.length && !canCreateSubfolder) {
+            browser.classList.add('hidden');
+            return;
+        }
+        browser.classList.remove('hidden');
+        const parentFolder = parentParts.length > 1 ? parentParts.slice(0, -1).join(' / ') : null;
+        backButton.classList.toggle('hidden', !parentFolder);
+        backButton.onclick = () => parentFolder && selectFolder(parentFolder);
+        newFolderButton.classList.toggle('hidden', !canCreateSubfolder);
+        newFolderButton.onclick = createDriveFolder;
         if (!children.length) {
             document.getElementById('drive-folder-hint').textContent = 'Sin subcarpetas';
             row.innerHTML = '<p class="text-[11px] text-gray-400 py-3">Esta carpeta contiene archivos o está vacía.</p>';
@@ -730,6 +736,9 @@
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.detail || 'No fue posible crear la carpeta.');
             folderCatalog.push(data);
+            if (!CAN_MANAGE_ALL_DOCUMENTS) {
+                userFolderPerms.push({folder: data.name, read: true, write: true});
+            }
             showToast('Carpeta creada correctamente.', 'success');
             renderDriveFolderRow(activeFolder);
         } catch (error) {
