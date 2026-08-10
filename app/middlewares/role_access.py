@@ -168,6 +168,8 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             return True
         if path.startswith("/api/collaborators") and method == "GET":
             return True
+        if path == "/api/users/list-minimal" and method == "GET":
+            return True
         if path == "/documents" or (
             path.startswith("/api/documents")
             and (method == "GET" or any(permission.can_write for permission in user.folder_permissions))

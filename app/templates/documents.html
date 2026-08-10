@@ -395,12 +395,10 @@
          ═══════════════════════════════════════════════════ -->
     <div class="space-y-4 min-w-0">
 
-        <!-- Dropzone mejorado (Solo Administradores y Supervisores) -->
-        {% if user.role.name == 'Administrador' or is_natura_manager %}
+        <!-- Selector de archivos, visible al tener permiso de escritura en la carpeta activa. -->
         <div id="dropzone" class="hidden" style="display:none!important">
             <input type="file" id="file-uploader" class="hidden" onchange="handleFileSelect(event)">
         </div>
-        {% endif %}
 
         <!-- Barra de herramientas: carpeta activa, búsqueda, toggle de vista -->
         <section id="drive-folder-browser" class="hidden p-3">
@@ -433,13 +431,11 @@
 
             <div class="flex items-center gap-2">
                 <button id="quick-new-subfolder-button" type="button" onclick="createDriveFolder()" class="hidden h-9 px-3 rounded-lg border border-[#049DD9]/25 bg-[#E8F0FE] text-[#1967D2] text-[11px] font-semibold hover:bg-[#D2E3FC] transition-colors" title="Crear subcarpeta en el directorio activo"><i class="fa-solid fa-folder-plus mr-1"></i>Nueva subcarpeta</button>
-                {% if user.role.name == 'Administrador' or is_natura_manager %}
-                <button id="quick-upload-button" type="button" class="h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
+                <button id="quick-upload-button" type="button" class="hidden h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
                 <div id="upload-progress-wrap" class="hidden">
                     <div class="w-full bg-gray-100 rounded-full h-[3px]"><div id="upload-progress-bar" style="width:0%"></div></div>
                     <p class="text-[10px] text-blue-corp font-semibold mt-1 truncate" id="upload-progress-label">Subiendo...</p>
                 </div>
-                {% endif %}
                 <!-- Buscador -->
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
@@ -916,12 +912,14 @@
         });
 
         const uploadDropzone = document.getElementById('dropzone');
+        const quickUploadButton = document.getElementById('quick-upload-button');
         let canWrite = CAN_MANAGE_ALL_DOCUMENTS;
         if (!CAN_MANAGE_ALL_DOCUMENTS) {
             const p = userFolderPerms.find(p => p.folder === folder);
             canWrite = p && p.write;
         }
         if (uploadDropzone) uploadDropzone.style.display = canWrite ? 'block' : 'none';
+        quickUploadButton?.classList.toggle('hidden', !canWrite);
 
         loadDocuments();
     }
@@ -1316,8 +1314,6 @@
             }
             {
                 const users = uploadUsersCache;
-                const currentUserRole = "{{ user.role.name }}";
-                
                 if(titleEl) titleEl.textContent = `Configuración de Acceso (Encontrados: ${users.length})`;
                 
                 while (select.firstChild) {
@@ -1326,9 +1322,6 @@
                 
                 let count = 0;
                 users.forEach(c => {
-                    // Si es Supervisor, solo puede compartir con roles 'Usuario'. Administrador ve a todos.
-                    if (currentUserRole === 'Supervisor' && (!c.role || c.role.name !== 'Usuario')) return;
-                    
                     const opt = document.createElement('option');
                     opt.value = c.id;
                     opt.className = 'text-black bg-white p-1';
@@ -1342,7 +1335,7 @@
                     const optEmpty = document.createElement('option');
                     optEmpty.disabled = true;
                     optEmpty.className = 'text-red-500';
-                    optEmpty.textContent = `No hay usuarios compatibles (Tu rol: ${currentUserRole})`;
+                    optEmpty.textContent = 'No hay usuarios disponibles.';
                     select.appendChild(optEmpty);
                 }
             }

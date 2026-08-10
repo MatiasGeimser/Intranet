@@ -84,6 +84,21 @@ def get_natura_personal_owner(db: Session, folder: str) -> User | None:
     return db.query(User).filter(func.lower(User.full_name) == parts[2].lower()).first()
 
 
+def validate_shared_user_ids(db: Session, user_ids: List[int]) -> List[int]:
+    normalized_user_ids = list(dict.fromkeys(user_ids))
+    if not normalized_user_ids:
+        return normalized_user_ids
+    valid_user_ids = {
+        user_id for (user_id,) in db.query(User.id).filter(
+            User.id.in_(normalized_user_ids),
+            User.is_active.is_(True),
+        ).all()
+    }
+    if len(valid_user_ids) != len(normalized_user_ids):
+        raise HTTPException(status_code=400, detail="Selecciona únicamente usuarios activos para compartir el archivo.")
+    return normalized_user_ids
+
+
 def resolve_upload_access(db: Session, current_user: User, folder: str, is_public: bool, allowed_users: List[int]):
     if not user_can_manage_folder(folder, current_user, db):
         raise HTTPException(status_code=403, detail="No tienes permisos para subir documentos en esta carpeta.")
@@ -94,7 +109,22 @@ def resolve_upload_access(db: Session, current_user: User, folder: str, is_publi
             raise HTTPException(status_code=400, detail="No se pudo identificar al usuario dueño de esta carpeta Natura.")
         if personal_owner:
             return False, [personal_owner.id]
-    return is_public, allowed_users
+    normalized_user_ids = validate_shared_user_ids(db, allowed_users) if not is_public else []
+    return is_public, normalized_user_ids
+
+
+def grant_shared_folder_access(db: Session, folder: str, user_ids: List[int]) -> None:
+    """Permite que los destinatarios naveguen la carpeta de un archivo compartido."""
+    if folder == "Natura" or folder.startswith("Natura / "):
+        return
+    existing_user_ids = {
+        user_id for (user_id,) in db.query(FolderAccess.user_id).filter(
+            FolderAccess.folder_name == folder,
+            FolderAccess.user_id.in_(user_ids),
+        ).all()
+    }
+    for user_id in set(user_ids) - existing_user_ids:
+        db.add(FolderAccess(user_id=user_id, folder_name=folder, can_read=True, can_write=False))
 
 
 @router.get("", response_model=List[DocumentResponse])
@@ -239,6 +269,8 @@ def upload_document(
             allowed_users_ids = [int(u_id.strip()) for u_id in allowed_users.split(",") if u_id.strip()]
         except ValueError:
             pass
+    allowed_users_ids = validate_shared_user_ids(db, allowed_users_ids) if not is_public else []
+    grant_shared_folder_access(db, folder, allowed_users_ids)
 
     # Guardar documento usando el servicio que maneja versionamiento automático
     db_doc = doc_service.save_document(
@@ -272,6 +304,7 @@ def create_storage_upload_session(
     is_public, allowed_users = resolve_upload_access(
         db, current_user, payload.folder, payload.is_public, payload.allowed_users
     )
+    grant_shared_folder_access(db, payload.folder, allowed_users)
     if not supabase_storage.enabled:
         raise HTTPException(status_code=503, detail="Supabase Storage no está configurado en este entorno.")
     object_path = supabase_storage.make_object_path(payload.name)
