@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', loadCredentials);
 
 async function loadCredentials() {
     try {
-        const res = await fetchAPI('/api/credentials');
+        const res = await fetchAPI('/api/credentials?scope=personal');
         if (!res.ok) throw new Error('Error al obtener credenciales');
         allCredentials = await res.json();
 

@@ -14,6 +14,7 @@ router = APIRouter()
 
 TECHNOLOGY_AREAS = {"Tecnología", "Tecnologia", "Tecnología (IT)", "Tecnologia (IT)", "IT"}
 INFRASTRUCTURE_CREDENTIAL_TERMS = ("wifi", "wi-fi", "cpanel", "c-panel")
+EXECUTIVE_CATEGORIES = {"Correo Corporativo", "CRM", "Telefonía", "Sistemas"}
 
 
 def is_technology_administrator(user: User) -> bool:
@@ -30,9 +31,19 @@ def is_infrastructure_credential(credential: Credential) -> bool:
     return any(term in searchable for term in INFRASTRUCTURE_CREDENTIAL_TERMS)
 
 
+def is_executive_credential(credential: Credential) -> bool:
+    return credential.category in EXECUTIVE_CATEGORIES
+
+
+def executive_credential_filter():
+    return Credential.category.in_(EXECUTIVE_CATEGORIES)
+
+
 def credential_is_visible_to(credential: Credential, user: User) -> bool:
     if is_infrastructure_credential(credential):
         return is_technology_administrator(user)
+    if is_executive_credential(credential):
+        return user.role.name in {"Administrador", "Supervisor"}
     return credential.owner_id == user.id
 
 
@@ -53,16 +64,25 @@ def credential_visibility_filter(user: User):
 @router.get("", response_model=List[CredentialResponse])
 def get_credentials(
     category: Optional[str] = None,
+    scope: str = "personal",
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Obtiene la bóveda de contraseñas filtradas por categoría (si se especifica)."""
+    """Obtiene credenciales personales o corporativas por ejecutivo."""
+    if scope not in {"personal", "executive"}:
+        raise HTTPException(status_code=400, detail="Ámbito de credenciales no válido.")
     query = db.query(Credential)
     if not include_inactive:
         query = query.filter(Credential.is_active.is_(True))
     
-    query = query.filter(credential_visibility_filter(current_user))
+    if scope == "executive":
+        if current_user.role.name not in {"Administrador", "Supervisor"}:
+            raise HTTPException(status_code=403, detail="No tienes acceso a las credenciales por ejecutivo.")
+        query = query.filter(executive_credential_filter())
+    else:
+        query = query.filter(~executive_credential_filter())
+        query = query.filter(credential_visibility_filter(current_user))
         
     if category:
         query = query.filter(Credential.category == category)
