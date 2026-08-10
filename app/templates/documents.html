@@ -432,6 +432,7 @@
             </div>
 
             <div class="flex items-center gap-2">
+                <button id="quick-new-subfolder-button" type="button" onclick="createDriveFolder()" class="hidden h-9 px-3 rounded-lg border border-[#049DD9]/25 bg-[#E8F0FE] text-[#1967D2] text-[11px] font-semibold hover:bg-[#D2E3FC] transition-colors" title="Crear subcarpeta en el directorio activo"><i class="fa-solid fa-folder-plus mr-1"></i>Nueva subcarpeta</button>
                 {% if user.role.name == 'Administrador' or is_natura_manager %}
                 <button id="quick-upload-button" type="button" class="h-9 px-3 rounded-lg bg-[#049DD9] text-white text-[11px] font-semibold hover:bg-[#038bc2] transition-colors" title="Subir archivo"><i class="fa-solid fa-cloud-arrow-up mr-1"></i>Subir</button>
                 <div id="upload-progress-wrap" class="hidden">
@@ -892,6 +893,9 @@
     function selectFolder(folder) {
         activeFolder = folder;
         renderDriveFolderRow(folder);
+        const quickNewSubfolderButton = document.getElementById('quick-new-subfolder-button');
+        const canCreateSubfolder = !folder.startsWith('Natura') && canManageFolder(folder);
+        quickNewSubfolderButton?.classList.toggle('hidden', !canCreateSubfolder);
         updateFolderBreadcrumb(folder);
         document.getElementById('active-folder-title').textContent = getFolderLabel(folder);
         document.getElementById('active-folder-context').textContent = isPersonalNaturaFolder(folder)
