@@ -93,6 +93,17 @@ def seed_database(db: Session):
 
     from sqlalchemy import text
 
+    # Estado operativo de las líneas contratadas. Las existentes permanecen activas.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE"))
+        else:
+            db.execute(text("ALTER TABLE phone_numbers ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (phone_numbers.is_active): {e} ======")
+
     # Mensajes directos del chat: nullable para conservar el canal institucional existente.
     try:
         if engine.name == "postgresql":

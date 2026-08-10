@@ -65,6 +65,13 @@
     }
     .filter-pill.active-entrada { background:#059669; border-color:#059669; color:#fff; box-shadow:0 4px 12px rgba(5,150,105,.3); }
     .filter-pill.active-salida  { background:#dc2626; border-color:#dc2626; color:#fff; box-shadow:0 4px 12px rgba(220,38,38,.3); }
+    .status-filter input { accent-color: #049DD9; }
+    .status-badge {
+        display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px;
+        font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    }
+    .status-active { color:#047857; background:#ecfdf5; }
+    .status-inactive { color:#b91c1c; background:#fef2f2; }
 
     /* Modal */
     .modal-backdrop {
@@ -239,6 +246,11 @@
             <i class="fa-solid fa-arrows-left-right mr-1 text-[#049DD9]"></i>Ambos
         </button>
     </div>
+    <fieldset class="status-filter flex items-center gap-3 text-xs text-[#52606d] border-l border-[#8C8C8C]/15 pl-4" aria-label="Estado de líneas">
+        <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="status-filter" value="all" checked onchange="setStatusFilter(this.value)">Todos</label>
+        <label class="flex items-center gap-1.5 cursor-pointer text-emerald-700"><input type="radio" name="status-filter" value="active" onchange="setStatusFilter(this.value)">Activos</label>
+        <label class="flex items-center gap-1.5 cursor-pointer text-red-700"><input type="radio" name="status-filter" value="inactive" onchange="setStatusFilter(this.value)">Inactivos</label>
+    </fieldset>
     <span id="phone-count" class="text-xs text-[#8C8C8C] font-medium whitespace-nowrap ml-auto hidden md:inline">— líneas</span>
 </div>
 
@@ -258,6 +270,7 @@
                     <th>Número</th>
                     <th>Prefijo</th>
                     <th>Dirección</th>
+                    <th>Estado</th>
                     <th>Notas</th>
                     <th>Registrado</th>
                     <th class="text-right">Acciones</th>
@@ -265,19 +278,19 @@
             </thead>
             <tbody id="phone-tbody">
                 <!-- Skeleton rows -->
-                <tr id="sk1"><td colspan="7"><div class="flex gap-4 py-2">
+                <tr id="sk1"><td colspan="8"><div class="flex gap-4 py-2">
                     <div class="skeleton h-4 flex-1"></div>
                     <div class="skeleton h-4 w-28"></div>
                     <div class="skeleton h-4 w-16"></div>
                     <div class="skeleton h-4 w-20"></div>
                 </div></td></tr>
-                <tr id="sk2"><td colspan="7"><div class="flex gap-4 py-2">
+                <tr id="sk2"><td colspan="8"><div class="flex gap-4 py-2">
                     <div class="skeleton h-4 flex-1"></div>
                     <div class="skeleton h-4 w-28"></div>
                     <div class="skeleton h-4 w-16"></div>
                     <div class="skeleton h-4 w-20"></div>
                 </div></td></tr>
-                <tr id="sk3"><td colspan="7"><div class="flex gap-4 py-2">
+                <tr id="sk3"><td colspan="8"><div class="flex gap-4 py-2">
                     <div class="skeleton h-4 flex-1"></div>
                     <div class="skeleton h-4 w-28"></div>
                     <div class="skeleton h-4 w-16"></div>
@@ -330,6 +343,12 @@
                 <div class="form-group col-span-2">
                     <label>Cliente / Empresa *</label>
                     <input id="f-cliente" type="text" placeholder="Ej: Nexus Global" required maxlength="120">
+                </div>
+                <div class="form-group col-span-2">
+                    <label class="flex items-center justify-between bg-[#F2F2F2] rounded-xl px-4 py-3 cursor-pointer normal-case tracking-normal">
+                        <span class="flex items-center gap-2 text-sm font-semibold text-[#262523] normal-case tracking-normal"><i class="fa-solid fa-circle-check text-emerald-500"></i>Línea activa</span>
+                        <input id="f-is-active" type="checkbox" checked class="h-4 w-4 accent-[#049DD9]">
+                    </label>
                 </div>
                 <!-- Número -->
                 <div class="form-group col-span-2 sm:col-span-1">
@@ -395,6 +414,7 @@
 // =============================================================================
 let allPhones    = [];
 let dirFilter    = 'all';
+let statusFilter = 'all';
 let searchTerm   = '';
 
 // =============================================================================
@@ -487,6 +507,11 @@ function renderTable(phones) {
                     <i class="fa-solid ${dirIcon}"></i>${esc(p.direccion)}
                 </span>
             </td>
+            <td>
+                <span class="status-badge ${p.is_active !== false ? 'status-active' : 'status-inactive'}">
+                    <i class="fa-solid ${p.is_active !== false ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>${p.is_active !== false ? 'Activo' : 'Inactivo'}
+                </span>
+            </td>
             <td class="text-xs text-[#8C8C8C] max-w-[160px] truncate" title="${esc(p.notas || '')}">
                 ${p.notas ? esc(p.notas) : '<span class="text-[#8C8C8C]/50">—</span>'}
             </td>
@@ -527,13 +552,19 @@ function applyFilters() {
     searchTerm = document.getElementById('phone-search').value.trim().toLowerCase();
     const filtered = allPhones.filter(p => {
         const dirMatch = dirFilter === 'all' || p.direccion === dirFilter;
+        const statusMatch = statusFilter === 'all' || (statusFilter === 'active' ? p.is_active !== false : p.is_active === false);
         const txtMatch = !searchTerm ||
             p.numero.toLowerCase().includes(searchTerm) ||
             p.cliente.toLowerCase().includes(searchTerm) ||
             (p.prefijo && p.prefijo.toLowerCase().includes(searchTerm));
-        return dirMatch && txtMatch;
+        return dirMatch && statusMatch && txtMatch;
     });
     renderTable(filtered);
+}
+
+function setStatusFilter(value) {
+    statusFilter = value;
+    applyFilters();
 }
 
 // =============================================================================
@@ -546,6 +577,7 @@ function openCreateModal() {
     document.getElementById('f-numero').value  = '';
     document.getElementById('f-prefijo').value = '';
     document.getElementById('f-notas').value   = '';
+    document.getElementById('f-is-active').checked = true;
     // Reset radio a Ambos
     document.querySelector('input[name="direccion"][value="Ambos"]').checked = true;
     highlightDir();
@@ -563,6 +595,7 @@ function openEditModal(phoneId) {
     document.getElementById('f-numero').value  = p.numero;
     document.getElementById('f-prefijo').value = p.prefijo || '';
     document.getElementById('f-notas').value   = p.notas   || '';
+    document.getElementById('f-is-active').checked = p.is_active !== false;
     const radio = document.querySelector(`input[name="direccion"][value="${p.direccion}"]`);
     if (radio) { radio.checked = true; highlightDir(); }
     document.getElementById('phone-submit-btn').innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i>Actualizar';
@@ -583,6 +616,7 @@ async function submitPhone(e) {
         numero   : document.getElementById('f-numero').value.trim(),
         prefijo  : document.getElementById('f-prefijo').value.trim() || null,
         notas    : document.getElementById('f-notas').value.trim()   || null,
+        is_active: document.getElementById('f-is-active').checked,
         direccion,
     };
 

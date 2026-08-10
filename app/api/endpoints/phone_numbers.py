@@ -15,6 +15,7 @@ router = APIRouter()
 def get_phone_numbers(
     cliente   : Optional[str] = None,
     direccion : Optional[str] = None,
+    is_active : Optional[bool] = None,
     search    : Optional[str] = None,
     db        : Session = Depends(get_db),
     current_user: User = Depends(PermissionChecker("it:manage"))
@@ -26,6 +27,8 @@ def get_phone_numbers(
         query = query.filter(PhoneNumber.cliente.ilike(f"%{cliente}%"))
     if direccion:
         query = query.filter(PhoneNumber.direccion == direccion)
+    if is_active is not None:
+        query = query.filter(PhoneNumber.is_active.is_(is_active))
     if search:
         query = query.filter(
             PhoneNumber.numero.ilike(f"%{search}%") |
@@ -58,6 +61,7 @@ def create_phone_number(
         direccion = data.direccion,
         prefijo   = data.prefijo.strip() if data.prefijo else None,
         notas     = data.notas.strip()   if data.notas   else None,
+        is_active = data.is_active,
     )
     db.add(phone)
     db.commit()
@@ -91,6 +95,7 @@ def update_phone_number(
     if data.direccion is not None: phone.direccion = data.direccion
     if data.prefijo   is not None: phone.prefijo   = data.prefijo.strip() or None
     if data.notas     is not None: phone.notas     = data.notas.strip()   or None
+    if data.is_active is not None: phone.is_active = data.is_active
 
     db.commit()
     db.refresh(phone)
