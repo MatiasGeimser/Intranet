@@ -50,6 +50,15 @@ def has_full_scrum_access(user: User) -> bool:
     )
 
 
+def can_manage_vault_folders(user: User) -> bool:
+    return bool(
+        user.role
+        and user.role.name == "Administrador"
+        and user.area
+        and user.area.name in {"Administración", "Administracion"}
+    )
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_view(request: Request, db: Session = Depends(get_db)):
     """Muestra la página de inicio de sesión. Si ya tiene sesión, redirige al Dashboard."""
@@ -133,7 +142,8 @@ def vault_view(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request=request, name="vault.html", context={
         "user": user,
         "active_page": "vault",
-        "project_name": settings.PROJECT_NAME
+        "project_name": settings.PROJECT_NAME,
+        "can_manage_vault_folders": can_manage_vault_folders(user),
     })
 
 

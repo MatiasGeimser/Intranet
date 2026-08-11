@@ -13,6 +13,7 @@ from app.models.user import User
 router = APIRouter()
 
 TECHNOLOGY_AREAS = {"Tecnología", "Tecnologia", "Tecnología (IT)", "Tecnologia (IT)", "IT"}
+ADMINISTRATION_AREAS = {"Administración", "Administracion"}
 INFRASTRUCTURE_CREDENTIAL_TERMS = ("wifi", "wi-fi", "cpanel", "c-panel")
 EXECUTIVE_CATEGORIES = {"Correo Corporativo", "CRM", "Telefonía", "Sistemas"}
 
@@ -24,6 +25,23 @@ def is_technology_administrator(user: User) -> bool:
         and user.area
         and user.area.name in TECHNOLOGY_AREAS
     )
+
+
+def can_manage_vault_folders(user: User) -> bool:
+    """Las categorías visuales de la bóveda están reservadas para Administración."""
+    return bool(
+        user.role
+        and user.role.name == "Administrador"
+        and user.area
+        and user.area.name in ADMINISTRATION_AREAS
+    )
+
+
+def vault_category_for(user: User, requested_category: str) -> str:
+    """Evita que usuarios no autorizados creen o mantengan carpetas personales."""
+    if requested_category in EXECUTIVE_CATEGORIES or can_manage_vault_folders(user):
+        return requested_category
+    return "General"
 
 
 def is_infrastructure_credential(credential: Credential) -> bool:
@@ -105,7 +123,7 @@ def create_credential(
         url=cred_data.url,
         username=cred_data.username,
         encrypted_password=encrypted_pw,
-        category=cred_data.category,
+        category=vault_category_for(current_user, cred_data.category),
         owner_id=current_user.id
     )
     db.add(db_cred)
@@ -182,7 +200,7 @@ def update_credential(
     if cred_data.username:
         cred.username = cred_data.username
     if cred_data.category:
-        cred.category = cred_data.category
+        cred.category = vault_category_for(current_user, cred_data.category)
     if cred_data.is_active is not None:
         cred.is_active = cred_data.is_active
     if cred_data.password:

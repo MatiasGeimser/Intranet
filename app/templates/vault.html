@@ -215,7 +215,8 @@
             class="w-full text-xs bg-[#F2F2F2] rounded-xl pl-8 pr-4 py-2 border border-[#8C8C8C]/15 focus:outline-none focus:border-[#049DD9] transition-all"
             oninput="filterCredentials()">
     </div>
-    <!-- Filtros de categoría -->
+    <!-- Filtros de carpeta: solo Administración puede clasificar credenciales. -->
+    {% if can_manage_vault_folders %}
     <div id="cat-filters" class="flex flex-wrap gap-2">
         <button class="filter-btn active" data-cat="all" onclick="setCategoryFilter(this)">Todos</button>
         <button class="filter-btn" data-cat="Servidores" onclick="setCategoryFilter(this)">
@@ -234,6 +235,12 @@
             <i class="fa-solid fa-folder mr-1"></i>General
         </button>
     </div>
+    {% else %}
+    <div class="flex items-center gap-2 text-xs text-[#8C8C8C]">
+        <i class="fa-solid fa-lock text-[#049DD9]"></i>
+        <span>Carpeta personal</span>
+    </div>
+    {% endif %}
     <!-- Contador -->
     <span id="cred-count" class="text-xs text-[#8C8C8C] font-medium whitespace-nowrap ml-auto hidden md:inline">
         — credenciales
@@ -307,6 +314,7 @@
                     <label>Título / Nombre *</label>
                     <input id="f-title" type="text" placeholder="Ej: Servidor Producción" required maxlength="100">
                 </div>
+                {% if can_manage_vault_folders %}
                 <div class="form-group col-span-2 sm:col-span-1">
                     <label>Categoría *</label>
                     <select id="f-category" required>
@@ -317,6 +325,9 @@
                         <option value="General" selected>📁 General</option>
                     </select>
                 </div>
+                {% else %}
+                <input id="f-category" type="hidden" value="General">
+                {% endif %}
                 <div class="form-group col-span-2 sm:col-span-1">
                     <label>URL / Host</label>
                     <input id="f-url" type="text" placeholder="https://… o IP">
