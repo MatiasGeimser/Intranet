@@ -53,10 +53,12 @@ def list_messages(
         db.query(AdminChatMessage)
         .options(joinedload(AdminChatMessage.sender), joinedload(AdminChatMessage.attachments))
     )
-    if contact_id is not None:
-        if contact_id == current_user.id:
-            return []
-        contact = (
+    if contact_id is None:
+        # El antiguo canal institucional queda fuera de circulación: solo conversaciones directas.
+        return []
+    if contact_id == current_user.id:
+        return []
+    contact = (
             db.query(User)
             .join(User.role)
             .filter(
@@ -65,17 +67,15 @@ def list_messages(
                 User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
             )
             .first()
+    )
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contacto no encontrado.")
+    query = query.filter(
+        or_(
+            and_(AdminChatMessage.sender_id == current_user.id, AdminChatMessage.recipient_id == contact_id),
+            and_(AdminChatMessage.sender_id == contact_id, AdminChatMessage.recipient_id == current_user.id),
         )
-        if not contact:
-            raise HTTPException(status_code=404, detail="Contacto no encontrado.")
-        query = query.filter(
-            or_(
-                and_(AdminChatMessage.sender_id == current_user.id, AdminChatMessage.recipient_id == contact_id),
-                and_(AdminChatMessage.sender_id == contact_id, AdminChatMessage.recipient_id == current_user.id),
-            )
-        )
-    else:
-        query = query.filter(AdminChatMessage.recipient_id.is_(None))
+    )
     if after_id > 0:
         query = query.filter(AdminChatMessage.id > after_id)
     messages = query.order_by(AdminChatMessage.created_at.desc()).limit(100).all()
@@ -182,11 +182,19 @@ async def upload_attachment(
 def download_attachment(
     attachment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_chat_member),
+    current_user: User = Depends(require_chat_member),
 ) -> FileResponse:
-    attachment = db.query(AdminChatAttachment).filter(AdminChatAttachment.id == attachment_id).first()
+    attachment = (
+        db.query(AdminChatAttachment)
+        .join(AdminChatMessage, AdminChatAttachment.message_id == AdminChatMessage.id)
+        .filter(AdminChatAttachment.id == attachment_id)
+        .first()
+    )
     if not attachment or attachment.message_id is None:
         raise HTTPException(status_code=404, detail="Adjunto no encontrado.")
+    message = db.query(AdminChatMessage).filter(AdminChatMessage.id == attachment.message_id).first()
+    if not message or message.recipient_id is None or current_user.id not in {message.sender_id, message.recipient_id}:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este adjunto.")
 
     file_path = CHAT_UPLOAD_DIR / attachment.stored_name
     if not file_path.is_file():
@@ -330,25 +338,26 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
                 return
         recipient_id = payload.get("recipient_id")
         recipient = None
-        if recipient_id is not None:
-            try:
-                recipient_id = int(recipient_id)
-            except (TypeError, ValueError):
-                return
-            if recipient_id == user.id:
-                return
-            recipient = (
-                db.query(User)
-                .join(User.role)
-                .filter(
-                    User.id == recipient_id,
-                    User.is_active.is_(True),
-                    User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
-                )
-                .first()
+        if recipient_id is None:
+            return
+        try:
+            recipient_id = int(recipient_id)
+        except (TypeError, ValueError):
+            return
+        if recipient_id == user.id:
+            return
+        recipient = (
+            db.query(User)
+            .join(User.role)
+            .filter(
+                User.id == recipient_id,
+                User.is_active.is_(True),
+                User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
             )
-            if not recipient:
-                return
+            .first()
+        )
+        if not recipient:
+            return
         message = AdminChatMessage(
             sender_id=user.id,
             recipient_id=recipient_id,
@@ -361,11 +370,8 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
         db.commit()
         db.refresh(message)
         event = {"type": "chat_message", "message": _message_payload(message, user)}
-        if recipient:
-            await manager.send_to(user.id, event)
-            await manager.send_to(recipient.id, event)
-        else:
-            await manager.broadcast(event)
+        await manager.send_to(user.id, event)
+        await manager.send_to(recipient.id, event)
     finally:
         db.close()
 

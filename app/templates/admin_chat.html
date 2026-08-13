@@ -16,7 +16,7 @@
     <section class="bg-white border border-gray-200 rounded-lg flex flex-col min-h-0 overflow-hidden">
         <header class="flex items-center justify-between gap-4 p-4 border-b border-gray-100">
             <div class="min-w-0">
-                <h1 id="conversation-title" class="text-sm font-bold text-gray-800">Canal de administracion</h1>
+                <h1 id="conversation-title" class="text-sm font-bold text-gray-800">Selecciona un integrante</h1>
                 <p id="connection-status" class="text-[11px] text-gray-500 mt-0.5">Conectando...</p>
             </div>
             <div class="flex items-center gap-2">
@@ -34,7 +34,7 @@
                 <button id="attachment-button" type="button" class="w-10 h-10 shrink-0 rounded-lg border border-gray-200 text-gray-500 hover:text-[#049DD9] hover:border-[#049DD9]/40 transition-colors" title="Adjuntar imagen, captura o documento">
                     <i class="fa-solid fa-paperclip text-sm"></i>
                 </button>
-                <textarea id="message-input" rows="1" maxlength="2000" placeholder="Escribe o pega una imagen..." class="min-h-10 max-h-28 flex-1 resize-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#049DD9]"></textarea>
+                <textarea id="message-input" rows="1" maxlength="2000" placeholder="Selecciona una persona para conversar..." class="min-h-10 max-h-28 flex-1 resize-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#049DD9]"></textarea>
                 <button id="send-message-button" type="submit" class="w-10 h-10 shrink-0 rounded-lg bg-[#049DD9] text-white hover:bg-[#038bc2] transition-colors" title="Enviar mensaje">
                     <i class="fa-solid fa-paper-plane text-sm"></i>
                 </button>
@@ -481,9 +481,7 @@
                 refreshPresence();
             }
             if (payload.type === 'chat_message') {
-                if (payload.message.recipient_id === null || payload.message.recipient_id === undefined) {
-                    renderMessage(payload.message);
-                } else if (selectedContactId && (payload.message.recipient_id === selectedContactId || payload.message.sender.id === selectedContactId)) {
+                if (selectedContactId && (payload.message.recipient_id === selectedContactId || payload.message.sender.id === selectedContactId)) {
                     renderDirectMessage(payload.message);
                     renderSelectedConversationMessage(payload.message);
                 }
@@ -520,20 +518,6 @@
         }
     }
 
-    async function pollNewMessages() {
-        try {
-            const response = await fetchAPI(`/api/admin-chat/messages?after_id=${lastMessageId}`);
-            if (!response.ok) return;
-            const newMessages = await response.json();
-            newMessages.forEach(message => {
-                renderMessage(message);
-                if (message.sender.id !== CURRENT_USER) notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
-            });
-        } catch (error) {
-            console.debug('No fue posible sincronizar mensajes:', error.message);
-        }
-    }
-
     async function pollDirectMessages() {
         if (!selectedContactId) return;
         try {
@@ -553,12 +537,15 @@
         event.preventDefault();
         const content = input.value.trim();
         if (!content && pendingAttachments.length === 0) return;
+        if (!selectedContactId) {
+            showToast('Selecciona a la persona con la que quieres conversar.', 'info');
+            return;
+        }
         sendMessageButton.disabled = true;
         sendMessageButton.classList.add('opacity-60');
         try {
             const attachments = await Promise.all(pendingAttachments.map(attachment => uploadAttachment(attachment.file)));
-            const payload = {type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id)};
-            if (selectedContactId) payload.recipient_id = selectedContactId;
+            const payload = {type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id), recipient_id: selectedContactId};
             if (send(payload)) {
                 input.value = '';
                 pendingAttachments = [];
@@ -597,18 +584,13 @@
 
     async function loadInitialData() {
         try {
-            const [messageResponse, participantResponse] = await Promise.all([
-                fetch('/api/admin-chat/messages', {credentials: 'same-origin'}),
-                fetch('/api/admin-chat/participants', {credentials: 'same-origin'})
-            ]);
-            if (!messageResponse.ok || !participantResponse.ok) throw new Error('No autorizado');
-            const history = await messageResponse.json();
+            const participantResponse = await fetch('/api/admin-chat/participants', {credentials: 'same-origin'});
+            if (!participantResponse.ok) throw new Error('No autorizado');
             allParticipants = await participantResponse.json();
-            history.forEach(renderMessage);
+            messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona un integrante para iniciar una conversación privada.</p>';
             renderParticipants();
             await sendPresenceHeartbeat();
             presenceTimer = window.setInterval(sendPresenceHeartbeat, 10000);
-            messagePollTimer = window.setInterval(pollNewMessages, 3000);
             directMessagePollTimer = window.setInterval(pollDirectMessages, 3000);
         } catch (error) {
             status.textContent = 'No fue posible cargar el chat.';
