@@ -156,11 +156,15 @@ def admin_chat_view(request: Request, db: Session = Depends(get_db)):
     if user.role.name not in {"Administrador", "Supervisor"}:
         return RedirectResponse(url="/passwords", status_code=303)
 
-    return templates.TemplateResponse(request=request, name="admin_chat.html", context={
+    response = templates.TemplateResponse(request=request, name="admin_chat.html", context={
         "user": user,
         "active_page": "admin-chat",
         "project_name": settings.PROJECT_NAME
     })
+    # El chat contiene conversaciones privadas: nunca reutilizar una página anterior desde caché.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @router.get("/calendar", response_class=HTMLResponse)
