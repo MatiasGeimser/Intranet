@@ -38,8 +38,8 @@ def can_manage_vault_folders(user: User) -> bool:
 
 
 def vault_category_for(user: User, requested_category: str) -> str:
-    """Evita que usuarios no autorizados creen o mantengan carpetas personales."""
-    if requested_category in EXECUTIVE_CATEGORIES or can_manage_vault_folders(user):
+    """Permite al usuario escoger cualquier categoría disponible en la bóveda."""
+    if requested_category in VAULT_CATEGORIES:
         return requested_category
     return "General"
 
