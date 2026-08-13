@@ -314,20 +314,20 @@
                     <label>Título / Nombre *</label>
                     <input id="f-title" type="text" placeholder="Ej: Servidor Producción" required maxlength="100">
                 </div>
-                {% if can_manage_vault_folders %}
                 <div class="form-group col-span-2 sm:col-span-1">
                     <label>Categoría *</label>
                     <select id="f-category" required>
+                        <option value="General" selected>📁 General</option>
+                        <option value="Correo Corporativo">📧 Correo Corporativo</option>
+                        <option value="CRM">💼 CRM</option>
+                        <option value="Telefonía">📞 Telefonía</option>
+                        <option value="Sistemas">💻 Sistemas</option>
                         <option value="Servidores">🖥️ Servidores</option>
                         <option value="Bases de Datos">🗄️ Bases de Datos</option>
                         <option value="Aplicaciones">📦 Aplicaciones</option>
                         <option value="Redes">🌐 Redes</option>
-                        <option value="General" selected>📁 General</option>
                     </select>
                 </div>
-                {% else %}
-                <input id="f-category" type="hidden" value="General">
-                {% endif %}
                 <div class="form-group col-span-2 sm:col-span-1">
                     <label>URL / Host</label>
                     <input id="f-url" type="text" placeholder="https://… o IP">
