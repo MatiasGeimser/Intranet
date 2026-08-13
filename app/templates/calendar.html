@@ -3,6 +3,12 @@
 {% block title %}Calendario Corporativo{% endblock %}
 {% block page_title %}Calendario Corporativo{% endblock %}
 
+{% block extra_css %}
+<style>
+    .google-booking-card { background: linear-gradient(135deg, #fff 0%, #f0f9ff 100%); }
+</style>
+{% endblock %}
+
 {% block content %}
 {% set user_perms = [] %}
 {% for perm in user.role.permissions %}
@@ -27,6 +33,11 @@
             </div>
             
             <div class="flex items-center space-x-2">
+                <a href="https://calendar.app.google/Bv5UN9NdZMDhi4Z3A" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center space-x-1.5 rounded-xl border border-[#049DD9]/25 bg-white px-3 py-2 text-xs font-semibold text-[#049DD9] transition-all hover:bg-[#049DD9]/10" title="Abrir agenda de reservas de Google">
+                    <i class="fa-brands fa-google-calendar"></i>
+                    <span class="hidden sm:inline">Agenda Google</span>
+                </a>
                 <select id="event-type-filter" onchange="renderCalendar()" class="text-xs bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-200 focus:outline-none focus:border-[#049DD9]">
                     <option value="all">Todos los Eventos</option>
                     <option value="internal">Eventos Internos</option>
@@ -65,6 +76,18 @@
     
     <!-- ACCESOS DE CUMPLEAÑOS Y PRÓXIMAS REUNIONES (Ancho 1/4) -->
     <div class="space-y-6">
+        <section class="google-booking-card rounded-3xl border border-[#049DD9]/15 p-5 shadow-sm">
+            <div class="flex items-start gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#4285F4] shadow-sm"><i class="fa-brands fa-google-calendar"></i></span>
+                <div class="min-w-0">
+                    <h4 class="text-xs font-bold text-black-dark">Agenda Google</h4>
+                    <p class="mt-1 text-[11px] leading-relaxed text-grey-main">Consulta disponibilidad y reserva una reunión desde la agenda oficial.</p>
+                    <a href="https://calendar.app.google/Bv5UN9NdZMDhi4Z3A" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#049DD9] hover:underline">
+                        Ver horarios y agendar <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                    </a>
+                </div>
+            </div>
+        </section>
         
         <!-- Card: Cumpleaños del Mes -->
         <div class="glass-card p-6 rounded-3xl shadow-sm space-y-4">
