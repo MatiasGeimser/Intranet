@@ -16,6 +16,10 @@ TECHNOLOGY_AREAS = {"Tecnología", "Tecnologia", "Tecnología (IT)", "Tecnologia
 ADMINISTRATION_AREAS = {"Administración", "Administracion"}
 INFRASTRUCTURE_CREDENTIAL_TERMS = ("wifi", "wi-fi", "cpanel", "c-panel")
 EXECUTIVE_CATEGORIES = {"Correo Corporativo", "CRM", "Telefonía", "Sistemas"}
+VAULT_CATEGORIES = {
+    "General", "Correo Corporativo", "CRM", "Telefonía", "Sistemas",
+    "Servidores", "Bases de Datos", "Aplicaciones", "Redes"
+}
 
 
 def is_technology_administrator(user: User) -> bool:
