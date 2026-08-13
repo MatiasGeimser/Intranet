@@ -16,7 +16,7 @@
     <section class="bg-white border border-gray-200 rounded-lg flex flex-col min-h-0 overflow-hidden">
         <header class="flex items-center justify-between gap-4 p-4 border-b border-gray-100">
             <div class="min-w-0">
-                <h1 class="text-sm font-bold text-gray-800">Canal de administracion</h1>
+                <h1 id="conversation-title" class="text-sm font-bold text-gray-800">Canal de administracion</h1>
                 <p id="connection-status" class="text-[11px] text-gray-500 mt-0.5">Conectando...</p>
             </div>
             <div class="flex items-center gap-2">
@@ -81,6 +81,7 @@
 (() => {
     const CURRENT_USER = {{ user.id }};
     const messages = document.getElementById('messages');
+    const conversationTitle = document.getElementById('conversation-title');
     const participants = document.getElementById('participants');
     const status = document.getElementById('connection-status');
     const form = document.getElementById('message-form');
@@ -119,7 +120,9 @@
     let messagePollTimer;
     let directMessagePollTimer;
     const directRenderedMessageIds = new Set();
+    const selectedConversationMessageIds = new Set();
     let directLastMessageId = 0;
+    let conversationRequestId = 0;
 
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
@@ -228,22 +231,47 @@
         floatingMessages.scrollTop = floatingMessages.scrollHeight;
     }
 
+    function renderSelectedConversationMessage(message) {
+        if (selectedConversationMessageIds.has(message.id)) return;
+        selectedConversationMessageIds.add(message.id);
+        const mine = message.sender.id === CURRENT_USER;
+        const element = document.createElement('article');
+        element.className = `chat-message ${mine ? 'mine' : ''}`;
+        const attachments = (message.attachments || []).map(attachment => attachment.mime_type.startsWith('image/')
+            ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-64 max-w-full rounded-lg border border-black/10 object-contain"></a>`
+            : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-lg border border-black/10 px-2 py-2 text-xs hover:bg-black/5"><i class="fa-solid fa-file-arrow-down"></i><span class="min-w-0 flex-1 truncate">${escapeHtml(attachment.name)}</span></a>`
+        ).join('');
+        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
+        messages.appendChild(element);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     async function loadDirectConversation() {
+        const requestId = ++conversationRequestId;
         directRenderedMessageIds.clear();
+        selectedConversationMessageIds.clear();
         directLastMessageId = 0;
         floatingMessages.innerHTML = '';
+        messages.innerHTML = '';
         if (!selectedContactId) {
             floatingMessages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona una persona.</p>';
             return;
         }
+        messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Cargando conversación...</p>';
         try {
             const response = await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedContactId}`);
             if (!response.ok) throw new Error('No fue posible cargar la conversación.');
             const history = await response.json();
+            if (requestId !== conversationRequestId) return;
+            messages.innerHTML = '';
             if (!history.length) floatingMessages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Sin mensajes todavía.</p>';
             history.forEach(renderDirectMessage);
+            if (!history.length) messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Sin mensajes todavía.</p>';
+            history.forEach(renderSelectedConversationMessage);
         } catch (error) {
+            if (requestId !== conversationRequestId) return;
             floatingMessages.innerHTML = `<p class="text-xs text-red-500 text-center py-12">${escapeHtml(error.message)}</p>`;
+            messages.innerHTML = `<p class="text-xs text-red-500 text-center py-12">${escapeHtml(error.message)}</p>`;
         }
     }
 
@@ -342,6 +370,7 @@
         const online = onlineUsers.some(user => user.id === userId);
         renderParticipants();
         if (!contact) return;
+        conversationTitle.textContent = `Chat con ${contact.name}`;
         floatingContactName.textContent = `${contact.name} · ${contact.role || 'Contacto'}`;
         loadDirectConversation();
         if (!online) {
@@ -456,6 +485,7 @@
                     renderMessage(payload.message);
                 } else if (selectedContactId && (payload.message.recipient_id === selectedContactId || payload.message.sender.id === selectedContactId)) {
                     renderDirectMessage(payload.message);
+                    renderSelectedConversationMessage(payload.message);
                 }
                 if (payload.message.sender.id !== CURRENT_USER) {
                     notifyUser(`Nuevo mensaje de ${payload.message.sender.name}`, payload.message.content);
@@ -511,6 +541,7 @@
             if (!response.ok) return;
             (await response.json()).forEach(message => {
                 renderDirectMessage(message);
+                renderSelectedConversationMessage(message);
                 if (message.sender.id !== CURRENT_USER) notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
             });
         } catch (error) {
@@ -526,7 +557,9 @@
         sendMessageButton.classList.add('opacity-60');
         try {
             const attachments = await Promise.all(pendingAttachments.map(attachment => uploadAttachment(attachment.file)));
-            if (send({type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id)})) {
+            const payload = {type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id)};
+            if (selectedContactId) payload.recipient_id = selectedContactId;
+            if (send(payload)) {
                 input.value = '';
                 pendingAttachments = [];
                 renderAttachmentQueue();

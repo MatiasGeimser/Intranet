@@ -656,6 +656,30 @@
         }
     </script>
 
+    {% if user and user.role and user.role.name in ['Administrador', 'Supervisor'] and active_page != 'admin-chat' %}
+    <aside id="global-chat" class="fixed bottom-5 right-5 z-50">
+        <button id="global-chat-toggle" type="button" class="relative h-12 w-12 rounded-full bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/30 hover:bg-[#038bc2]" title="Chat institucional"><i class="fa-solid fa-comments"></i><span id="global-chat-unread" class="hidden absolute -right-1 -top-1 min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold">0</span></button>
+        <section id="global-chat-panel" class="hidden absolute bottom-16 right-0 h-[430px] w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+            <header class="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-2.5"><div class="min-w-0"><p class="text-xs font-bold text-gray-800">Chat institucional</p><p id="global-chat-contact" class="truncate text-[10px] text-gray-500">Selecciona una persona</p></div><button id="global-chat-close" type="button" class="h-7 w-7 rounded-lg text-gray-400 hover:bg-gray-100" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></header>
+            <div class="border-b border-gray-100 p-2"><select id="global-chat-select" class="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-xs text-gray-700 focus:border-[#049DD9] focus:outline-none"><option value="">Seleccionar agente...</option></select></div>
+            <div id="global-chat-messages" class="flex-1 space-y-2 overflow-y-auto bg-[#F8FAFB] p-3"><p class="py-12 text-center text-xs text-gray-400">Selecciona una persona.</p></div>
+            <form id="global-chat-form" class="flex gap-2 border-t border-gray-100 p-2"><input id="global-chat-input" maxlength="2000" placeholder="Escribe un mensaje..." class="min-w-0 flex-1 rounded-lg border border-gray-200 px-2.5 py-2 text-xs focus:border-[#049DD9] focus:outline-none"><button type="submit" class="h-9 w-9 shrink-0 rounded-lg bg-[#049DD9] text-white" title="Enviar mensaje"><i class="fa-solid fa-paper-plane text-xs"></i></button></form>
+        </section>
+    </aside>
+    <script>
+    (() => {
+        const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread');
+        let socket, selectedId=0, lastId=0, people=[], rendered=new Set();
+        const esc=v=>String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        const render=m=>{ if(rendered.has(m.id)) return; rendered.add(m.id); lastId=Math.max(lastId,m.id); const mine=m.sender.id===me, el=document.createElement('article'); el.className=mine?'ml-auto max-w-[78%]':'max-w-[78%]'; el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${esc(m.content||'Adjunto')}</div>`; list.appendChild(el); list.scrollTop=list.scrollHeight; };
+        const load=async()=>{ rendered.clear(); lastId=0; if(!selectedId){list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Selecciona una persona.</p>';return;} list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Cargando conversación...</p>'; const res=await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedId}`); if(!res.ok){list.innerHTML='<p class="py-12 text-center text-xs text-red-500">No fue posible cargar la conversación.</p>';return;} const history=await res.json(); list.innerHTML=history.length?'':'<p class="py-12 text-center text-xs text-gray-400">Sin mensajes todavía.</p>'; history.forEach(render); };
+        const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
+        fetchAPI('/api/admin-chat/participants').then(r=>r.ok?r.json():[]).then(items=>{people=items;select.innerHTML='<option value="">Seleccionar agente...</option>'+people.filter(p=>p.id!==me).map(p=>`<option value="${p.id}">${esc(p.name)} (${esc(p.role||'Agente')})</option>`).join('')}).catch(()=>{});connect();
+        toggle.onclick=()=>{panel.classList.toggle('hidden');panel.classList.toggle('flex');unread.textContent='0';unread.classList.add('hidden');if(selectedId)input.focus()};close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};select.onchange=()=>{selectedId=Number(select.value)||0;const person=people.find(p=>p.id===selectedId);contact.textContent=person?`${person.name} · ${person.role||'Agente'}`:'Selecciona una persona';load().catch(()=>{})};form.onsubmit=e=>{e.preventDefault();const content=input.value.trim();if(!content||!selectedId||socket?.readyState!==WebSocket.OPEN)return;socket.send(JSON.stringify({type:'chat',content,recipient_id:selectedId}));input.value=''};setInterval(()=>{if(selectedId)fetchAPI(`/api/admin-chat/messages?after_id=${lastId}&contact_id=${selectedId}`).then(r=>r.ok?r.json():[]).then(items=>items.forEach(render)).catch(()=>{})},3000);
+    })();
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 
