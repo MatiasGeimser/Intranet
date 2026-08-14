@@ -186,9 +186,14 @@ def get_users_minimal(
 ):
     """Obtiene colaboradores activos para asignación de tareas y archivos compartidos."""
     if is_natura_manager_actor(db, current_user):
-        return db.query(User).filter(
+        return db.query(User).outerjoin(Role).filter(
             User.is_active.is_(True),
-            or_(User.is_natura_user.is_(True), func.lower(User.email).like("%@natura.cl")),
+            or_(
+                User.is_natura_user.is_(True),
+                func.lower(User.email).like("%@natura.cl"),
+                User.id == current_user.id,
+                Role.name.in_(["Administrador", "Supervisor"]),
+            ),
         ).all()
     return db.query(User).filter(User.is_active == True).all()
 

@@ -950,13 +950,11 @@
     }
 
     function getTaskAssigneeOptions(selectedUserId) {
-        const allowedRoles = userRole === "Administrador"
-            ? ["Administrador", "Supervisor"]
-            : ["Administrador", "Supervisor", "Usuario"];
+        const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
 
         return usersList
-            .filter(user => allowedRoles.includes(user.role?.name))
-            .map(user => `<option value="${user.id}" ${String(user.id) === String(selectedUserId) ? "selected" : ""}>${escapeTaskHtml(user.full_name)} (${escapeTaskHtml(user.role.name)})</option>`)
+            .filter(user => allowedRoles.includes(user.role?.name || "Usuario"))
+            .map(user => `<option value="${user.id}" ${String(user.id) === String(selectedUserId) ? "selected" : ""}>${escapeTaskHtml(user.full_name)} (${escapeTaskHtml(user.role?.name || "Usuario")})</option>`)
             .join("");
     }
 
@@ -1382,14 +1380,12 @@
 
         // Poblar selector de encargados en el modal
         const assigneeSelect = document.getElementById("taskAssignee");
-        const allowedRoles = userRole === "Administrador"
-            ? ["Administrador", "Supervisor"]
-            : ["Administrador", "Supervisor", "Usuario"];
+        const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
         assigneeSelect.innerHTML = '<option value="">Seleccionar encargado...</option>';
-        usersList.filter(u => allowedRoles.includes(u.role?.name)).forEach(u => {
+        usersList.filter(u => allowedRoles.includes(u.role?.name || "Usuario")).forEach(u => {
             const opt = document.createElement("option");
             opt.value = u.id;
-            opt.textContent = `${u.full_name} (${u.role.name})`;
+            opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
             assigneeSelect.appendChild(opt);
         });
     }

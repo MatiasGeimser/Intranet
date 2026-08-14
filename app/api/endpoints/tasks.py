@@ -17,7 +17,7 @@ from app.api.deps import get_current_user
 router = APIRouter()
 
 ASSIGNABLE_TASK_ROLES = {
-    "Administrador": {"Administrador", "Supervisor"},
+    "Administrador": {"Administrador", "Supervisor", "Usuario"},
     "Supervisor": {"Administrador", "Supervisor", "Usuario"},
 }
 SCRUM_MANAGEMENT_SUPERVISOR_AREAS = {"Administración", "Administracion", "Ventas"}
