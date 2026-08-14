@@ -524,6 +524,15 @@
     let usersList = []; // Lista de usuarios (colaboradores)
     const usersMap = {}; // Caché mapeado de usuarios
 
+    function isNaturaCollaborator(user) {
+        if (!user) return false;
+        return Boolean(
+            user.is_natura_user ||
+            (user.email && user.email.toLowerCase().endsWith("@natura.cl")) ||
+            (user.email && user.email.toLowerCase().includes(".cbe@"))
+        );
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
         if (!isLimitedScrumDashboard) {
             // Cargar actividad de auditoría reciente
@@ -953,7 +962,7 @@
         const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
 
         return usersList
-            .filter(user => allowedRoles.includes(user.role?.name || "Usuario"))
+            .filter(user => !isNaturaCollaborator(user) && allowedRoles.includes(user.role?.name || "Usuario"))
             .map(user => `<option value="${user.id}" ${String(user.id) === String(selectedUserId) ? "selected" : ""}>${escapeTaskHtml(user.full_name)} (${escapeTaskHtml(user.role?.name || "Usuario")})</option>`)
             .join("");
     }
@@ -1382,12 +1391,14 @@
         const assigneeSelect = document.getElementById("taskAssignee");
         const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
         assigneeSelect.innerHTML = '<option value="">Seleccionar encargado...</option>';
-        usersList.filter(u => allowedRoles.includes(u.role?.name || "Usuario")).forEach(u => {
-            const opt = document.createElement("option");
-            opt.value = u.id;
-            opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
-            assigneeSelect.appendChild(opt);
-        });
+        usersList
+            .filter(u => !isNaturaCollaborator(u) && allowedRoles.includes(u.role?.name || "Usuario"))
+            .forEach(u => {
+                const opt = document.createElement("option");
+                opt.value = u.id;
+                opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
+                assigneeSelect.appendChild(opt);
+            });
     }
 
     function closeNewTaskModal() {
@@ -1644,12 +1655,14 @@
         // Cargar usuarios en el select
         const assigneeSelect = document.getElementById('dailyTaskAssignee');
         if (assigneeSelect && assigneeSelect.options.length <= 1) {
-            usersList.forEach(u => {
-                const opt = document.createElement("option");
-                opt.value = u.id;
-                opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
-                assigneeSelect.appendChild(opt);
-            });
+            usersList
+                .filter(u => !isNaturaCollaborator(u))
+                .forEach(u => {
+                    const opt = document.createElement("option");
+                    opt.value = u.id;
+                    opt.textContent = `${u.full_name} (${u.role?.name || "Usuario"})`;
+                    assigneeSelect.appendChild(opt);
+                });
         }
         
         loadDailyTasks();
