@@ -18,10 +18,10 @@ from app.core.config import settings
 from app.core.database import SessionLocal, get_db
 from app.models.admin_chat import AdminChatAttachment, AdminChatMessage
 from app.models.admin_chat_presence import AdminChatPresence
+from app.models.role import Role
 from app.models.user import User
 
 router = APIRouter()
-CHAT_ROLES = {"Administrador", "Supervisor"}
 # Vercel solo permite escritura en UPLOAD_DIR (/tmp en producción).
 CHAT_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "chat"
 MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
@@ -37,8 +37,8 @@ ALLOWED_ATTACHMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf
 
 
 def require_chat_member(current_user: User = Depends(get_current_active_user)) -> User:
-    if current_user.role.name not in CHAT_ROLES:
-        raise HTTPException(status_code=403, detail="Este modulo es exclusivo para administradores y supervisores.")
+    if current_user.role.name == "Usuario":
+        raise HTTPException(status_code=403, detail="Este módulo no está disponible para usuarios estándar.")
     return current_user
 
 
@@ -64,7 +64,7 @@ def list_messages(
             .filter(
                 User.id == contact_id,
                 User.is_active.is_(True),
-                User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+                Role.name != "Usuario",
             )
             .first()
     )
@@ -90,7 +90,7 @@ def list_participants(
     users = (
         db.query(User)
         .join(User.role)
-        .filter(User.is_active.is_(True), User.role.has(name="Administrador") | User.role.has(name="Supervisor"))
+        .filter(User.is_active.is_(True), Role.name != "Usuario")
         .order_by(User.full_name.asc())
         .all()
     )
@@ -111,7 +111,7 @@ def list_presence(
         .join(User.role)
         .filter(
             User.is_active.is_(True),
-            User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+            Role.name != "Usuario",
             AdminChatPresence.last_seen >= cutoff,
         )
         .all()
@@ -301,7 +301,7 @@ def _websocket_admin(websocket: WebSocket) -> User | None:
             .filter(
                 User.id == user_id,
                 User.is_active.is_(True),
-                User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+                Role.name != "Usuario",
             )
             .first()
         )
@@ -352,7 +352,7 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
             .filter(
                 User.id == recipient_id,
                 User.is_active.is_(True),
-                User.role.has(name="Administrador") | User.role.has(name="Supervisor"),
+                Role.name != "Usuario",
             )
             .first()
         )

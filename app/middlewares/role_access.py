@@ -112,7 +112,8 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         is_task_collection = path.rstrip("/") == "/api/tasks"
         is_task_comment = path.startswith("/api/tasks/") and path.endswith("/comments")
         return (
-            path in {"/", "/dashboard"}
+            path in {"/", "/dashboard", "/admin-chat"}
+            or path.startswith("/api/admin-chat")
             or (
                 path.startswith("/api/notes")
                 and method in {"GET", "POST", "DELETE"}
@@ -132,11 +133,12 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         return (
             path.startswith("/api/auth/")
-            or path in {"/documents", "/admin"}
+            or path in {"/documents", "/admin", "/admin-chat"}
             or path.startswith("/api/documents")
             or path.startswith("/api/users")
             or path.startswith("/api/areas")
             or path.startswith("/api/roles")
+            or path.startswith("/api/admin-chat")
         )
 
     @staticmethod
@@ -145,7 +147,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         method = request.method
         role_name = user.role.name
 
-        if role_name in RoleAccessMiddleware.chat_roles and (
+        if role_name != "Usuario" and (
             path == "/admin-chat" or path.startswith("/api/admin-chat")
         ):
             return True

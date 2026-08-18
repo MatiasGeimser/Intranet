@@ -188,7 +188,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name in ['Administrador', 'Supervisor'] %}
+            {% if user and user.role and user.role.name != 'Usuario' %}
             <a href="/admin-chat"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'admin-chat' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-comments text-base"></i>
@@ -656,7 +656,7 @@
         }
     </script>
 
-    {% if user and user.role and user.role.name in ['Administrador', 'Supervisor'] and active_page != 'admin-chat' %}
+    {% if user and user.role and user.role.name != 'Usuario' and active_page != 'admin-chat' %}
     <aside id="global-chat" class="fixed bottom-5 right-5 z-50">
         <button id="global-chat-toggle" type="button" class="relative h-12 w-12 rounded-full bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/30 hover:bg-[#038bc2]" title="Chat institucional"><i class="fa-solid fa-comments"></i><span id="global-chat-unread" class="hidden absolute -right-1 -top-1 min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold">0</span></button>
         <section id="global-chat-panel" class="hidden absolute bottom-16 right-0 h-[430px] w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">

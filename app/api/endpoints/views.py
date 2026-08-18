@@ -153,7 +153,7 @@ def admin_chat_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if user.role.name not in {"Administrador", "Supervisor"}:
+    if user.role.name == "Usuario":
         return RedirectResponse(url="/passwords", status_code=303)
 
     response = templates.TemplateResponse(request=request, name="admin_chat.html", context={
