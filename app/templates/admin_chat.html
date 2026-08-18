@@ -478,6 +478,10 @@
         socket.onmessage = async event => {
             const payload = JSON.parse(event.data);
             if (payload.type === 'presence') {
+                if (Array.isArray(payload.users)) {
+                    onlineUsers = payload.users;
+                    renderParticipants();
+                }
                 refreshPresence();
             }
             if (payload.type === 'chat_message') {
@@ -496,6 +500,18 @@
             }
             if (payload.type === 'signal') await handleSignal(payload.from, payload.signal);
         };
+    }
+
+    async function reloadParticipants() {
+        try {
+            const participantResponse = await fetch('/api/admin-chat/participants', {credentials: 'same-origin'});
+            if (participantResponse.ok) {
+                allParticipants = await participantResponse.json();
+                renderParticipants();
+            }
+        } catch (error) {
+            console.debug('No fue posible actualizar participantes:', error.message);
+        }
     }
 
     async function refreshPresence() {
@@ -584,14 +600,13 @@
 
     async function loadInitialData() {
         try {
-            const participantResponse = await fetch('/api/admin-chat/participants', {credentials: 'same-origin'});
-            if (!participantResponse.ok) throw new Error('No autorizado');
-            allParticipants = await participantResponse.json();
+            await reloadParticipants();
             messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona un integrante para iniciar una conversación privada.</p>';
-            renderParticipants();
             await sendPresenceHeartbeat();
-            presenceTimer = window.setInterval(sendPresenceHeartbeat, 10000);
+            presenceTimer = window.setInterval(sendPresenceHeartbeat, 5000);
             directMessagePollTimer = window.setInterval(pollDirectMessages, 3000);
+            window.setInterval(reloadParticipants, 15000);
+            window.setInterval(refreshPresence, 4000);
         } catch (error) {
             status.textContent = 'No fue posible cargar el chat.';
             status.className = 'text-[11px] text-red-600 mt-0.5';

@@ -208,6 +208,20 @@ def download_attachment(
     )
 
 
+def _record_presence(user_id: int) -> None:
+    db = SessionLocal()
+    try:
+        presence = db.query(AdminChatPresence).filter(AdminChatPresence.user_id == user_id).first()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if presence:
+            presence.last_seen = now
+        else:
+            db.add(AdminChatPresence(user_id=user_id, last_seen=now))
+        db.commit()
+    finally:
+        db.close()
+
+
 class AdminChatManager:
     def __init__(self) -> None:
         self.connections: dict[int, set[WebSocket]] = {}
@@ -216,9 +230,11 @@ class AdminChatManager:
 
     async def connect(self, user: User, websocket: WebSocket) -> None:
         await websocket.accept()
+        role_name = user.role.name if user.role else "Supervisor"
         async with self.lock:
             self.connections.setdefault(user.id, set()).add(websocket)
-            self.users[user.id] = {"id": user.id, "name": user.full_name, "email": user.email}
+            self.users[user.id] = {"id": user.id, "name": user.full_name, "email": user.email, "role": role_name}
+        _record_presence(user.id)
         await self.broadcast({"type": "presence", "users": list(self.users.values())})
 
     async def disconnect(self, user_id: int, websocket: WebSocket | None = None) -> None:
