@@ -275,13 +275,49 @@
         }
     }
 
-    function send(payload) {
-        if (!socket || socket.readyState !== WebSocket.OPEN) {
-            showToast('El chat aun no esta conectado.', 'error');
+    async function sendChatMessage(content, attachmentIds = []) {
+        if (!selectedContactId) {
+            showToast('Selecciona a la persona con la que quieres conversar.', 'info');
             return false;
         }
-        socket.send(JSON.stringify(payload));
-        return true;
+        try {
+            const response = await fetchAPI('/api/admin-chat/messages', {
+                method: 'POST',
+                body: {
+                    recipient_id: selectedContactId,
+                    content: content,
+                    attachment_ids: attachmentIds
+                }
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || 'No fue posible enviar el mensaje.');
+            }
+            const message = await response.json();
+            renderDirectMessage(message);
+            renderSelectedConversationMessage(message);
+            return true;
+        } catch (error) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'chat',
+                    content,
+                    attachment_ids: attachmentIds,
+                    recipient_id: selectedContactId
+                }));
+                return true;
+            }
+            showToast(error.message || 'No fue posible enviar el mensaje.', 'error');
+            return false;
+        }
+    }
+
+    function send(payload) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(payload));
+            return true;
+        }
+        return false;
     }
 
     function sendSignal(targetId, signal) { send({type: 'signal', target_id: targetId, signal}); }
@@ -561,8 +597,9 @@
         sendMessageButton.classList.add('opacity-60');
         try {
             const attachments = await Promise.all(pendingAttachments.map(attachment => uploadAttachment(attachment.file)));
-            const payload = {type: 'chat', content, attachment_ids: attachments.map(attachment => attachment.id), recipient_id: selectedContactId};
-            if (send(payload)) {
+            const attachmentIds = attachments.map(attachment => attachment.id);
+            const sent = await sendChatMessage(content, attachmentIds);
+            if (sent) {
                 input.value = '';
                 pendingAttachments = [];
                 renderAttachmentQueue();
@@ -590,11 +627,12 @@
         if (selectedContactId) floatingInput.focus();
     });
     floatingClose.addEventListener('click', () => { floatingPanel.classList.add('hidden'); floatingPanel.classList.remove('flex'); });
-    floatingForm.addEventListener('submit', event => {
+    floatingForm.addEventListener('submit', async event => {
         event.preventDefault();
         const content = floatingInput.value.trim();
         if (!selectedContactId || !content) return;
-        if (send({type: 'chat', content, recipient_id: selectedContactId})) floatingInput.value = '';
+        const sent = await sendChatMessage(content);
+        if (sent) floatingInput.value = '';
     });
     updateNotificationButton();
 

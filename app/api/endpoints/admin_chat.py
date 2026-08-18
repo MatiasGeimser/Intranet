@@ -13,6 +13,8 @@ from jose import JWTError, jwt
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
+from pydantic import BaseModel, Field
+
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import SessionLocal, get_db
@@ -34,6 +36,12 @@ ALLOWED_ATTACHMENT_TYPES = {
     "text/plain",
 }
 ALLOWED_ATTACHMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx", ".txt"}
+
+
+class ChatMessageCreate(BaseModel):
+    recipient_id: int
+    content: str = ""
+    attachment_ids: list[int] = Field(default_factory=list)
 
 
 def require_chat_member(current_user: User = Depends(get_current_active_user)) -> User:
@@ -80,6 +88,65 @@ def list_messages(
         query = query.filter(AdminChatMessage.id > after_id)
     messages = query.order_by(AdminChatMessage.created_at.desc()).limit(100).all()
     return [_message_payload(message) for message in reversed(messages)]
+
+
+@router.post("/messages", status_code=201)
+async def send_chat_message(
+    payload: ChatMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> dict[str, Any]:
+    content = bleach.clean(payload.content or "", tags=[], attributes={}, strip=True).strip()
+    attachment_ids = payload.attachment_ids or []
+    if len(attachment_ids) > 5 or (not content and not attachment_ids) or len(content) > 2000:
+        raise HTTPException(status_code=400, detail="Mensaje no válido o excede el límite permitido.")
+
+    attachments = []
+    if attachment_ids:
+        attachments = (
+            db.query(AdminChatAttachment)
+            .filter(
+                AdminChatAttachment.id.in_(attachment_ids),
+                AdminChatAttachment.uploader_id == current_user.id,
+                AdminChatAttachment.message_id.is_(None),
+            )
+            .all()
+        )
+        if len(attachments) != len(attachment_ids):
+            raise HTTPException(status_code=400, detail="Uno o más adjuntos no son válidos.")
+
+    recipient = (
+        db.query(User)
+        .join(User.role)
+        .filter(
+            User.id == payload.recipient_id,
+            User.is_active.is_(True),
+            Role.name != "Usuario",
+        )
+        .first()
+    )
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Destinatario no encontrado o no autorizado.")
+
+    message = AdminChatMessage(
+        sender_id=current_user.id,
+        recipient_id=recipient.id,
+        content=content,
+        created_at=datetime.now(timezone.utc),
+    )
+    for attachment in attachments:
+        attachment.message = message
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    _record_presence(current_user.id)
+
+    response_payload = _message_payload(message, current_user)
+    event = {"type": "chat_message", "message": response_payload}
+    await manager.send_to(current_user.id, event)
+    await manager.send_to(recipient.id, event)
+
+    return response_payload
 
 
 @router.get("/participants")
