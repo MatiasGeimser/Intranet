@@ -712,11 +712,73 @@
             }
         };
 
-        const render=m=>{ if(rendered.has(m.id)) return; rendered.add(m.id); lastId=Math.max(lastId,m.id); const mine=m.sender.id===me, el=document.createElement('article'); el.className=mine?'ml-auto max-w-[78%]':'max-w-[78%]'; el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${esc(m.content||'Adjunto')}</div>`; list.appendChild(el); list.scrollTop=list.scrollHeight; };
+        const render=m=>{
+            if(rendered.has(m.id)) return;
+            rendered.add(m.id);
+            lastId=Math.max(lastId,m.id);
+            const mine=m.sender.id===me, el=document.createElement('article');
+            el.className=mine?'ml-auto max-w-[78%]':'max-w-[78%]';
+            let atts = '';
+            if(m.attachments && m.attachments.length) {
+                atts = m.attachments.map(a => a.mime_type.startsWith('image/')
+                    ? `<a href="${a.url}" target="_blank" class="block mt-1.5"><img src="${a.url}" alt="${esc(a.name)}" class="max-h-36 max-w-full rounded-md object-contain border border-black/10"></a>`
+                    : `<a href="${a.url}" target="_blank" class="mt-1 flex items-center gap-1.5 text-[10px] text-blue-600 hover:underline"><i class="fa-solid fa-file"></i><span>${esc(a.name)}</span></a>`
+                ).join('');
+            }
+            el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${m.content?esc(m.content):''}${atts}</div>`;
+            list.appendChild(el);
+            list.scrollTop=list.scrollHeight;
+        };
+
         const load=async()=>{ rendered.clear(); lastId=0; if(!selectedId){list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Selecciona una persona.</p>';return;} list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Cargando conversación...</p>'; const res=await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedId}`); if(!res.ok){list.innerHTML='<p class="py-12 text-center text-xs text-red-500">No fue posible cargar la conversación.</p>';return;} const history=await res.json(); list.innerHTML=history.length?'':'<p class="py-12 text-center text-xs text-gray-400">Sin mensajes todavía.</p>'; history.forEach(render); };
         const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){triggerNotif(m.sender.name, m.content||'Adjunto');unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
         const loadPeople=()=>{fetchAPI('/api/admin-chat/participants').then(r=>r.ok?r.json():[]).then(items=>{people=items;const cur=select.value;select.innerHTML='<option value="">Seleccionar agente...</option>'+people.filter(p=>p.id!==me).map(p=>`<option value="${p.id}" ${String(p.id)===String(cur)?'selected':''}>${esc(p.name)} (${esc(p.role||'Agente')})</option>`).join('')}).catch(()=>{});};
         const beat=()=>{fetchAPI('/api/admin-chat/presence/heartbeat',{method:'POST'}).catch(()=>{});};
+
+        let pendingFiles = [];
+        const attachBox = document.createElement('div');
+        attachBox.className = 'hidden border-t border-gray-100 p-2 flex flex-wrap gap-1.5 bg-gray-50 max-h-24 overflow-y-auto';
+        form.parentNode.insertBefore(attachBox, form);
+
+        const renderGlobalAttach = () => {
+            attachBox.classList.toggle('hidden', pendingFiles.length === 0);
+            attachBox.innerHTML = pendingFiles.map((f, idx) => `
+                <div class="flex items-center gap-1.5 bg-white border border-[#049DD9]/30 rounded-lg p-1 text-[10px] text-gray-700 shadow-sm">
+                    <img src="${f.preview}" class="w-6 h-6 rounded object-cover">
+                    <span class="max-w-24 truncate">${esc(f.file.name)}</span>
+                    <button type="button" data-del="${idx}" class="text-gray-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            `).join('');
+            attachBox.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => {
+                pendingFiles.splice(Number(btn.dataset.del), 1);
+                renderGlobalAttach();
+            });
+        };
+
+        input.addEventListener('paste', e => {
+            const cd = e.clipboardData || window.clipboardData;
+            if (!cd) return;
+            const items = Array.from(cd.items || []);
+            let imgFiles = [];
+            items.forEach((it, i) => {
+                if (it.type && it.type.startsWith('image/')) {
+                    const f = it.getAsFile();
+                    if (f) {
+                        const ext = f.type.split('/')[1] || 'png';
+                        const customName = f.name && f.name !== 'image.png' ? f.name : `captura-${Date.now()}-${i+1}.${ext}`;
+                        imgFiles.push(new File([f], customName, { type: f.type }));
+                    }
+                }
+            });
+            if (imgFiles.length) {
+                e.preventDefault();
+                imgFiles.forEach(f => {
+                    if (pendingFiles.length < 5) pendingFiles.push({ file: f, preview: URL.createObjectURL(f) });
+                });
+                renderGlobalAttach();
+                if (typeof showToast === 'function') showToast('Imagen pegada lista para enviar.', 'success');
+            }
+        });
 
         const pollIncoming=async()=>{
             try {
@@ -764,16 +826,38 @@
         };
         close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};
         select.onchange=()=>{selectedId=Number(select.value)||0;const person=people.find(p=>p.id===selectedId);contact.textContent=person?`${person.name} · ${person.role||'Agente'}`:'Selecciona una persona';load().catch(()=>{})};
+        
         form.onsubmit=async e=>{
             e.preventDefault();
             const content=input.value.trim();
-            if(!content||!selectedId)return;
+            if(!selectedId || (!content && pendingFiles.length === 0)) return;
+            const filesToUpload = [...pendingFiles];
             input.value='';
+            pendingFiles = [];
+            renderGlobalAttach();
+
             try {
-                const res=await fetchAPI('/api/admin-chat/messages',{method:'POST',body:{recipient_id:selectedId,content}});
+                let attachment_ids = [];
+                if (filesToUpload.length) {
+                    const csrfToken = getCookie('csrf_token');
+                    for (const item of filesToUpload) {
+                        const fd = new FormData();
+                        fd.append('file', item.file);
+                        const upRes = await fetch('/api/admin-chat/attachments', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: csrfToken ? {'x-csrf-token': csrfToken} : {},
+                            body: fd
+                        });
+                        if (upRes.ok) {
+                            const upData = await upRes.json();
+                            attachment_ids.push(upData.id);
+                        }
+                    }
+                }
+                const res=await fetchAPI('/api/admin-chat/messages',{method:'POST',body:{recipient_id:selectedId,content,attachment_ids}});
                 if(res.ok){const m=await res.json();render(m);}
-                else if(socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'chat',content,recipient_id:selectedId}));}
-            }catch(err){if(socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'chat',content,recipient_id:selectedId}));}}
+            }catch(err){}
         };
         setInterval(()=>{if(selectedId)fetchAPI(`/api/admin-chat/messages?after_id=${lastId}&contact_id=${selectedId}`).then(r=>r.ok?r.json():[]).then(items=>items.forEach(render)).catch(()=>{})},2500);
     })();

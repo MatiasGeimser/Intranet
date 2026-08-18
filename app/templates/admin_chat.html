@@ -348,7 +348,22 @@
 
     function renderAttachmentQueue() {
         attachmentQueue.classList.toggle('hidden', pendingAttachments.length === 0);
-        attachmentQueue.innerHTML = pendingAttachments.map(attachment => `<div class="max-w-full flex items-center gap-2 rounded-lg bg-[#049DD9]/10 px-2 py-1 text-xs text-[#262523]"><i class="fa-solid ${attachment.file.type.startsWith('image/') ? 'fa-image' : 'fa-file'} text-[#049DD9]"></i><span class="max-w-40 truncate">${escapeHtml(attachment.file.name)}</span><span class="text-gray-500">${formatSize(attachment.file.size)}</span><button type="button" data-remove-attachment="${attachment.id}" class="text-gray-500 hover:text-red-600" title="Quitar adjunto"><i class="fa-solid fa-xmark"></i></button></div>`).join('');
+        attachmentQueue.innerHTML = pendingAttachments.map(attachment => {
+            const isImg = attachment.file.type.startsWith('image/');
+            const preview = isImg && attachment.previewUrl
+                ? `<img src="${attachment.previewUrl}" class="w-8 h-8 rounded-lg object-cover border border-black/10 shrink-0 shadow-sm">`
+                : `<i class="fa-solid ${isImg ? 'fa-image' : 'fa-file'} text-[#049DD9] text-base shrink-0"></i>`;
+            return `<div class="max-w-full flex items-center gap-2 rounded-xl bg-[#049DD9]/10 border border-[#049DD9]/20 px-2 py-1 text-xs text-[#262523] shadow-sm">
+                ${preview}
+                <div class="min-w-0 flex-1">
+                    <p class="max-w-40 truncate font-semibold text-gray-800">${escapeHtml(attachment.file.name)}</p>
+                    <p class="text-[10px] text-gray-500">${formatSize(attachment.file.size)}</p>
+                </div>
+                <button type="button" data-remove-attachment="${attachment.id}" class="w-5 h-5 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Quitar adjunto">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>`;
+        }).join('');
         attachmentQueue.querySelectorAll('[data-remove-attachment]').forEach(button => button.addEventListener('click', () => {
             pendingAttachments = pendingAttachments.filter(attachment => attachment.id !== button.dataset.removeAttachment);
             renderAttachmentQueue();
@@ -364,28 +379,44 @@
                 showToast(`${file.name} supera el limite de 15 MB.`, 'error');
                 return;
             }
-            pendingAttachments.push({id: `${Date.now()}-${Math.random()}`, file});
+            const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+            pendingAttachments.push({id: `${Date.now()}-${Math.random()}`, file, previewUrl});
         });
         attachmentInput.value = '';
         renderAttachmentQueue();
     }
 
     function queuePastedImages(event) {
-        const clipboardItems = Array.from(event.clipboardData?.items || []);
-        const imageFiles = clipboardItems
-            .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
-            .map(item => item.getAsFile())
-            .filter(Boolean)
-            .map((file, index) => {
-                if (file.name) return file;
-                const extension = file.type.split('/')[1] || 'png';
-                return new File([file], `captura-portapapeles-${Date.now()}-${index}.${extension}`, {type: file.type});
+        const clipboardData = event.clipboardData || window.clipboardData;
+        if (!clipboardData) return;
+        const items = Array.from(clipboardData.items || []);
+        const files = Array.from(clipboardData.files || []);
+        
+        let imageFiles = [];
+        
+        items.forEach((item, index) => {
+            if (item.type && item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    const ext = file.type.split('/')[1] || 'png';
+                    const customName = file.name && file.name !== 'image.png' ? file.name : `captura-${Date.now()}-${index + 1}.${ext}`;
+                    imageFiles.push(new File([file], customName, { type: file.type }));
+                }
+            }
+        });
+
+        if (!imageFiles.length && files.length) {
+            files.filter(f => f.type && f.type.startsWith('image/')).forEach((file, index) => {
+                const ext = file.type.split('/')[1] || 'png';
+                const customName = file.name && file.name !== 'image.png' ? file.name : `captura-${Date.now()}-${index + 1}.${ext}`;
+                imageFiles.push(new File([file], customName, { type: file.type }));
             });
+        }
 
         if (!imageFiles.length) return;
         event.preventDefault();
         queueAttachments(imageFiles);
-        showToast(`${imageFiles.length === 1 ? 'Imagen pegada' : `${imageFiles.length} imágenes pegadas`} en el mensaje.`, 'success');
+        showToast(`${imageFiles.length === 1 ? 'Imagen pegada desde el portapapeles' : `${imageFiles.length} imágenes pegadas`} lista(s) para enviar.`, 'success');
     }
 
     async function uploadAttachment(file) {
@@ -667,6 +698,13 @@
         if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
     });
     input.addEventListener('paste', queuePastedImages);
+    if (floatingInput) floatingInput.addEventListener('paste', queuePastedImages);
+    window.addEventListener('paste', event => {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+            queuePastedImages(event);
+        }
+    });
     hangupButton.addEventListener('click', () => endCall(true));
     notificationButton.addEventListener('click', enableNotifications);
     attachmentButton.addEventListener('click', () => attachmentInput.click());
