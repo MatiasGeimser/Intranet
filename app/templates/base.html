@@ -193,6 +193,7 @@
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'admin-chat' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-comments text-base"></i>
                 <span>Chat Institucional</span>
+                <span id="sidebar-chat-unread" class="hidden ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white shadow">0</span>
             </a>
             {% endif %}
 
@@ -668,16 +669,101 @@
     </aside>
     <script>
     (() => {
-        const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread');
-        let socket, selectedId=0, lastId=0, people=[], rendered=new Set();
+        const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread'), sidebarBadge=document.getElementById('sidebar-chat-unread');
+        let socket, selectedId=0, lastId=0, highestInId=0, people=[], rendered=new Set();
         const esc=v=>String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        
+        const playChime=()=>{
+            try {
+                const ctx=new(window.AudioContext||window.webkitAudioContext)();
+                if(ctx.state==='suspended') ctx.resume();
+                const now=ctx.currentTime;
+                const osc1=ctx.createOscillator(), g1=ctx.createGain();
+                osc1.frequency.setValueAtTime(587.33, now);
+                g1.gain.setValueAtTime(0.001, now);
+                g1.gain.exponentialRampToValueAtTime(0.2, now+0.02);
+                g1.gain.exponentialRampToValueAtTime(0.001, now+0.3);
+                osc1.connect(g1); g1.connect(ctx.destination);
+                osc1.start(now); osc1.stop(now+0.3);
+
+                const osc2=ctx.createOscillator(), g2=ctx.createGain();
+                osc2.frequency.setValueAtTime(880, now+0.1);
+                g2.gain.setValueAtTime(0.001, now+0.1);
+                g2.gain.exponentialRampToValueAtTime(0.25, now+0.12);
+                g2.gain.exponentialRampToValueAtTime(0.001, now+0.45);
+                osc2.connect(g2); g2.connect(ctx.destination);
+                osc2.start(now+0.1); osc2.stop(now+0.45);
+            } catch(e){}
+        };
+
+        const triggerNotif=(senderName, text)=>{
+            playChime();
+            if(typeof showToast==='function') showToast(`Mensaje de ${senderName}: ${text}`, 'info');
+            if('Notification' in window && Notification.permission==='granted') {
+                try {
+                    const n=new Notification(`Mensaje de ${senderName}`, {
+                        body: text||'Nuevo mensaje recibido',
+                        tag: 'chat-global-'+Date.now(),
+                    });
+                    n.onclick=()=>{ window.focus(); };
+                } catch(e){}
+            } else if('Notification' in window && Notification.permission==='default') {
+                Notification.requestPermission().catch(()=>{});
+            }
+        };
+
         const render=m=>{ if(rendered.has(m.id)) return; rendered.add(m.id); lastId=Math.max(lastId,m.id); const mine=m.sender.id===me, el=document.createElement('article'); el.className=mine?'ml-auto max-w-[78%]':'max-w-[78%]'; el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${esc(m.content||'Adjunto')}</div>`; list.appendChild(el); list.scrollTop=list.scrollHeight; };
         const load=async()=>{ rendered.clear(); lastId=0; if(!selectedId){list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Selecciona una persona.</p>';return;} list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Cargando conversación...</p>'; const res=await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedId}`); if(!res.ok){list.innerHTML='<p class="py-12 text-center text-xs text-red-500">No fue posible cargar la conversación.</p>';return;} const history=await res.json(); list.innerHTML=history.length?'':'<p class="py-12 text-center text-xs text-gray-400">Sin mensajes todavía.</p>'; history.forEach(render); };
-        const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
+        const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){triggerNotif(m.sender.name, m.content||'Adjunto');unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
         const loadPeople=()=>{fetchAPI('/api/admin-chat/participants').then(r=>r.ok?r.json():[]).then(items=>{people=items;const cur=select.value;select.innerHTML='<option value="">Seleccionar agente...</option>'+people.filter(p=>p.id!==me).map(p=>`<option value="${p.id}" ${String(p.id)===String(cur)?'selected':''}>${esc(p.name)} (${esc(p.role||'Agente')})</option>`).join('')}).catch(()=>{});};
         const beat=()=>{fetchAPI('/api/admin-chat/presence/heartbeat',{method:'POST'}).catch(()=>{});};
-        loadPeople();connect();beat();setInterval(beat,8000);setInterval(loadPeople,20000);
-        toggle.onclick=()=>{panel.classList.toggle('hidden');panel.classList.toggle('flex');unread.textContent='0';unread.classList.add('hidden');if(selectedId)input.focus()};close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};select.onchange=()=>{selectedId=Number(select.value)||0;const person=people.find(p=>p.id===selectedId);contact.textContent=person?`${person.name} · ${person.role||'Agente'}`:'Selecciona una persona';load().catch(()=>{})};
+
+        const pollIncoming=async()=>{
+            try {
+                const res=await fetchAPI(`/api/admin-chat/incoming?after_id=${highestInId}`);
+                if(!res.ok) return;
+                const items=await res.json();
+                items.forEach(m=>{
+                    highestInId=Math.max(highestInId, m.id);
+                    if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId)){
+                        render(m);
+                    } else {
+                        const count=Number(unread.textContent||0)+1;
+                        unread.textContent=String(count);
+                        unread.classList.remove('hidden');
+                        unread.classList.add('flex');
+                        if(sidebarBadge){
+                            sidebarBadge.textContent=String(count);
+                            sidebarBadge.classList.remove('hidden');
+                        }
+                        triggerNotif(m.sender.name, m.content||'Adjunto');
+                    }
+                });
+            } catch(e){}
+        };
+
+        // Initialize highest incoming ID
+        fetchAPI('/api/admin-chat/incoming').then(r=>r.ok?r.json():[]).then(items=>{
+            if(items.length) highestInId=Math.max(...items.map(m=>m.id));
+        }).catch(()=>{});
+
+        loadPeople();connect();beat();
+        setInterval(beat,8000);
+        setInterval(loadPeople,20000);
+        setInterval(pollIncoming,2500);
+
+        document.addEventListener('click', ()=>{
+            if('Notification' in window && Notification.permission==='default') Notification.requestPermission().catch(()=>{});
+        }, {once:true});
+
+        toggle.onclick=()=>{
+            panel.classList.toggle('hidden');panel.classList.toggle('flex');
+            unread.textContent='0';unread.classList.add('hidden');
+            if(sidebarBadge){ sidebarBadge.textContent='0'; sidebarBadge.classList.add('hidden'); }
+            if(selectedId)input.focus();
+        };
+        close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};
+        select.onchange=()=>{selectedId=Number(select.value)||0;const person=people.find(p=>p.id===selectedId);contact.textContent=person?`${person.name} · ${person.role||'Agente'}`:'Selecciona una persona';load().catch(()=>{})};
         form.onsubmit=async e=>{
             e.preventDefault();
             const content=input.value.trim();

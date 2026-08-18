@@ -90,6 +90,24 @@ def list_messages(
     return [_message_payload(message) for message in reversed(messages)]
 
 
+@router.get("/incoming")
+def list_incoming_messages(
+    after_id: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> list[dict[str, Any]]:
+    """Devuelve los mensajes entrantes dirigidos al usuario actual para disparar notificaciones en tiempo real."""
+    query = (
+        db.query(AdminChatMessage)
+        .options(joinedload(AdminChatMessage.sender), joinedload(AdminChatMessage.attachments))
+        .filter(AdminChatMessage.recipient_id == current_user.id)
+    )
+    if after_id > 0:
+        query = query.filter(AdminChatMessage.id > after_id)
+    messages = query.order_by(AdminChatMessage.created_at.desc()).limit(50).all()
+    return [_message_payload(message) for message in reversed(messages)]
+
+
 @router.post("/messages", status_code=201)
 async def send_chat_message(
     payload: ChatMessageCreate,

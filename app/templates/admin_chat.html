@@ -123,6 +123,8 @@
     const selectedConversationMessageIds = new Set();
     let directLastMessageId = 0;
     let conversationRequestId = 0;
+    let highestIncomingId = 0;
+    const unreadCountsPerUser = {};
 
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
@@ -141,17 +143,30 @@
             audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
             if (audioContext.state === 'suspended') audioContext.resume();
             const now = audioContext.currentTime;
-            [0, 0.12].forEach((offset, index) => {
-                const oscillator = audioContext.createOscillator();
-                const gain = audioContext.createGain();
-                oscillator.frequency.value = index ? 880 : 660;
-                gain.gain.setValueAtTime(0.0001, now + offset);
-                gain.gain.exponentialRampToValueAtTime(0.12, now + offset + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
-                oscillator.connect(gain).connect(audioContext.destination);
-                oscillator.start(now + offset);
-                oscillator.stop(now + offset + 0.18);
-            });
+            
+            const osc1 = audioContext.createOscillator();
+            const gain1 = audioContext.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(587.33, now);
+            gain1.gain.setValueAtTime(0.001, now);
+            gain1.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc1.connect(gain1);
+            gain1.connect(audioContext.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.3);
+
+            const osc2 = audioContext.createOscillator();
+            const gain2 = audioContext.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(880.00, now + 0.1);
+            gain2.gain.setValueAtTime(0.001, now + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.3, now + 0.12);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            osc2.connect(gain2);
+            gain2.connect(audioContext.destination);
+            osc2.start(now + 0.1);
+            osc2.stop(now + 0.45);
         } catch (error) {
             // Browser audio can be unavailable until the user interacts with the page.
         }
@@ -160,8 +175,15 @@
     function notifyUser(title, body) {
         playNotificationSound();
         showToast(`${title}: ${body}`, 'info');
-        if (desktopNotificationsEnabled && document.hidden) {
-            new Notification(title, {body, tag: 'intranet-admin-chat', renotify: true});
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+                const notif = new Notification(title, {
+                    body,
+                    tag: 'intranet-admin-chat-' + Date.now(),
+                    renotify: true
+                });
+                notif.onclick = () => window.focus();
+            } catch (e) {}
         }
     }
 
@@ -211,10 +233,12 @@
             const online = onlineIds.has(user.id);
             const isMe = user.id === CURRENT_USER;
             const selected = user.id === selectedContactId;
+            const unreadCount = unreadCountsPerUser[user.id] || 0;
+            const unreadBadge = unreadCount > 0 ? `<span class="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[10px] font-bold shrink-0 ml-auto animate-pulse">${unreadCount}</span>` : '';
             const classes = selected
                 ? 'bg-[#049DD9]/10 border-[#049DD9]'
                 : online ? 'bg-[#F8FAFB] border-transparent hover:border-[#049DD9]/40' : 'border-transparent opacity-70';
-            return `<button type="button" data-select-user="${user.id}" ${isMe ? 'disabled' : ''} class="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-colors ${classes} ${isMe ? 'cursor-default' : 'cursor-pointer'}"><span class="w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-gray-300'}"></span><div class="min-w-0 flex-1"><p class="text-xs font-semibold text-gray-700 truncate">${escapeHtml(user.name)}${isMe ? ' (tu)' : ''}</p><p class="text-[10px] text-gray-500 truncate">${escapeHtml(user.role || 'Administrador')} · ${online ? 'Disponible' : 'Desconectado'}</p></div>${selected ? '<i class="fa-solid fa-check text-[#049DD9] text-xs"></i>' : ''}</button>`;
+            return `<button type="button" data-select-user="${user.id}" ${isMe ? 'disabled' : ''} class="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-colors ${classes} ${isMe ? 'cursor-default' : 'cursor-pointer'}"><span class="w-2 h-2 rounded-full shrink-0 ${online ? 'bg-emerald-500' : 'bg-gray-300'}"></span><div class="min-w-0 flex-1"><p class="text-xs font-semibold text-gray-700 truncate">${escapeHtml(user.name)}${isMe ? ' (tu)' : ''}</p><p class="text-[10px] text-gray-500 truncate">${escapeHtml(user.role || 'Administrador')} · ${online ? 'Disponible' : 'Desconectado'}</p></div>${unreadBadge}${selected ? '<i class="fa-solid fa-check text-[#049DD9] text-xs shrink-0 ml-1"></i>' : ''}</button>`;
         }).join('');
         participants.querySelectorAll('[data-select-user]').forEach(button => button.addEventListener('click', () => selectContact(Number(button.dataset.selectUser))));
     }
@@ -402,6 +426,7 @@
     function selectContact(userId) {
         if (peerConnection || incomingCall) return;
         selectedContactId = userId;
+        unreadCountsPerUser[userId] = 0;
         const contact = allParticipants.find(user => user.id === userId);
         const online = onlineUsers.some(user => user.id === userId);
         renderParticipants();
@@ -578,10 +603,37 @@
             (await response.json()).forEach(message => {
                 renderDirectMessage(message);
                 renderSelectedConversationMessage(message);
-                if (message.sender.id !== CURRENT_USER) notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+                if (message.sender.id !== CURRENT_USER && document.hidden) {
+                    notifyUser(`Nuevo mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+                }
             });
         } catch (error) {
             console.debug('No fue posible sincronizar la conversación:', error.message);
+        }
+    }
+
+    async function pollIncomingMessages() {
+        try {
+            const response = await fetchAPI(`/api/admin-chat/incoming?after_id=${highestIncomingId}`);
+            if (!response.ok) return;
+            const items = await response.json();
+            items.forEach(message => {
+                highestIncomingId = Math.max(highestIncomingId, message.id);
+                const senderId = message.sender.id;
+                if (selectedContactId && senderId === selectedContactId) {
+                    renderDirectMessage(message);
+                    renderSelectedConversationMessage(message);
+                    if (document.hidden) {
+                        notifyUser(`Mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+                    }
+                } else {
+                    unreadCountsPerUser[senderId] = (unreadCountsPerUser[senderId] || 0) + 1;
+                    renderParticipants();
+                    notifyUser(`Mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
+                }
+            });
+        } catch (error) {
+            console.debug('No fue posible consultar mensajes entrantes:', error.message);
         }
     }
 
@@ -636,13 +688,25 @@
     });
     updateNotificationButton();
 
+    document.addEventListener('click', () => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(updateNotificationButton).catch(() => {});
+        }
+    }, { once: true });
+
     async function loadInitialData() {
         try {
             await reloadParticipants();
             messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona un integrante para iniciar una conversación privada.</p>';
+            
+            // Inicializar cursor de mensajes entrantes
+            const incomingInit = await fetchAPI('/api/admin-chat/incoming').then(r => r.ok ? r.json() : []).catch(() => []);
+            if (incomingInit.length) highestIncomingId = Math.max(...incomingInit.map(m => m.id));
+
             await sendPresenceHeartbeat();
             presenceTimer = window.setInterval(sendPresenceHeartbeat, 5000);
-            directMessagePollTimer = window.setInterval(pollDirectMessages, 3000);
+            directMessagePollTimer = window.setInterval(pollDirectMessages, 2500);
+            window.setInterval(pollIncomingMessages, 2500);
             window.setInterval(reloadParticipants, 15000);
             window.setInterval(refreshPresence, 4000);
         } catch (error) {
