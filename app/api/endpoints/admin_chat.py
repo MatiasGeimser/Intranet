@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 import bleach
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from jose import JWTError, jwt
 from sqlalchemy import and_, or_
@@ -22,6 +22,7 @@ from app.models.admin_chat import AdminChatAttachment, AdminChatMessage
 from app.models.admin_chat_presence import AdminChatPresence
 from app.models.role import Role
 from app.models.user import User
+from app.services.supabase_storage import SupabaseStorageError, supabase_storage
 
 router = APIRouter()
 # Vercel solo permite escritura en UPLOAD_DIR (/tmp en producción).
@@ -228,7 +229,7 @@ async def upload_attachment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_chat_member),
 ) -> dict[str, Any]:
-    """Sube un adjunto seguro que solo se asociara a un mensaje del emisor."""
+    """Sube un adjunto seguro que se almacena en Supabase Storage para persistencia multi-dispositivo."""
     original_name = os.path.basename(file.filename or "archivo")
     extension = Path(original_name).suffix.lower()
     mime_type = (file.content_type or "").lower()
@@ -239,11 +240,25 @@ async def upload_attachment(
     if not content or len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(status_code=413, detail="El archivo debe pesar entre 1 byte y 15 MB.")
 
-    CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid4().hex}{extension}"
+    object_path = f"chat/{stored_name}"
+
+    if supabase_storage.enabled:
+        try:
+            supabase_storage.upload_bytes(object_path, content, mime_type)
+        except Exception as e:
+            # Fallback si supabase falla temporalmente
+            pass
+
+    # Guardar también copia local en UPLOAD_DIR (/tmp)
+    CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = CHAT_UPLOAD_DIR / stored_name
     try:
         file_path.write_bytes(content)
+    except Exception:
+        pass
+
+    try:
         attachment = AdminChatAttachment(
             uploader_id=current_user.id,
             original_name=original_name[:255],
@@ -268,29 +283,50 @@ def download_attachment(
     attachment_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_chat_member),
-) -> FileResponse:
-    attachment = (
-        db.query(AdminChatAttachment)
-        .join(AdminChatMessage, AdminChatAttachment.message_id == AdminChatMessage.id)
-        .filter(AdminChatAttachment.id == attachment_id)
-        .first()
-    )
-    if not attachment or attachment.message_id is None:
+) -> Response:
+    attachment = db.query(AdminChatAttachment).filter(AdminChatAttachment.id == attachment_id).first()
+    if not attachment:
         raise HTTPException(status_code=404, detail="Adjunto no encontrado.")
-    message = db.query(AdminChatMessage).filter(AdminChatMessage.id == attachment.message_id).first()
-    if not message or message.recipient_id is None or current_user.id not in {message.sender_id, message.recipient_id}:
+
+    if attachment.message_id is not None:
+        message = db.query(AdminChatMessage).filter(AdminChatMessage.id == attachment.message_id).first()
+        if not message or current_user.id not in {message.sender_id, message.recipient_id}:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este adjunto.")
+    elif attachment.uploader_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes acceso a este adjunto.")
 
-    file_path = CHAT_UPLOAD_DIR / attachment.stored_name
-    if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="El archivo no esta disponible.")
-
     safe_name = attachment.original_name.replace('"', "")
-    return FileResponse(
-        path=file_path,
-        media_type=attachment.mime_type,
-        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
-    )
+
+    # 1. Intentar desde Supabase Storage (persistente en Serverless)
+    if supabase_storage.enabled:
+        try:
+            object_path = attachment.stored_name if attachment.stored_name.startswith("chat/") else f"chat/{attachment.stored_name}"
+            data = supabase_storage.download_bytes(object_path)
+            return Response(
+                content=data,
+                media_type=attachment.mime_type,
+                headers={
+                    "Content-Disposition": f'inline; filename="{safe_name}"',
+                    "Cache-Control": "public, max-age=86400",
+                },
+            )
+        except Exception:
+            pass
+
+    # 2. Fallback a almacenamiento local
+    local_name = attachment.stored_name.split("/")[-1]
+    file_path = CHAT_UPLOAD_DIR / local_name
+    if file_path.is_file():
+        return FileResponse(
+            path=file_path,
+            media_type=attachment.mime_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{safe_name}"',
+                "Cache-Control": "public, max-age=86400",
+            },
+        )
+
+    raise HTTPException(status_code=404, detail="El archivo no está disponible.")
 
 
 def _record_presence(user_id: int) -> None:

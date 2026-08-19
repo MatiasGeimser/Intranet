@@ -250,7 +250,13 @@
         const mine = message.sender.id === CURRENT_USER;
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
-        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-xs ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : '<span class="italic">Adjunto</span>'}</div>`;
+        const attachments = (message.attachments || []).map(attachment => {
+            const isImg = attachment.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(attachment.name);
+            return isImg
+                ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-1.5 overflow-hidden rounded-lg border border-black/10 hover:opacity-95 transition-opacity"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-48 max-w-full rounded-lg object-contain bg-black/5" onload="floatingMessages.scrollTop=floatingMessages.scrollHeight"></a>`
+                : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-1 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] ${mine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}"><i class="fa-solid fa-file"></i><span class="truncate max-w-36">${escapeHtml(attachment.name)}</span></a>`;
+        }).join('');
+        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-xs ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
         floatingMessages.appendChild(element);
         floatingMessages.scrollTop = floatingMessages.scrollHeight;
     }
@@ -261,11 +267,13 @@
         const mine = message.sender.id === CURRENT_USER;
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
-        const attachments = (message.attachments || []).map(attachment => attachment.mime_type.startsWith('image/')
-            ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-64 max-w-full rounded-lg border border-black/10 object-contain"></a>`
-            : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-lg border border-black/10 px-2 py-2 text-xs hover:bg-black/5"><i class="fa-solid fa-file-arrow-down"></i><span class="min-w-0 flex-1 truncate">${escapeHtml(attachment.name)}</span></a>`
-        ).join('');
-        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
+        const attachments = (message.attachments || []).map(attachment => {
+            const isImg = attachment.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(attachment.name);
+            return isImg
+                ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2 overflow-hidden rounded-xl border border-black/10 hover:opacity-95 shadow-sm transition-opacity bg-black/5"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-72 max-w-full rounded-xl object-contain" onload="messages.scrollTop=messages.scrollHeight"></a>`
+                : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2 text-xs hover:bg-black/5 transition-colors ${mine ? 'bg-white/10 text-white' : 'bg-gray-50 text-gray-800'}"><i class="fa-solid fa-file-arrow-down text-base shrink-0"></i><span class="min-w-0 flex-1 truncate font-medium">${escapeHtml(attachment.name)}</span></a>`;
+        }).join('');
+        element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3.5 py-2.5 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
         messages.appendChild(element);
         messages.scrollTop = messages.scrollHeight;
     }

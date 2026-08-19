@@ -112,11 +112,43 @@ class SupabaseStorage:
             raise SupabaseStorageError("Supabase no entregó una URL temporal de descarga.")
         return signed if signed.startswith("http") else f"{self.base_url}/storage/v1{signed}"
 
+    def upload_bytes(self, object_path: str, content: bytes, content_type: str = "application/octet-stream") -> None:
+        self.ensure_bucket()
+        url = f"{self.base_url}/storage/v1/object/{quote(self.bucket, safe='')}/{quote(object_path, safe='/')}"
+        headers = {
+            "apikey": self.service_key,
+            "Authorization": f"Bearer {self.service_key}",
+            "Content-Type": content_type,
+            "x-upsert": "true",
+        }
+        try:
+            response = httpx.post(url, headers=headers, content=content, timeout=30)
+        except httpx.HTTPError as exc:
+            raise SupabaseStorageError(f"No se pudo conectar con Supabase Storage para subir archivo: {exc}") from exc
+        if response.is_error:
+            raise SupabaseStorageError(f"Supabase Storage respondió HTTP {response.status_code}: {response.text[:500]}")
+
+    def download_bytes(self, object_path: str) -> bytes:
+        url = f"{self.base_url}/storage/v1/object/{quote(self.bucket, safe='')}/{quote(object_path, safe='/')}"
+        headers = {
+            "apikey": self.service_key,
+            "Authorization": f"Bearer {self.service_key}",
+        }
+        try:
+            response = httpx.get(url, headers=headers, timeout=30)
+        except httpx.HTTPError as exc:
+            raise SupabaseStorageError(f"No se pudo conectar con Supabase Storage para descargar archivo: {exc}") from exc
+        if response.is_error:
+            raise SupabaseStorageError(f"Supabase Storage respondió HTTP {response.status_code}: {response.text[:500]}")
+        return response.content
+
     def delete_object(self, object_path: str) -> None:
         url = f"{self.base_url}/storage/v1/object/{quote(self.bucket, safe='')}/{quote(object_path, safe='/')}"
-        response = httpx.request("DELETE", url.rsplit("/", 1)[0], headers=self._headers(), json={"prefixes": [object_path]}, timeout=30)
+        headers = self._headers()
+        response = httpx.request("DELETE", url.rsplit("/", 1)[0], headers=headers, json={"prefixes": [object_path]}, timeout=30)
         if response.status_code not in (200, 204, 400, 404):
             raise SupabaseStorageError(f"No se pudo eliminar el objeto (HTTP {response.status_code}).")
 
 
 supabase_storage = SupabaseStorage()
+
