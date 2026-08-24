@@ -36,7 +36,9 @@ def build_chile_holidays(year: int) -> List[dict]:
             "creator": {"id": 0, "full_name": "Calendario de Chile", "avatar_url": None},
             "created_at": datetime.combine(holiday_date, time.min),
         }
-        for holiday_date, holiday_name in holidays.country_holidays("CL", years=[year]).items()
+        for holiday_date, holiday_name in holidays.country_holidays(
+            "CL", years=[year], language="es"
+        ).items()
     ]
 
 @router.get("", response_model=List[EventResponse])
