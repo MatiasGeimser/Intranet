@@ -239,7 +239,7 @@ def news_view(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/it-assets", response_class=HTMLResponse)
 def it_assets_view(request: Request, db: Session = Depends(get_db)):
-    """Muestra el módulo de inventario IT (Software, Hardware, Redes)."""
+    """Mantiene compatibilidad con enlaces antiguos de Inventario PC."""
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
@@ -248,14 +248,7 @@ def it_assets_view(request: Request, db: Session = Depends(get_db)):
     if user.role.name != "Administrador" and "it:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
 
-    all_users = db.query(User).filter(User.is_active == True).all()
-
-    return templates.TemplateResponse(request=request, name="it_assets.html", context={
-        "user": user,
-        "all_users": all_users,
-        "active_page": "it-assets",
-        "project_name": settings.PROJECT_NAME
-    })
+    return RedirectResponse(url="/network", status_code=303)
 
 
 @router.get("/profile", response_class=HTMLResponse)

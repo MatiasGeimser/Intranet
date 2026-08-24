@@ -228,7 +228,7 @@
             {% endif %}
 
             {% if user.role.name == 'Administrador' %}
-            <a href="/it-assets"
+            <a href="/network"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page in ['it-assets', 'network', 'phone-numbers'] %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-server text-base"></i>
                 <span>Gestión Activos IT</span>
@@ -531,7 +531,7 @@
             { name: "Dashboard", link: "/", icon: "fa-chart-pie", color: "text-[#049DD9]" },
             { name: "Contraseñas / Bóveda", link: "/passwords", icon: "fa-vault", color: "text-[#D91A2A]" },
             { name: "Directorio Corporativo", link: "/directory", icon: "fa-address-book", color: "text-[#049DD9]" },
-            { name: "Inventario IT", link: "/it-assets", icon: "fa-laptop-code", color: "text-gray-700" },
+            { name: "Switches", link: "/network", icon: "fa-network-wired", color: "text-gray-700" },
             { name: "Gestión Documental", link: "/documents", icon: "fa-folder-open", color: "text-yellow-500" },
             { name: "Noticias y Comunicados", link: "/news", icon: "fa-newspaper", color: "text-blue-500" },
             { name: "Calendario", link: "/calendar", icon: "fa-calendar-days", color: "text-red-500" }
