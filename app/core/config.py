@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
     SUPABASE_STORAGE_BUCKET: str = "intranet-documents"
 
+    # Integración servidor a servidor con el asistente ITSM.
+    ASSISTANT_BRIDGE_SECRET: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
