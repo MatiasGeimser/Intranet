@@ -25,7 +25,17 @@ class SwitchDevice(Base):
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     created_by = relationship("User", foreign_keys=[created_by_id])
-    interfaces = relationship("SwitchInterface", back_populates="switch", cascade="all, delete-orphan")
+    interfaces = relationship(
+        "SwitchInterface",
+        back_populates="switch",
+        cascade="all, delete-orphan",
+        # Conserva el orden físico: 01, 02, ... 10, 11. Los puertos sin número van al final.
+        order_by=lambda: (
+            SwitchInterface.port_number.is_(None),
+            SwitchInterface.port_number.asc(),
+            SwitchInterface.interface_name.asc(),
+        ),
+    )
 
 
 class SwitchInterface(Base):

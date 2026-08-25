@@ -94,7 +94,11 @@ def get_switch_interfaces(
     if connected_only:
         query = query.filter(SwitchInterface.description.contains("ENDPOINT"))
     
-    return query.order_by(SwitchInterface.interface_name).all()
+    return query.order_by(
+        SwitchInterface.port_number.is_(None),
+        SwitchInterface.port_number.asc(),
+        SwitchInterface.interface_name.asc(),
+    ).all()
 
 
 @router.get("/{switch_id}/stats")
