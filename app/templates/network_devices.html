@@ -299,6 +299,20 @@
                     <input type="text" id="edit-iface-type" placeholder="ej. PC, Printer, VoIP, Switch"
                            class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
                 </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Puesto de Trabajo</label>
+                    <select id="edit-iface-workspace"
+                            class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                        <option value="">Sin puesto asignado</option>
+                    </select>
+                </div>
+                <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 cursor-pointer">
+                    <span>
+                        <span class="block text-xs font-bold text-gray-700">Interfaz habilitada</span>
+                        <span class="block text-[10px] text-gray-500 mt-0.5">Permite usar este puerto para un equipo.</span>
+                    </span>
+                    <input type="checkbox" id="edit-iface-enabled" class="h-4 w-4 accent-[#049DD9]" checked>
+                </label>
 
                 <div class="flex gap-3 pt-2">
                     <button type="button" onclick="closeEditInterfaceModal()"
@@ -377,7 +391,19 @@
         }
     }
 
+    let workspaceOptions = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    }
+
+    async function loadWorkspaceOptions() {
+        const response = await fetch('/api/switches/workspaces', { headers: getAuthHeaders() });
+        workspaceOptions = response.ok ? await response.json() : [];
+    }
+
     async function loadSwitches() {
+        await loadWorkspaceOptions();
         const res = await fetch('/api/switches', {
             headers: getAuthHeaders()
         });
@@ -411,20 +437,29 @@
         });
         const detail = await detailRes.json();
 
-        const occupiedCount = detail.interfaces.filter(i => i.description && i.description.toUpperCase().includes('CONECTADO')).length;
-        const freeCount = detail.interfaces.filter(i => i.description && i.description.toUpperCase().includes('LIBRE')).length;
+        const occupiedCount = detail.interfaces.filter(i => i.is_enabled && i.description && i.description.toUpperCase().includes('CONECTADO')).length;
+        const freeCount = detail.interfaces.filter(i => i.is_enabled && i.description && i.description.toUpperCase().includes('LIBRE')).length;
 
         const interfaceRows = detail.interfaces.map(iface => {
             const ifaceJson = JSON.stringify(iface).replace(/"/g, "&quot;");
             return `
-            <tr class="border-t border-gray-100 ${iface.description && iface.description.toUpperCase().includes('CONECTADO') ? 'bg-green-50' : iface.description && iface.description.toUpperCase().includes('LIBRE') ? 'bg-gray-50' : ''}">
+            <tr class="border-t border-gray-100 ${!iface.is_enabled ? 'bg-red-50 opacity-70' : iface.description && iface.description.toUpperCase().includes('CONECTADO') ? 'bg-green-50' : iface.description && iface.description.toUpperCase().includes('LIBRE') ? 'bg-gray-50' : ''}">
                 <td class="px-4 py-3 text-sm text-gray-800">${iface.interface_name}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">${iface.vlan_name || '-'}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${iface.status || 'Active'}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                    <span class="inline-flex items-center gap-1.5 ${iface.is_enabled ? 'text-emerald-700' : 'text-red-700'}">
+                        <span class="h-2 w-2 rounded-full ${iface.is_enabled ? 'bg-emerald-500' : 'bg-red-500'}"></span>${iface.is_enabled ? 'Habilitada' : 'Desactivada'}
+                    </span>
+                </td>
                 <td class="px-4 py-3 text-sm text-gray-700">${iface.description || '-'}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">${iface.connected_device || '-'}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">${iface.connected_device_type || '-'}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-[#049DD9]">${iface.workspace_code || '-'}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
+                    <button onclick="toggleInterface(${iface.id}, ${iface.is_enabled ? 'true' : 'false'})"
+                            class="p-1.5 ${iface.is_enabled ? 'text-emerald-600 hover:text-red-600 hover:bg-red-50' : 'text-red-500 hover:text-emerald-600 hover:bg-emerald-50'} rounded-xl transition-all" title="${iface.is_enabled ? 'Desactivar interfaz' : 'Activar interfaz'}">
+                        <i class="fa-solid ${iface.is_enabled ? 'fa-toggle-on' : 'fa-toggle-off'} text-[13px]"></i>
+                    </button>
                     <button onclick="openEditInterfaceModal(${ifaceJson})"
                             class="p-1.5 text-gray-400 hover:text-blue-corp rounded-xl hover:bg-blue-50 transition-all" title="Editar puerto">
                         <i class="fa-solid fa-pen-to-square text-[11px]"></i>
@@ -459,11 +494,12 @@
                                     <th class="px-4 py-3 font-semibold text-gray-700">Descripción</th>
                                     <th class="px-4 py-3 font-semibold text-gray-700">Dispositivo</th>
                                     <th class="px-4 py-3 font-semibold text-gray-700">Tipo</th>
+                                    <th class="px-4 py-3 font-semibold text-gray-700">Puesto</th>
                                     <th class="px-4 py-3 font-semibold text-gray-700">Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${interfaceRows || `<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No hay interfaces registradas.</td></tr>`}
+                                ${interfaceRows || `<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">No hay interfaces registradas.</td></tr>`}
                             </tbody>
                         </table>
                     </div>
@@ -493,6 +529,9 @@
         document.getElementById('edit-iface-vlan').value = iface.vlan_name || '';
         document.getElementById('edit-iface-desc').value = iface.description || '';
         document.getElementById('edit-iface-type').value = iface.connected_device_type || '';
+        document.getElementById('edit-iface-workspace').innerHTML = `<option value="">Sin puesto asignado</option>${workspaceOptions.map(workspace => `<option value="${workspace.id}">${escapeHtml(workspace.code)}</option>`).join('')}`;
+        document.getElementById('edit-iface-workspace').value = iface.workspace_id || '';
+        document.getElementById('edit-iface-enabled').checked = iface.is_enabled !== false;
         document.getElementById('edit-interface-modal').classList.remove('hidden');
     }
 
@@ -506,11 +545,15 @@
         const vlan_name = document.getElementById('edit-iface-vlan').value;
         const description = document.getElementById('edit-iface-desc').value;
         const connected_device_type = document.getElementById('edit-iface-type').value;
+        const workspace_id = document.getElementById('edit-iface-workspace').value;
+        const is_enabled = document.getElementById('edit-iface-enabled').checked;
 
         const payload = {
             vlan_name: vlan_name || null,
             description: description || null,
-            connected_device_type: connected_device_type || null
+            connected_device_type: connected_device_type || null,
+            workspace_id: workspace_id ? Number(workspace_id) : null,
+            is_enabled
         };
 
         try {
@@ -530,6 +573,26 @@
         } catch (err) {
             console.error(err);
             showToast("Error de conexión.", "error");
+        }
+    }
+
+    async function toggleInterface(interfaceId, isEnabled) {
+        const action = isEnabled ? 'desactivar' : 'activar';
+        if (!confirm(`¿Deseas ${action} esta interfaz?`)) return;
+
+        try {
+            const res = await fetchAPI(`/api/switches/interfaces/${interfaceId}`, {
+                method: 'PUT',
+                body: { is_enabled: !isEnabled }
+            });
+            if (!res || !res.ok) {
+                const detail = res ? await res.json() : {};
+                throw new Error(detail.detail || 'No fue posible actualizar la interfaz.');
+            }
+            showToast(`Interfaz ${isEnabled ? 'desactivada' : 'activada'} con éxito`, 'success');
+            loadSwitches();
+        } catch (error) {
+            showToast(error.message || 'Error de conexión.', 'error');
         }
     }
 

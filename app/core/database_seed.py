@@ -104,6 +104,22 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (phone_numbers.is_active): {e} ======")
 
+    # Gestión de puertos: asignación física a puesto y habilitación administrativa.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE switch_interfaces ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE"))
+            db.execute(text("ALTER TABLE switch_interfaces ADD COLUMN IF NOT EXISTS workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL"))
+        else:
+            existing_columns = {column["name"] for column in inspect(engine).get_columns("switch_interfaces")}
+            if "is_enabled" not in existing_columns:
+                db.execute(text("ALTER TABLE switch_interfaces ADD COLUMN is_enabled BOOLEAN NOT NULL DEFAULT 1"))
+            if "workspace_id" not in existing_columns:
+                db.execute(text("ALTER TABLE switch_interfaces ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (switch_interfaces): {e} ======")
+
     # Mensajes directos del chat: nullable para conservar el canal institucional existente.
     try:
         if engine.name == "postgresql":

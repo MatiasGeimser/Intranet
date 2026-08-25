@@ -10,10 +10,12 @@ class SwitchInterfaceBase(BaseModel):
     vlan_id: Optional[int] = None
     vlan_name: Optional[str] = Field(None, max_length=100)
     status: str = Field("Active", max_length=20)
+    is_enabled: bool = True
     description: Optional[str] = Field(None, max_length=255)
     connected_device: Optional[str] = Field(None, max_length=100)
     connected_device_type: Optional[str] = Field(None, max_length=50)
     mac_address: Optional[str] = Field(None, max_length=50)
+    workspace_id: Optional[int] = None
     is_uplink: bool = False
     is_trunk: bool = False
     trunk_vlans: Optional[str] = None
@@ -26,10 +28,12 @@ class SwitchInterfaceCreate(SwitchInterfaceBase):
 class SwitchInterfaceUpdate(BaseModel):
     interface_name: Optional[str] = Field(None, max_length=50)
     status: Optional[str] = Field(None, max_length=20)
+    is_enabled: Optional[bool] = None
     description: Optional[str] = Field(None, max_length=255)
     connected_device: Optional[str] = Field(None, max_length=100)
     connected_device_type: Optional[str] = Field(None, max_length=50)
     mac_address: Optional[str] = Field(None, max_length=50)
+    workspace_id: Optional[int] = None
     vlan_id: Optional[int] = None
     vlan_name: Optional[str] = Field(None, max_length=100)
     is_trunk: Optional[bool] = None
@@ -42,6 +46,7 @@ class SwitchInterfaceResponse(SwitchInterfaceBase):
     created_by_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    workspace_code: Optional[str] = None
 
     class Config:
         from_attributes = True

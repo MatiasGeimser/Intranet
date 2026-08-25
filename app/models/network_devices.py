@@ -46,12 +46,14 @@ class SwitchInterface(Base):
     
     # Estado del Puerto
     status = Column(String(20), default="Active")  # Active, Down, etc
+    is_enabled = Column(Boolean, default=True, nullable=False)  # Habilitación administrativa del puerto
     description = Column(String(255), nullable=True)  # "ENDPOINT CONECTADO", "LIBRE", etc
     
     # Información de Dispositivo Conectado
     connected_device = Column(String(100), nullable=True)  # Nombre del equipo conectado
     connected_device_type = Column(String(50), nullable=True)  # PC, Printer, Camera, etc
     mac_address = Column(String(50), nullable=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True)
     
     # Metadata
     is_uplink = Column(Boolean, default=False)
@@ -64,5 +66,10 @@ class SwitchInterface(Base):
 
     # Relaciones
     switch = relationship("SwitchDevice", back_populates="interfaces")
+    workspace = relationship("Workspace", backref="switch_interfaces")
     vlan = relationship("VLAN")
     created_by = relationship("User", foreign_keys=[created_by_id])
+
+    @property
+    def workspace_code(self):
+        return self.workspace.code if self.workspace else None

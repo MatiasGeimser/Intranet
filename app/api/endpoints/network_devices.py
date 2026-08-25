@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.network_devices import SwitchDevice, SwitchInterface
+from app.models.workspace import Workspace
 from app.schemas.network_devices import (
     SwitchDeviceResponse, 
     SwitchDeviceDetailResponse,
@@ -19,6 +21,37 @@ import tempfile
 router = APIRouter()
 
 
+def ensure_interface_management_columns(db: Session) -> None:
+    """Añade campos de gestión a instalaciones existentes sin requerir una migración manual."""
+    columns = {column["name"] for column in inspect(db.bind).get_columns("switch_interfaces")}
+    statements = []
+    if "is_enabled" not in columns:
+        statements.append("ALTER TABLE switch_interfaces ADD COLUMN is_enabled BOOLEAN NOT NULL DEFAULT TRUE")
+    if "workspace_id" not in columns:
+        statements.append("ALTER TABLE switch_interfaces ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL")
+
+    if not statements:
+        return
+
+    try:
+        for statement in statements:
+            db.execute(text(statement))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.get("/workspaces")
+def get_workspace_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(PermissionChecker("it:manage"))
+):
+    """Puestos disponibles para asociar físicamente un puerto del switch."""
+    ensure_interface_management_columns(db)
+    return [{"id": workspace.id, "code": workspace.code} for workspace in db.query(Workspace).order_by(Workspace.code).all()]
+
+
 @router.get("", response_model=List[SwitchDeviceResponse])
 def get_switches(
     status: Optional[str] = None,
@@ -26,6 +59,7 @@ def get_switches(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Obtiene lista de Switches configurados"""
+    ensure_interface_management_columns(db)
     query = db.query(SwitchDevice)
     if status:
         query = query.filter(SwitchDevice.status == status)
@@ -39,6 +73,7 @@ def get_switch_details(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Obtiene detalles completos de un Switch con todas sus interfaces"""
+    ensure_interface_management_columns(db)
     switch = db.query(SwitchDevice).filter(SwitchDevice.id == switch_id).first()
     if not switch:
         raise HTTPException(status_code=404, detail="Switch no encontrado.")
@@ -53,6 +88,7 @@ def get_switch_interfaces(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Obtiene interfaces de un Switch"""
+    ensure_interface_management_columns(db)
     query = db.query(SwitchInterface).filter(SwitchInterface.switch_id == switch_id)
     
     if connected_only:
@@ -68,13 +104,14 @@ def get_switch_stats(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Obtiene estadísticas de uso de puertos de un Switch"""
+    ensure_interface_management_columns(db)
     interfaces = db.query(SwitchInterface).filter(
         SwitchInterface.switch_id == switch_id
     ).all()
     
     total = len(interfaces)
-    connected = sum(1 for i in interfaces if "CONECTADO" in (i.description or "").upper())
-    free = sum(1 for i in interfaces if "LIBRE" in (i.description or "").upper())
+    connected = sum(1 for i in interfaces if i.is_enabled and "CONECTADO" in (i.description or "").upper())
+    free = sum(1 for i in interfaces if i.is_enabled and "LIBRE" in (i.description or "").upper())
     uplinks = sum(1 for i in interfaces if i.is_uplink)
     trunks = sum(1 for i in interfaces if i.is_trunk)
     
@@ -175,6 +212,7 @@ def update_switch_interface(
     current_user: User = Depends(PermissionChecker("it:manage"))
 ):
     """Actualiza selectivamente la VLAN, descripción y tipo de dispositivo de una interfaz."""
+    ensure_interface_management_columns(db)
     iface = db.query(SwitchInterface).filter(SwitchInterface.id == interface_id).first()
     if not iface:
         raise HTTPException(status_code=404, detail="Interfaz no encontrada.")
@@ -183,6 +221,8 @@ def update_switch_interface(
     old_vlan = iface.vlan_name
     old_desc = iface.description
     old_type = iface.connected_device_type
+    old_workspace_id = iface.workspace_id
+    old_enabled = iface.is_enabled
 
     # Modificar SOLO los campos indicados por el usuario
     if iface_data.vlan_name is not None:
@@ -191,6 +231,15 @@ def update_switch_interface(
         iface.description = iface_data.description
     if iface_data.connected_device_type is not None:
         iface.connected_device_type = iface_data.connected_device_type
+    if iface_data.is_enabled is not None:
+        iface.is_enabled = iface_data.is_enabled
+    if iface_data.workspace_id is not None:
+        workspace = db.query(Workspace).filter(Workspace.id == iface_data.workspace_id).first()
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Puesto de trabajo no encontrado.")
+        iface.workspace_id = workspace.id
+    elif "workspace_id" in iface_data.model_fields_set:
+        iface.workspace_id = None
 
     db.commit()
     db.refresh(iface)
@@ -204,7 +253,9 @@ def update_switch_interface(
         details=f"Modificó interfaz {iface.interface_name} de {iface.switch.hostname}. "
                 f"VLAN: '{old_vlan}' -> '{iface.vlan_name}', "
                 f"Desc: '{old_desc}' -> '{iface.description}', "
-                f"Tipo: '{old_type}' -> '{iface.connected_device_type}'"
+                f"Tipo: '{old_type}' -> '{iface.connected_device_type}', "
+                f"Puesto: '{old_workspace_id}' -> '{iface.workspace_id}', "
+                f"Habilitada: '{old_enabled}' -> '{iface.is_enabled}'"
     )
 
     return iface
