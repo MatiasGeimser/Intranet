@@ -246,9 +246,18 @@ async def upload_attachment(
     if supabase_storage.enabled:
         try:
             supabase_storage.upload_bytes(object_path, content, mime_type)
-        except Exception as e:
-            # Fallback si supabase falla temporalmente
-            pass
+        except Exception as exc:
+            # No registrar un adjunto que no podrán abrir los dos participantes.
+            raise HTTPException(
+                status_code=503,
+                detail="No fue posible guardar el archivo de forma segura. Intenta nuevamente.",
+            ) from exc
+    elif os.getenv("VERCEL"):
+        # El disco de una función serverless es temporal y no sirve para conversaciones compartidas.
+        raise HTTPException(
+            status_code=503,
+            detail="El almacenamiento seguro del chat no está disponible. Intenta nuevamente más tarde.",
+        )
 
     # Guardar también copia local en UPLOAD_DIR (/tmp)
     CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,7 +316,7 @@ def download_attachment(
                 media_type=attachment.mime_type,
                 headers={
                     "Content-Disposition": f'inline; filename="{safe_name}"',
-                    "Cache-Control": "public, max-age=86400",
+                    "Cache-Control": "private, max-age=300",
                 },
             )
         except Exception:
@@ -322,7 +331,7 @@ def download_attachment(
             media_type=attachment.mime_type,
             headers={
                 "Content-Disposition": f'inline; filename="{safe_name}"',
-                "Cache-Control": "public, max-age=86400",
+                "Cache-Control": "private, max-age=300",
             },
         )
 

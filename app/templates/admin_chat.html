@@ -76,6 +76,10 @@
         </form>
     </section>
 </div>
+<div id="chat-image-viewer" class="hidden fixed inset-0 z-[70] items-center justify-center bg-black/80 p-5" role="dialog" aria-modal="true" aria-label="Vista ampliada de imagen">
+    <button id="chat-image-viewer-close" type="button" class="absolute right-5 top-5 h-10 w-10 rounded-lg bg-white/15 text-white hover:bg-white/25" title="Cerrar vista ampliada"><i class="fa-solid fa-xmark"></i></button>
+    <img id="chat-image-viewer-image" src="" alt="" class="max-h-full max-w-full rounded-lg object-contain shadow-2xl">
+</div>
 <audio id="remote-audio" autoplay></audio>
 <script>
 (() => {
@@ -102,6 +106,9 @@
     const floatingInput = document.getElementById('floating-chat-input');
     const floatingUnread = document.getElementById('floating-unread');
     const sendMessageButton = document.getElementById('send-message-button');
+    const imageViewer = document.getElementById('chat-image-viewer');
+    const imageViewerImage = document.getElementById('chat-image-viewer-image');
+    const imageViewerClose = document.getElementById('chat-image-viewer-close');
     let socket;
     let allParticipants = [];
     let onlineUsers = [];
@@ -129,6 +136,22 @@
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
     const formatSize = bytes => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    const isImageAttachment = attachment => attachment.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(attachment.name || '');
+    const imageAttachmentMarkup = (attachment, compact = false) => `
+        <button type="button" data-chat-image-preview="${attachment.url}" data-chat-image-name="${escapeHtml(attachment.name)}" class="chat-image-preview block mt-${compact ? '1.5' : '2'} overflow-hidden rounded-lg border border-black/10 bg-black/5 text-left shadow-sm transition-opacity hover:opacity-90">
+            <img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" loading="lazy" class="block max-w-full ${compact ? 'max-h-48' : 'max-h-72'} rounded-lg object-contain" onload="messages.scrollTop=messages.scrollHeight">
+        </button>`;
+    const openImageViewer = (url, name) => {
+        imageViewerImage.src = url;
+        imageViewerImage.alt = name || 'Imagen del chat';
+        imageViewer.classList.remove('hidden');
+        imageViewer.classList.add('flex');
+    };
+    const closeImageViewer = () => {
+        imageViewer.classList.add('hidden');
+        imageViewer.classList.remove('flex');
+        imageViewerImage.removeAttribute('src');
+    };
 
     function updateNotificationButton() {
         const granted = 'Notification' in window && Notification.permission === 'granted';
@@ -209,9 +232,7 @@
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
         const attachments = (message.attachments || []).map(attachment => {
-            if (attachment.mime_type.startsWith('image/')) {
-                return `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-64 max-w-full rounded-lg border border-black/10 object-contain"></a>`;
-            }
+            if (isImageAttachment(attachment)) return imageAttachmentMarkup(attachment);
             return `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-lg border border-black/10 px-2 py-2 text-xs hover:bg-black/5"><i class="fa-solid fa-file-arrow-down"></i><span class="min-w-0 flex-1 truncate">${escapeHtml(attachment.name)}</span><span>${formatSize(attachment.size_bytes)}</span></a>`;
         }).join('');
         element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
@@ -251,9 +272,9 @@
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
         const attachments = (message.attachments || []).map(attachment => {
-            const isImg = attachment.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(attachment.name);
+            const isImg = isImageAttachment(attachment);
             return isImg
-                ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-1.5 overflow-hidden rounded-lg border border-black/10 hover:opacity-95 transition-opacity"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-48 max-w-full rounded-lg object-contain bg-black/5" onload="floatingMessages.scrollTop=floatingMessages.scrollHeight"></a>`
+                ? imageAttachmentMarkup(attachment, true)
                 : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-1 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] ${mine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}"><i class="fa-solid fa-file"></i><span class="truncate max-w-36">${escapeHtml(attachment.name)}</span></a>`;
         }).join('');
         element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3 py-2 text-xs ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
@@ -268,9 +289,9 @@
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
         const attachments = (message.attachments || []).map(attachment => {
-            const isImg = attachment.mime_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(attachment.name);
+            const isImg = isImageAttachment(attachment);
             return isImg
-                ? `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="block mt-2 overflow-hidden rounded-xl border border-black/10 hover:opacity-95 shadow-sm transition-opacity bg-black/5"><img src="${attachment.url}" alt="${escapeHtml(attachment.name)}" class="max-h-72 max-w-full rounded-xl object-contain" onload="messages.scrollTop=messages.scrollHeight"></a>`
+                ? imageAttachmentMarkup(attachment)
                 : `<a href="${attachment.url}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2 text-xs hover:bg-black/5 transition-colors ${mine ? 'bg-white/10 text-white' : 'bg-gray-50 text-gray-800'}"><i class="fa-solid fa-file-arrow-down text-base shrink-0"></i><span class="min-w-0 flex-1 truncate font-medium">${escapeHtml(attachment.name)}</span></a>`;
         }).join('');
         element.innerHTML = `<p class="text-[10px] font-semibold text-gray-500 mb-1 ${mine ? 'text-right' : ''}">${escapeHtml(message.sender.name)} <span class="font-normal">${formatTime(message.created_at)}</span></p><div class="bubble px-3.5 py-2.5 text-sm ${mine ? 'bg-[#049DD9] text-white' : 'bg-white border border-gray-200 text-gray-800'} whitespace-pre-wrap break-words">${message.content ? escapeHtml(message.content) : ''}${attachments}</div>`;
@@ -717,6 +738,13 @@
     notificationButton.addEventListener('click', enableNotifications);
     attachmentButton.addEventListener('click', () => attachmentInput.click());
     attachmentInput.addEventListener('change', event => queueAttachments(event.target.files));
+    document.addEventListener('click', event => {
+        const preview = event.target.closest('[data-chat-image-preview]');
+        if (preview) openImageViewer(preview.dataset.chatImagePreview, preview.dataset.chatImageName);
+    });
+    imageViewerClose.addEventListener('click', closeImageViewer);
+    imageViewer.addEventListener('click', event => { if (event.target === imageViewer) closeImageViewer(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !imageViewer.classList.contains('hidden')) closeImageViewer(); });
     floatingToggle.addEventListener('click', () => {
         floatingPanel.classList.toggle('hidden');
         floatingPanel.classList.toggle('flex');

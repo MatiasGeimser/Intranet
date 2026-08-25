@@ -667,11 +667,19 @@
             <form id="global-chat-form" class="flex gap-2 border-t border-gray-100 p-2"><input id="global-chat-input" maxlength="2000" placeholder="Escribe un mensaje..." class="min-w-0 flex-1 rounded-lg border border-gray-200 px-2.5 py-2 text-xs focus:border-[#049DD9] focus:outline-none"><button type="submit" class="h-9 w-9 shrink-0 rounded-lg bg-[#049DD9] text-white" title="Enviar mensaje"><i class="fa-solid fa-paper-plane text-xs"></i></button></form>
         </section>
     </aside>
+    <div id="global-chat-image-viewer" class="hidden fixed inset-0 z-[70] items-center justify-center bg-black/80 p-5" role="dialog" aria-modal="true" aria-label="Vista ampliada de imagen">
+        <button id="global-chat-image-viewer-close" type="button" class="absolute right-5 top-5 h-10 w-10 rounded-lg bg-white/15 text-white hover:bg-white/25" title="Cerrar vista ampliada"><i class="fa-solid fa-xmark"></i></button>
+        <img id="global-chat-image-viewer-image" src="" alt="" class="max-h-full max-w-full rounded-lg object-contain shadow-2xl">
+    </div>
     <script>
     (() => {
-        const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread'), sidebarBadge=document.getElementById('sidebar-chat-unread');
+        const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread'), sidebarBadge=document.getElementById('sidebar-chat-unread'), imageViewer=document.getElementById('global-chat-image-viewer'), imageViewerImage=document.getElementById('global-chat-image-viewer-image'), imageViewerClose=document.getElementById('global-chat-image-viewer-close');
         let socket, selectedId=0, lastId=0, highestInId=0, people=[], rendered=new Set();
         const esc=v=>String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        const isImageAttachment=a=>(a.mime_type||'').startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(a.name||'');
+        const imageMarkup=a=>`<button type="button" data-global-chat-image="${a.url}" data-global-chat-image-name="${esc(a.name)}" class="block mt-1.5 overflow-hidden rounded-lg border border-black/10 bg-black/5 text-left shadow-sm transition-opacity hover:opacity-90"><img src="${a.url}" alt="${esc(a.name)}" loading="lazy" class="block max-h-48 max-w-full rounded-lg object-contain"></button>`;
+        const openImageViewer=(url,name)=>{imageViewerImage.src=url;imageViewerImage.alt=name||'Imagen del chat';imageViewer.classList.remove('hidden');imageViewer.classList.add('flex');};
+        const closeImageViewer=()=>{imageViewer.classList.add('hidden');imageViewer.classList.remove('flex');imageViewerImage.removeAttribute('src');};
         
         const playChime=()=>{
             try {
@@ -720,8 +728,8 @@
             el.className=mine?'ml-auto max-w-[78%]':'max-w-[78%]';
             let atts = '';
             if(m.attachments && m.attachments.length) {
-                atts = m.attachments.map(a => a.mime_type.startsWith('image/')
-                    ? `<a href="${a.url}" target="_blank" class="block mt-1.5"><img src="${a.url}" alt="${esc(a.name)}" class="max-h-36 max-w-full rounded-md object-contain border border-black/10"></a>`
+                atts = m.attachments.map(a => isImageAttachment(a)
+                    ? imageMarkup(a)
                     : `<a href="${a.url}" target="_blank" class="mt-1 flex items-center gap-1.5 text-[10px] text-blue-600 hover:underline"><i class="fa-solid fa-file"></i><span>${esc(a.name)}</span></a>`
                 ).join('');
             }
@@ -825,6 +833,10 @@
             if(selectedId)input.focus();
         };
         close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};
+        document.addEventListener('click',e=>{const preview=e.target.closest('[data-global-chat-image]');if(preview)openImageViewer(preview.dataset.globalChatImage,preview.dataset.globalChatImageName);});
+        imageViewerClose.onclick=closeImageViewer;
+        imageViewer.onclick=e=>{if(e.target===imageViewer)closeImageViewer();};
+        document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!imageViewer.classList.contains('hidden'))closeImageViewer();});
         select.onchange=()=>{selectedId=Number(select.value)||0;const person=people.find(p=>p.id===selectedId);contact.textContent=person?`${person.name} · ${person.role||'Agente'}`:'Selecciona una persona';load().catch(()=>{})};
         
         form.onsubmit=async e=>{
