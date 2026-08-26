@@ -9,11 +9,15 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         exempt_paths = [
             "/api/auth/login",
             "/api/auth/recover-password",
-            "/api/auth/reset-password"
+            "/api/auth/reset-password",
         ]
         
         path = request.url.path
-        if path in exempt_paths or path.startswith("/static"):
+        # The ITSM assistant bridge is a server-to-server integration. It
+        # authenticates every request with a short-lived HMAC assertion, not a
+        # browser cookie, so CSRF tokens do not apply to this isolated route.
+        # The endpoint still rejects requests without a valid bridge signature.
+        if path in exempt_paths or path.startswith("/static") or path.startswith("/api/assistant-bridge/"):
             return await call_next(request)
             
         # Si la petición es mutable, verificamos el token CSRF
