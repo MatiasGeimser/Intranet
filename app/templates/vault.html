@@ -457,10 +457,6 @@ async function loadCredentials() {
         if (!res.ok) throw new Error('Error al obtener credenciales');
         allCredentials = await res.json();
 
-        // Filtrar: sólo categorías que NO sean de ejecutivos y títulos que no correspondan a la estructura "Sistema - Persona"
-        const execCategories = ['Correo Corporativo','CRM','Telefonía','Sistemas'];
-        allCredentials = allCredentials.filter(c => !execCategories.includes(c.category) && !c.title.includes(' - '));
-
         renderGrid(allCredentials);
     } catch (e) {
         console.error(e);

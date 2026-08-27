@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.credential import Credential
@@ -16,6 +16,13 @@ TECHNOLOGY_AREAS = {"Tecnología", "Tecnologia", "Tecnología (IT)", "Tecnologia
 ADMINISTRATION_AREAS = {"Administración", "Administracion"}
 INFRASTRUCTURE_CREDENTIAL_TERMS = ("wifi", "wi-fi", "cpanel", "c-panel")
 EXECUTIVE_CATEGORIES = {"Correo Corporativo", "CRM", "Telefonía", "Sistemas"}
+EXECUTIVE_TITLE_PREFIXES = (
+    "correo personal - ",
+    "correo - ",
+    "crm - ",
+    "vocalcom - ",
+    "pc - ",
+)
 VAULT_CATEGORIES = {
     "General", "Correo Corporativo", "CRM", "Telefonía", "Sistemas",
     "Servidores", "Bases de Datos", "Aplicaciones", "Redes"
@@ -54,11 +61,28 @@ def is_infrastructure_credential(credential: Credential) -> bool:
 
 
 def is_executive_credential(credential: Credential) -> bool:
-    return credential.category in EXECUTIVE_CATEGORIES
+    """Distingue las credenciales importadas por ejecutivo de las privadas.
+
+    La categoría también está disponible para el Vault personal, por lo que no
+    basta usarla para ocultar una credencial creada directamente por su dueño.
+    Las importaciones por ejecutivo tienen títulos normalizados por el proceso
+    de carga masiva y se identifican por esos prefijos.
+    """
+    title = (credential.title or "").casefold()
+    return (
+        credential.category in EXECUTIVE_CATEGORIES
+        and title.startswith(EXECUTIVE_TITLE_PREFIXES)
+    )
 
 
 def executive_credential_filter():
-    return Credential.category.in_(EXECUTIVE_CATEGORIES)
+    return and_(
+        Credential.category.in_(EXECUTIVE_CATEGORIES),
+        or_(*[
+            Credential.title.ilike(f"{prefix}%")
+            for prefix in EXECUTIVE_TITLE_PREFIXES
+        ]),
+    )
 
 
 def credential_is_visible_to(credential: Credential, user: User) -> bool:
