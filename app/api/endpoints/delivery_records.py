@@ -31,11 +31,16 @@ SIGNATURE_LINK_VALIDITY_DAYS = 7
 
 
 def can_manage_delivery_records(user: User) -> bool:
+    area_name = (user.area.name if user.area else "").strip().casefold()
+    is_technology_user = user.role and user.role.name == "Usuario" and (
+        area_name.startswith("tecnolog") or area_name == "it"
+    )
     return bool(
         user.role
         and (
             user.role.name == "Administrador"
             or any(permission.code == "it:manage" for permission in user.role.permissions)
+            or is_technology_user
         )
     )
 

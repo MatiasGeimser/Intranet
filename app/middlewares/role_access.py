@@ -54,7 +54,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         try:
             user = (
                 db.query(User)
-                .options(joinedload(User.role).selectinload(Role.permissions), selectinload(User.folder_permissions))
+                .options(joinedload(User.role).selectinload(Role.permissions), joinedload(User.area), selectinload(User.folder_permissions))
                 .filter(User.id == user_id, User.is_active.is_(True))
                 .first()
             )
@@ -62,7 +62,9 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
 
             is_it_manager = any(permission.code == "it:manage" for permission in user.role.permissions)
-            if is_it_manager and (
+            area_name = (user.area.name if user.area else "").strip().casefold()
+            is_technology_user = user.role.name == "Usuario" and (area_name.startswith("tecnolog") or area_name == "it")
+            if (is_it_manager or is_technology_user) and (
                 path == "/delivery-records"
                 or path.startswith("/delivery-records/")
                 or path.startswith("/api/delivery-records")

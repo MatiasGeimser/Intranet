@@ -125,6 +125,7 @@
             {% set is_natura_user = user.is_natura_user or (user.email and user.email.lower().endswith('@natura.cl')) %}
             {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
             {% set is_full_scrum_supervisor = user.role.name in ['Administrador', 'Supervisor'] and user.area and user.area.name in ['Administración', 'Administracion', 'Ventas'] %}
+            {% set is_technology_user = user.role.name == 'Usuario' and user.area and (user.area.name.lower().startswith('tecnolog') or user.area.name.lower() == 'it') %}
 
             {% if is_natura_user or is_natura_manager %}
             {% if is_full_scrum_supervisor %}
@@ -193,7 +194,7 @@
             </a>
             {% endif %}
 
-            {% if 'it:manage' in user_perms and user.role.name != 'Administrador' %}
+            {% if ('it:manage' in user_perms or is_technology_user) and user.role.name != 'Administrador' %}
             <a href="/delivery-records"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'delivery-records' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-file-signature text-base"></i>
