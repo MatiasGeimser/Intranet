@@ -155,15 +155,22 @@ def build_delivery_record_pdf(record, integrity_hash: str) -> BytesIO:
         pdf.setFillColor(BLUE); pdf.setFont("Helvetica-Bold", 7.5); pdf.drawCentredString(x + 57, y, title)
         pdf.setStrokeColor(colors.HexColor("#64748b")); pdf.line(x, y - 54, x + 114, y - 54)
     pdf.setFillColor(TEXT); pdf.setFont("Helvetica", 7)
-    pdf.drawCentredString(columns[0] + 57, y - 66, record.created_by.full_name if record.created_by else "Firma encargado DCI")
+    pdf.drawCentredString(columns[0] + 57, y - 66, getattr(record, "delivery_signer_name", None) or (record.created_by.full_name if record.created_by else "Firma encargado DCI"))
     pdf.drawCentredString(columns[1] + 57, y - 66, record.recipient_signer_name or record.recipient_name)
-    pdf.drawCentredString(columns[2] + 57, y - 66, "Firma Técnico/a responsable")
-    if record.recipient_signature_data:
+    pdf.drawCentredString(columns[2] + 57, y - 66, getattr(record, "technician_signer_name", None) or "Firma Técnico/a responsable")
+
+    def draw_signature(signature_data, x):
+        if not signature_data:
+            return
         try:
-            raw = base64.b64decode(record.recipient_signature_data.split(",", 1)[1])
-            pdf.drawImage(ImageReader(BytesIO(raw)), columns[1] + 15, y - 49, width=84, height=34, preserveAspectRatio=True, mask="auto")
+            raw = base64.b64decode(signature_data.split(",", 1)[1])
+            pdf.drawImage(ImageReader(BytesIO(raw)), x + 15, y - 49, width=84, height=34, preserveAspectRatio=True, mask="auto")
         except Exception:
             pass
+
+    draw_signature(getattr(record, "delivery_signature_data", None), columns[0])
+    draw_signature(record.recipient_signature_data, columns[1])
+    draw_signature(getattr(record, "technician_signature_data", None), columns[2])
 
     pdf.setStrokeColor(colors.HexColor("#cbd5e1")); pdf.line(MARGIN, 30, PAGE_WIDTH - MARGIN, 30)
     pdf.setFillColor(colors.HexColor("#64748b")); pdf.setFont("Helvetica", 6.5)

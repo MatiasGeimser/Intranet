@@ -45,6 +45,13 @@ class PublicSignatureCreate(BaseModel):
     signature_data: str = Field(..., min_length=32, max_length=700000)
 
 
+class FieldSignatureCreate(PublicSignatureCreate):
+    delivery_signer_name: str = Field(..., min_length=2, max_length=140)
+    delivery_signature_data: str = Field(..., min_length=32, max_length=700000)
+    technician_signer_name: str = Field(..., min_length=2, max_length=140)
+    technician_signature_data: str = Field(..., min_length=32, max_length=700000)
+
+
 class DeliveryRecordSummary(BaseModel):
     id: int
     reference: str
@@ -80,5 +87,9 @@ class DeliveryRecordDetail(DeliveryRecordSummary):
     signature_expires_at: datetime
     recipient_signature_data: Optional[str] = None
     recipient_signer_name: Optional[str] = None
+    delivery_signature_data: Optional[str] = None
+    delivery_signer_name: Optional[str] = None
+    technician_signature_data: Optional[str] = None
+    technician_signer_name: Optional[str] = None
     content_hash: Optional[str] = None
     signed_document_hash: Optional[str] = None

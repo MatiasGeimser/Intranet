@@ -153,21 +153,37 @@
             <div class="signature-grid">
                 <div class="signature-box">
                     <div class="signature-title">Entrega conforme (DCI)</div>
+                    {% if field_signature %}
+                    <label for="delivery-signer-name">Nombre de quien firma</label>
+                    <input id="delivery-signer-name" value="{{ issuer_name }}" maxlength="140" required>
+                    <label for="delivery-signature-canvas">Firma</label>
+                    <canvas id="delivery-signature-canvas" aria-label="Firma de entrega conforme"></canvas>
+                    <button class="clear" type="button" data-clear-signature="delivery">Limpiar firma</button>
+                    {% else %}
                     <div class="signature-line"></div>
                     <div class="signature-name">Emitida por<br><strong>{{ issuer_name }}</strong></div>
+                    {% endif %}
                 </div>
                 <div class="signature-box active">
                     <div class="signature-title">Recepción conforme<br>(funcionario/a receptor/a)</div>
                     <label for="signer-name">Nombre de quien firma</label>
                     <input id="signer-name" value="{{ record.recipient_name }}" maxlength="140" required>
                     <label for="signature-canvas">Firma</label>
-                    <canvas id="signature-canvas" aria-label="Área para firmar"></canvas>
-                    <button class="clear" type="button" id="clear-signature">Limpiar firma</button>
+                    <canvas id="recipient-signature-canvas" aria-label="Firma de recepción conforme"></canvas>
+                    <button class="clear" type="button" data-clear-signature="recipient">Limpiar firma</button>
                 </div>
                 <div class="signature-box">
                     <div class="signature-title">Técnico instalador</div>
+                    {% if field_signature %}
+                    <label for="technician-signer-name">Nombre de quien firma</label>
+                    <input id="technician-signer-name" value="{{ field_agent_name }}" maxlength="140" required>
+                    <label for="technician-signature-canvas">Firma</label>
+                    <canvas id="technician-signature-canvas" aria-label="Firma del técnico instalador"></canvas>
+                    <button class="clear" type="button" data-clear-signature="technician">Limpiar firma</button>
+                    {% else %}
                     <div class="signature-line"></div>
                     <div class="signature-name">Firma Técnico/a responsable</div>
+                    {% endif %}
                 </div>
             </div>
             <div class="notice">{% if field_signature %}Entrega este dispositivo al receptor para que dibuje su firma. La sesión del agente de terreno quedará registrada en la auditoría de esta acta.{% else %}Al confirmar, declaras haber recibido el equipo indicado y aceptas las responsabilidades descritas en esta acta.{% endif %}</div>
@@ -178,73 +194,89 @@
     <script>
         const signatureEndpoint = {{ signature_endpoint | tojson }};
         const returnUrl = {{ return_url | tojson }};
+        const fieldSignature = {{ field_signature | tojson }};
         const csrfToken = document.cookie.split('; ').find(item => item.startsWith('csrf_token='))?.split('=')[1];
-        const canvas = document.getElementById('signature-canvas');
-        const context = canvas.getContext('2d');
-        let drawing = false;
-        let hasInk = false;
+        function createSignaturePad(role) {
+            const canvas = document.getElementById(`${role}-signature-canvas`);
+            if (!canvas) return null;
+            const context = canvas.getContext('2d');
+            let drawing = false;
+            let hasInk = false;
 
-        function resizeCanvas() {
-            const rect = canvas.getBoundingClientRect();
-            const image = hasInk ? canvas.toDataURL('image/png') : null;
-            canvas.width = Math.max(1, Math.floor(rect.width * window.devicePixelRatio));
-            canvas.height = Math.max(1, Math.floor(rect.height * window.devicePixelRatio));
-            context.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-            context.lineCap = 'round';
-            context.lineJoin = 'round';
-            context.lineWidth = 2.2;
-            context.strokeStyle = '#0f172a';
-            if (image) {
-                const restored = new Image();
-                restored.onload = () => context.drawImage(restored, 0, 0, rect.width, rect.height);
-                restored.src = image;
+            function resizeCanvas() {
+                const rect = canvas.getBoundingClientRect();
+                const image = hasInk ? canvas.toDataURL('image/png') : null;
+                canvas.width = Math.max(1, Math.floor(rect.width * window.devicePixelRatio));
+                canvas.height = Math.max(1, Math.floor(rect.height * window.devicePixelRatio));
+                context.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.lineWidth = 2.2;
+                context.strokeStyle = '#0f172a';
+                if (image) {
+                    const restored = new Image();
+                    restored.onload = () => context.drawImage(restored, 0, 0, rect.width, rect.height);
+                    restored.src = image;
+                }
             }
+            function point(event) {
+                const rect = canvas.getBoundingClientRect();
+                return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+            }
+            canvas.addEventListener('pointerdown', event => {
+                event.preventDefault();
+                drawing = true;
+                canvas.setPointerCapture(event.pointerId);
+                const current = point(event);
+                context.beginPath();
+                context.moveTo(current.x, current.y);
+            });
+            canvas.addEventListener('pointermove', event => {
+                if (!drawing) return;
+                event.preventDefault();
+                const current = point(event);
+                context.lineTo(current.x, current.y);
+                context.stroke();
+                hasInk = true;
+            });
+            const end = event => {
+                drawing = false;
+                if (event && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+            };
+            canvas.addEventListener('pointerup', end);
+            canvas.addEventListener('pointercancel', end);
+            document.querySelector(`[data-clear-signature="${role}"]`)?.addEventListener('click', () => {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                hasInk = false;
+            });
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            return { hasInk: () => hasInk, data: () => canvas.toDataURL('image/png') };
         }
-        function point(event) {
-            const rect = canvas.getBoundingClientRect();
-            return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-        }
-        function start(event) {
-            event.preventDefault();
-            drawing = true;
-            canvas.setPointerCapture(event.pointerId);
-            const current = point(event);
-            context.beginPath();
-            context.moveTo(current.x, current.y);
-        }
-        function move(event) {
-            if (!drawing) return;
-            event.preventDefault();
-            const current = point(event);
-            context.lineTo(current.x, current.y);
-            context.stroke();
-            hasInk = true;
-        }
-        function end(event) {
-            drawing = false;
-            if (event && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-        }
-        canvas.addEventListener('pointerdown', start);
-        canvas.addEventListener('pointermove', move);
-        canvas.addEventListener('pointerup', end);
-        canvas.addEventListener('pointercancel', end);
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
 
-        document.getElementById('clear-signature').onclick = () => {
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            hasInk = false;
-        };
+        const deliveryPad = createSignaturePad('delivery');
+        const recipientPad = createSignaturePad('recipient');
+        const technicianPad = createSignaturePad('technician');
         document.getElementById('signature-form').onsubmit = async (event) => {
             event.preventDefault();
-            if (!hasInk) return alert('Ingresa tu firma antes de confirmar.');
+            if (!recipientPad?.hasInk()) return alert('Ingresa la firma de recepción antes de confirmar.');
+            if (fieldSignature && (!deliveryPad?.hasInk() || !technicianPad?.hasInk())) return alert('Completa las tres firmas antes de confirmar el acta.');
             const button = document.getElementById('sign-submit');
             button.disabled = true;
             button.textContent = 'Registrando firma...';
             try {
                 const response = await fetch(signatureEndpoint, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
-                    body: JSON.stringify({ signer_name: document.getElementById('signer-name').value.trim(), signature_data: canvas.toDataURL('image/png') })
+                    body: JSON.stringify({
+                        signer_name: document.getElementById('signer-name').value.trim(),
+                        signature_data: recipientPad.data(),
+                        ...(fieldSignature ? {
+                            delivery_signer_name: document.getElementById('delivery-signer-name').value.trim(),
+                            delivery_signature_data: deliveryPad.data(),
+                            technician_signer_name: document.getElementById('technician-signer-name').value.trim(),
+                            technician_signature_data: technicianPad.data(),
+                        } : {}),
+                    })
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'No fue posible registrar la firma.');

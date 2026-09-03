@@ -1,4 +1,5 @@
 import unicodedata
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from app.core.database import Base, engine
 from app.models.role import Role, Permission
@@ -23,6 +24,27 @@ NATURA_MONTHS = (
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 )
+
+
+def ensure_delivery_record_signature_columns(db: Session) -> None:
+    """Añade las firmas de acta en instalaciones existentes de forma idempotente."""
+    from sqlalchemy import text
+
+    signature_columns = {
+        "delivery_signature_data": "TEXT",
+        "delivery_signer_name": "VARCHAR(140)",
+        "technician_signature_data": "TEXT",
+        "technician_signer_name": "VARCHAR(140)",
+    }
+    if engine.name == "postgresql":
+        for column, column_type in signature_columns.items():
+            db.execute(text(f"ALTER TABLE delivery_records ADD COLUMN IF NOT EXISTS {column} {column_type}"))
+    else:
+        existing_columns = {column["name"] for column in inspect(engine).get_columns("delivery_records")}
+        for column, column_type in signature_columns.items():
+            if column not in existing_columns:
+                db.execute(text(f"ALTER TABLE delivery_records ADD COLUMN {column} {column_type}"))
+    db.commit()
 
 
 def migrate_natura_document_structure(db: Session) -> None:
@@ -117,6 +139,13 @@ def seed_database(db: Session):
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (delivery_records.collaborator_id): {e} ======")
+
+    # Tres firmas independientes para las actas entregadas en terreno.
+    try:
+        ensure_delivery_record_signature_columns(db)
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (firmas de actas): {e} ======")
 
     # Gestión de puertos: asignación física a puesto y habilitación administrativa.
     try:

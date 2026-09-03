@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.database_seed import ensure_delivery_record_signature_columns
 from app.models.delivery_record import DeliveryRecord
 from app.models.collaborator import Collaborator
 from app.models.user import User
@@ -19,6 +20,7 @@ from app.schemas.delivery_record import (
     DeliveryRecordCreate,
     DeliveryRecordDetail,
     DeliveryRecordSummary,
+    FieldSignatureCreate,
     PublicSignatureCreate,
     ReturnedEquipment,
 )
@@ -136,6 +138,10 @@ def _serialize(record: DeliveryRecord, signature_token: str | None = None) -> di
         "recipient_signed_at": record.recipient_signed_at,
         "recipient_signature_data": record.recipient_signature_data,
         "recipient_signer_name": record.recipient_signer_name,
+        "delivery_signature_data": record.delivery_signature_data,
+        "delivery_signer_name": record.delivery_signer_name,
+        "technician_signature_data": record.technician_signature_data,
+        "technician_signer_name": record.technician_signer_name,
         "content_hash": record.content_hash,
         "signed_document_hash": record.signed_document_hash,
         "created_by_name": record.created_by.full_name if record.created_by else "",
@@ -144,6 +150,7 @@ def _serialize(record: DeliveryRecord, signature_token: str | None = None) -> di
 
 
 def _get_record_or_404(db: Session, record_id: int) -> DeliveryRecord:
+    ensure_delivery_record_signature_columns(db)
     record = db.query(DeliveryRecord).filter(DeliveryRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Acta no encontrada.")
@@ -176,7 +183,21 @@ def _complete_signature(
     field_agent_name: str | None = None,
 ) -> None:
     _validate_signature_payload(payload)
+    if isinstance(payload, FieldSignatureCreate):
+        _validate_signature_payload(PublicSignatureCreate(
+            signer_name=payload.delivery_signer_name,
+            signature_data=payload.delivery_signature_data,
+        ))
+        _validate_signature_payload(PublicSignatureCreate(
+            signer_name=payload.technician_signer_name,
+            signature_data=payload.technician_signature_data,
+        ))
     now = datetime.now(timezone.utc)
+    if isinstance(payload, FieldSignatureCreate):
+        record.delivery_signature_data = payload.delivery_signature_data
+        record.delivery_signer_name = payload.delivery_signer_name.strip()
+        record.technician_signature_data = payload.technician_signature_data
+        record.technician_signer_name = payload.technician_signer_name.strip()
     record.recipient_signature_data = payload.signature_data
     record.recipient_signer_name = payload.signer_name.strip()
     record.recipient_signed_at = now
@@ -186,6 +207,10 @@ def _complete_signature(
         record.content_hash,
         record.recipient_signature_data,
         record.recipient_signer_name,
+        record.delivery_signature_data or "",
+        record.delivery_signer_name or "",
+        record.technician_signature_data or "",
+        record.technician_signer_name or "",
         record.recipient_signed_at.isoformat(),
     ])
     record.signed_document_hash = hashlib.sha256(signed_payload.encode("utf-8")).hexdigest()
@@ -205,6 +230,7 @@ def list_delivery_records(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_delivery_record_manager),
 ):
+    ensure_delivery_record_signature_columns(db)
     return db.query(DeliveryRecord).order_by(DeliveryRecord.created_at.desc()).all()
 
 
@@ -230,6 +256,7 @@ def list_my_delivery_records(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    ensure_delivery_record_signature_columns(db)
     if not current_user.email:
         return []
     return db.query(DeliveryRecord).filter(
@@ -244,6 +271,7 @@ def create_delivery_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_delivery_record_manager),
 ):
+    ensure_delivery_record_signature_columns(db)
     collaborator_reference_id = payload.collaborator_id or payload.recipient_id
     collaborator = db.query(Collaborator).filter(Collaborator.id == collaborator_reference_id).first() if collaborator_reference_id else None
     token, token_hash, expires_at = _new_signature_token()
@@ -388,6 +416,7 @@ def sign_delivery_record(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    ensure_delivery_record_signature_columns(db)
     record = db.query(DeliveryRecord).filter(DeliveryRecord.signature_token_hash == _hash_token(token)).first()
     now = datetime.now(timezone.utc)
     if not record or record.status == "signed" or record.signature_expires_at.replace(tzinfo=timezone.utc) < now:
@@ -416,7 +445,7 @@ def sign_delivery_record_intranet(
 @router.post("/{record_id}/sign-field")
 def sign_delivery_record_in_field(
     record_id: int,
-    payload: PublicSignatureCreate,
+    payload: FieldSignatureCreate,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_delivery_record_manager),

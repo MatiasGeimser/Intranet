@@ -44,8 +44,12 @@ class DeliveryRecord(Base):
 
     signature_token_hash = Column(String(64), unique=True, nullable=False, index=True)
     signature_expires_at = Column(DateTime, nullable=False)
+    delivery_signature_data = Column(Text, nullable=True)
+    delivery_signer_name = Column(String(140), nullable=True)
     recipient_signature_data = Column(Text, nullable=True)
     recipient_signer_name = Column(String(140), nullable=True)
+    technician_signature_data = Column(Text, nullable=True)
+    technician_signer_name = Column(String(140), nullable=True)
     recipient_signed_at = Column(DateTime, nullable=True)
     recipient_signature_ip = Column(String(64), nullable=True)
     content_hash = Column(String(64), nullable=False)

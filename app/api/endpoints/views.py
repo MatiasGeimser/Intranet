@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.api.deps import get_token_from_request
 from jose import jwt
 from app.core.config import settings
+from app.core.database_seed import ensure_delivery_record_signature_columns
 from app.models.user import User
 from app.models.delivery_record import DeliveryRecord
 from app.services.natura_access import is_natura_manager
@@ -368,6 +369,7 @@ def field_delivery_signature(record_id: int, request: Request, db: Session = Dep
         return RedirectResponse(url="/login")
     if not can_manage_delivery_records(user):
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    ensure_delivery_record_signature_columns(db)
     record = db.query(DeliveryRecord).filter(DeliveryRecord.id == record_id).first()
     if not record or record.status == "signed":
         return RedirectResponse(url="/delivery-records", status_code=status.HTTP_303_SEE_OTHER)
@@ -386,6 +388,7 @@ def field_delivery_signature(record_id: int, request: Request, db: Session = Dep
         "migration_items": parse_json(record.migration_json, []),
         "returned_equipment": parse_json(record.returned_equipment_json, {}),
         "issuer_name": record.created_by.full_name if record.created_by else "GEIMSER",
+        "field_agent_name": user.full_name,
         "project_name": settings.PROJECT_NAME,
         "invalid_link": False,
         "field_signature": True,
@@ -400,6 +403,7 @@ def intranet_delivery_signature(record_id: int, request: Request, db: Session = 
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
+    ensure_delivery_record_signature_columns(db)
     record = db.query(DeliveryRecord).filter(DeliveryRecord.id == record_id).first()
     is_recipient = bool(
         record
@@ -425,6 +429,7 @@ def intranet_delivery_signature(record_id: int, request: Request, db: Session = 
         "migration_items": parse_json(record.migration_json, []),
         "returned_equipment": parse_json(record.returned_equipment_json, {}),
         "issuer_name": record.created_by.full_name if record.created_by else "GEIMSER",
+        "field_agent_name": None,
         "project_name": settings.PROJECT_NAME,
         "invalid_link": False,
         "field_signature": False,
@@ -439,6 +444,7 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
     from datetime import datetime, timezone
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    ensure_delivery_record_signature_columns(db)
     record = db.query(DeliveryRecord).filter(DeliveryRecord.signature_token_hash == token_hash).first()
     valid = bool(
         record
@@ -459,6 +465,7 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
         "migration_items": parse_json(record.migration_json, []) if valid else [],
         "returned_equipment": parse_json(record.returned_equipment_json, {}) if valid else {},
         "issuer_name": record.created_by.full_name if valid and record.created_by else "GEIMSER",
+        "field_agent_name": None,
         "project_name": settings.PROJECT_NAME,
         "invalid_link": not valid,
         "field_signature": False,
