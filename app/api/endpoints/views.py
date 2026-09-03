@@ -389,6 +389,7 @@ def field_delivery_signature(record_id: int, request: Request, db: Session = Dep
         "project_name": settings.PROJECT_NAME,
         "invalid_link": False,
         "field_signature": True,
+        "return_url": "/delivery-records",
     })
 
 
@@ -427,6 +428,7 @@ def intranet_delivery_signature(record_id: int, request: Request, db: Session = 
         "project_name": settings.PROJECT_NAME,
         "invalid_link": False,
         "field_signature": False,
+        "return_url": "/my-delivery-records",
     })
 
 
@@ -460,6 +462,7 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
         "project_name": settings.PROJECT_NAME,
         "invalid_link": not valid,
         "field_signature": False,
+        "return_url": None,
     })
 
 

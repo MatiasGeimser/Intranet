@@ -50,7 +50,8 @@
         .invalid h1 { font-size: 21px; margin: 0; }
         .invalid p { color: #475569; line-height: 1.55; }
         @media (max-width: 620px) {
-            main { padding: 10px 8px 32px; }
+            body { background:#fff; }
+            main { padding:0 0 32px; }
             .document-head { align-items:start; gap:12px; grid-template-columns:76px 1fr; padding:18px 16px; }
             .document-head .reference { grid-column:1 / -1; }
             .official-logo { max-width:76px; }
@@ -59,11 +60,14 @@
             .acta-section { padding: 0 16px 18px; }
             .section-title { font-size: 13px; margin: 0 -16px 14px; padding: 10px 16px; }
             .grid, .grid-three, .signature-grid { grid-template-columns: 1fr; }
-            .signature-box { min-height: 210px; }
+            .signature-box { min-height: 185px; padding:16px; }
+            .signature-box.active { order:-1; }
             .signature-title { min-height: auto; text-align: left; }
             .signature-line { min-height: 55px; }
             .signature-name { text-align: left; }
-            canvas { height: 140px; }
+            input { font-size:16px; min-height:46px; }
+            canvas { height:220px; }
+            .clear { min-height:42px; padding:10px 14px; }
             .actions { padding: 16px; }
             .primary { width: 100%; }
             .sheet { box-shadow: none; }
@@ -127,7 +131,6 @@
             <h2 class="section-title">3. Identificación del equipo retirado</h2>
             <div class="grid">
                 <div class="field full"><span class="field-label">Tipo de equipo</span><div class="choice-list"><span class="choice {% if returned_equipment.get('equipment_type', '')|lower == 'notebook' %}selected{% endif %}">Notebook</span><span class="choice {% if returned_equipment.get('equipment_type', '')|lower == 'desktop' %}selected{% endif %}">Desktop</span><span class="choice {% if returned_equipment.get('equipment_type', '')|lower in ['all-in-one', 'all in one'] %}selected{% endif %}">All-in-One</span><span class="choice {% if not returned_equipment.get('applies') %}selected{% endif %}">No aplica (primera entrega)</span></div></div>
-                <div class="field"><span class="field-label">Marca y modelo</span><div class="field-value">{{ returned_equipment.get('brand_model') or 'No aplica' }}</div></div>
                 <div class="field"><span class="field-label">Motivo de retiro</span><div class="choice-list"><span class="choice {% if returned_equipment.get('reason', '')|lower == 'renovación' %}selected{% endif %}">Renovación</span><span class="choice {% if returned_equipment.get('reason', '')|lower == 'falla técnica' %}selected{% endif %}">Falla técnica</span><span class="choice {% if returned_equipment.get('reason', '')|lower == 'baja' %}selected{% endif %}">Baja</span></div></div>
                 <div class="field"><span class="field-label">Marca y modelo</span><div class="field-value">{{ returned_equipment.get('brand_model') or 'No aplica' }}</div></div>
                 <div class="field"><span class="field-label">N° de serie</span><div class="field-value">{{ returned_equipment.get('serial') or 'No aplica' }}</div></div>
@@ -174,6 +177,7 @@
     </form>
     <script>
         const signatureEndpoint = {{ signature_endpoint | tojson }};
+        const returnUrl = {{ return_url | tojson }};
         const csrfToken = document.cookie.split('; ').find(item => item.startsWith('csrf_token='))?.split('=')[1];
         const canvas = document.getElementById('signature-canvas');
         const context = canvas.getContext('2d');
@@ -244,10 +248,10 @@
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'No fue posible registrar la firma.');
-                document.getElementById('signature-form').classList.add('hidden');
                 const result = document.getElementById('signature-result');
-                result.textContent = 'Firma registrada correctamente. Puedes cerrar esta página.';
+                result.textContent = returnUrl ? 'Firma registrada correctamente. Volviendo a las actas...' : 'Firma registrada correctamente. Puedes cerrar esta página.';
                 result.classList.remove('hidden');
+                if (returnUrl) window.setTimeout(() => window.location.assign(returnUrl), 900);
             } catch (error) {
                 alert(error.message);
                 button.disabled = false;
