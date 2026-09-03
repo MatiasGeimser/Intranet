@@ -10,9 +10,9 @@
         html, body { min-height: 100%; }
         body { background: #edf1f4; margin: 0; min-width: 0; }
         main { margin: 0 auto; max-width: 1040px; padding: 22px 14px 54px; }
-        .brand { color: #fff; background:#c94d59; font-size: 10px; font-weight: 800; line-height:1.1; margin: 0 0 8px 8px; padding:9px 7px; width:100px; }
         .sheet { background: #fff; border: 1px solid #cbd5df; box-shadow: 0 5px 18px rgba(15, 23, 42, .10); overflow: visible; }
-        .document-head { align-items: center; border-bottom: 0; display: flex; gap: 18px; justify-content: space-between; padding: 14px 28px; }
+        .document-head { align-items:center; border-bottom:0; display:grid; gap:18px; grid-template-columns:118px 1fr 210px; padding:22px 28px 18px; }
+        .official-logo { display:block; height:auto; max-width:118px; width:100%; }
         .document-head h1 { color: #303f4f; font-size: 18px; line-height: 1.2; margin: 0; text-transform: uppercase; }
         .document-head p { color: #526579; font-size: 13px; margin: 5px 0 0; }
         .reference { color: #334155; font-size: 13px; font-weight: 700; line-height: 1.7; text-align: left; }
@@ -20,13 +20,14 @@
         .section-title { background: #e6edf4; color: #53687d; font-size: 14px; font-weight: 700; margin: 0 -28px 14px; padding: 9px 28px; text-transform: uppercase; }
         .grid { display: grid; gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .grid-three { display: grid; gap: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .field { border: 1px solid #d5dde5; margin: -1px 0 0 -1px; min-width: 0; min-height: 68px; padding: 9px 11px; }
+        .field { border: 1px solid #d5dde5; margin: -1px 0 0 -1px; min-width: 0; min-height: 56px; padding: 8px 10px; }
         .field-label { color: #586a7c; display: block; font-size: 11px; font-weight: 700; margin-bottom: 7px; }
         .field-value { color: #334155; font-size: 14px; line-height: 1.35; min-height: 20px; overflow-wrap: anywhere; }
         .full { grid-column: 1 / -1; }
         .choice-list { color: #334155; display: flex; flex-wrap: wrap; font-size: 13px; gap: 8px 18px; line-height: 1.45; }
-        .choice { align-items: center; display: inline-flex; gap: 6px; }
+        .choice { align-items: center; display: inline-flex; gap: 6px; position:relative; }
         .choice::before { border: 1px solid #64748b; content: ""; display: inline-block; height: 11px; width: 11px; }
+        .choice.selected::after { background:#53687d; content:""; height:7px; left:3px; position:absolute; top:4px; width:7px; }
         .declaration { color: #334155; font-size: 12px; line-height: 1.5; margin: 0; padding-left: 20px; }
         .declaration li + li { margin-top: 9px; }
         .signature-grid { align-items: stretch; display: grid; gap: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -50,8 +51,9 @@
         .invalid p { color: #475569; line-height: 1.55; }
         @media (max-width: 620px) {
             main { padding: 10px 8px 32px; }
-            .brand { margin-left: 4px; }
-            .document-head { align-items: flex-start; flex-direction: column; gap: 8px; padding: 18px 16px; }
+            .document-head { align-items:start; gap:12px; grid-template-columns:76px 1fr; padding:18px 16px; }
+            .document-head .reference { grid-column:1 / -1; }
+            .official-logo { max-width:76px; }
             .document-head h1 { font-size: 18px; }
             .reference { text-align: left; }
             .acta-section { padding: 0 16px 18px; }
@@ -66,11 +68,18 @@
             .primary { width: 100%; }
             .sheet { box-shadow: none; }
         }
+        @media print {
+            @page { margin: 10mm; size: A4; }
+            body { background:#fff; }
+            main { max-width:none; padding:0; }
+            .sheet { border:0; box-shadow:none; }
+            .notice, .actions { display:none; }
+            .acta-section { break-inside:avoid; }
+        }
     </style>
 </head>
 <body>
 <main>
-    <div class="brand">SERVICIO<br>MÉDICO LEGAL<br><small>Gobierno de Chile</small></div>
     {% if invalid_link %}
     <section class="sheet invalid">
         <h1>Enlace no disponible</h1>
@@ -79,8 +88,9 @@
     {% else %}
     <form id="signature-form" class="sheet">
         <header class="document-head">
+            <img class="official-logo" src="{{ url_for('static', path='images/servicio-medico-legal.png') }}" alt="Servicio Médico Legal, Gobierno de Chile">
             <div><h1>SERVICIO MÉDICO LEGAL</h1><p>Departamento de Computación e Informática</p></div>
-            <div class="reference" style="color:#334155">Fecha: {{ record.delivery_date.strftime('%d / %m / %Y') }}<br>Sede: {{ record.site or '________________' }}</div>
+            <div class="reference">Fecha: {{ record.delivery_date.strftime('%d / %m / %Y') }}<br>Sede: {{ record.site or '________________' }}</div>
         </header>
 
         <div style="background:#536f8b;color:#fff;font-size:16px;font-weight:800;padding:10px 24px;text-align:center">ACTA DE ENTREGA Y RECEPCIÓN DE EQUIPAMIENTO COMPUTACIONAL</div>
@@ -91,7 +101,7 @@
                 <div class="field"><span class="field-label">Nombre completo</span><div class="field-value">{{ record.recipient_name }}</div></div>
                 <div class="field"><span class="field-label">RUN</span><div class="field-value">{{ record.recipient_run or 'No informado' }}</div></div>
                 <div class="field"><span class="field-label">Cargo / Función</span><div class="field-value">{{ record.recipient_role or 'No informado' }}</div></div>
-                <div class="field"><span class="field-label">Calidad jurídica</span><div class="field-value">{{ record.employment_type or 'No informado' }}</div></div>
+                <div class="field"><span class="field-label">Calidad jurídica</span><div class="choice-list"><span class="choice {% if record.employment_type|lower == 'planta' %}selected{% endif %}">Planta</span><span class="choice {% if record.employment_type|lower == 'contrata' %}selected{% endif %}">Contrata</span><span class="choice {% if record.employment_type|lower == 'honorarios' %}selected{% endif %}">Honorarios</span></div></div>
                 <div class="field"><span class="field-label">Unidad / Departamento</span><div class="field-value">{{ record.recipient_unit or 'No informado' }}</div></div>
                 <div class="field"><span class="field-label">Sede</span><div class="field-value">{{ record.site or 'No informada' }}</div></div>
             </div>
@@ -100,27 +110,28 @@
         <section class="acta-section">
             <h2 class="section-title">2. Identificación del equipo entregado</h2>
             <div class="grid">
-                <div class="field full"><span class="field-label">Tipo de equipo</span><div class="choice-list"><span class="choice">{{ record.equipment_type }}</span></div></div>
+                <div class="field full"><span class="field-label">Tipo de equipo</span><div class="choice-list"><span class="choice {% if record.equipment_type|lower == 'notebook' %}selected{% endif %}">Notebook</span><span class="choice {% if record.equipment_type|lower == 'desktop' %}selected{% endif %}">Desktop</span><span class="choice {% if record.equipment_type|lower in ['all-in-one', 'all in one'] %}selected{% endif %}">All-in-One</span></div></div>
                 <div class="field"><span class="field-label">Marca y modelo</span><div class="field-value">{{ record.equipment_brand_model or 'No informado' }}</div></div>
                 <div class="field"><span class="field-label">Nombre del equipo</span><div class="field-value">{{ record.equipment_hostname or 'No informado' }}</div></div>
                 <div class="field"><span class="field-label">N° de serie</span><div class="field-value">{{ record.equipment_serial or 'No informado' }}</div></div>
                 <div class="field"><span class="field-label">Dirección MAC</span><div class="field-value">{{ record.mac_address or 'No informada' }}</div></div>
                 <div class="field"><span class="field-label">N° de serie pantalla adicional</span><div class="field-value">{{ record.monitor_serial or 'No aplica' }}</div></div>
                 <div class="field"><span class="field-label">N° de serie dock</span><div class="field-value">{{ record.dock_serial or 'No aplica' }}</div></div>
-                <div class="field"><span class="field-label">Adicionales</span><div class="field-value">{{ accessories | join(', ') if accessories else 'Sin accesorios registrados' }}</div></div>
-                <div class="field"><span class="field-label">Estado al entregar</span><div class="field-value">{{ record.delivery_condition or 'No informado' }}{% if record.label_number %} · Rótulo {{ record.label_number }}{% endif %}</div></div>
-                <div class="field"><span class="field-label">Migración de datos</span><div class="field-value">{{ migration_items | join(', ') if migration_items else 'No registrada' }}</div></div>
+                <div class="field"><span class="field-label">Adicionales</span><div class="choice-list"><span class="choice {% if 'Mouse' in accessories %}selected{% endif %}">Mouse</span><span class="choice {% if 'Teclado' in accessories %}selected{% endif %}">Teclado</span><span class="choice {% if 'Cargador' in accessories %}selected{% endif %}">Cargador</span><span class="choice {% if accessories|reject('in', ['Mouse', 'Teclado', 'Cargador'])|list %}selected{% endif %}">Otro</span></div></div>
+                <div class="field"><span class="field-label">Estado al entregar</span><div class="choice-list"><span class="choice {% if record.delivery_condition|lower in ['nuevo', 'sellado', 'nuevo/sellado'] %}selected{% endif %}">Nuevo/Sellado</span><span class="choice {% if record.delivery_condition|lower == 'buen estado' %}selected{% endif %}">Buen estado</span><span class="choice {% if record.label_number %}selected{% endif %}">N° Rótulo {{ record.label_number or '' }}</span></div></div>
+                <div class="field full"><span class="field-label">Migración de data</span><div class="choice-list"><span class="choice {% if 'Archivo PST' in migration_items %}selected{% endif %}">Archivo PST</span><span class="choice {% if 'Se migra Perfil' in migration_items %}selected{% endif %}">Se migra Perfil</span><span class="choice {% if 'Solo Datos' in migration_items %}selected{% endif %}">Solo Datos</span></div></div>
             </div>
         </section>
 
         <section class="acta-section">
             <h2 class="section-title">3. Identificación del equipo retirado</h2>
             <div class="grid">
-                <div class="field"><span class="field-label">Tipo de equipo</span><div class="field-value">{{ returned_equipment.get('equipment_type') or 'No aplica (primera entrega)' }}</div></div>
-                <div class="field"><span class="field-label">Motivo de retiro</span><div class="field-value">{{ returned_equipment.get('reason') or 'No aplica' }}</div></div>
+                <div class="field full"><span class="field-label">Tipo de equipo</span><div class="choice-list"><span class="choice {% if returned_equipment.get('equipment_type', '')|lower == 'notebook' %}selected{% endif %}">Notebook</span><span class="choice {% if returned_equipment.get('equipment_type', '')|lower == 'desktop' %}selected{% endif %}">Desktop</span><span class="choice {% if returned_equipment.get('equipment_type', '')|lower in ['all-in-one', 'all in one'] %}selected{% endif %}">All-in-One</span><span class="choice {% if not returned_equipment.get('applies') %}selected{% endif %}">No aplica (primera entrega)</span></div></div>
+                <div class="field"><span class="field-label">Marca y modelo</span><div class="field-value">{{ returned_equipment.get('brand_model') or 'No aplica' }}</div></div>
+                <div class="field"><span class="field-label">Motivo de retiro</span><div class="choice-list"><span class="choice {% if returned_equipment.get('reason', '')|lower == 'renovación' %}selected{% endif %}">Renovación</span><span class="choice {% if returned_equipment.get('reason', '')|lower == 'falla técnica' %}selected{% endif %}">Falla técnica</span><span class="choice {% if returned_equipment.get('reason', '')|lower == 'baja' %}selected{% endif %}">Baja</span></div></div>
                 <div class="field"><span class="field-label">Marca y modelo</span><div class="field-value">{{ returned_equipment.get('brand_model') or 'No aplica' }}</div></div>
                 <div class="field"><span class="field-label">N° de serie</span><div class="field-value">{{ returned_equipment.get('serial') or 'No aplica' }}</div></div>
-                <div class="field"><span class="field-label">Estado operacional</span><div class="field-value">{{ returned_equipment.get('condition') or 'No aplica' }}</div></div>
+                <div class="field"><span class="field-label">Estado operacional</span><div class="choice-list"><span class="choice {% if returned_equipment.get('operational_status', '')|lower == 'operativo/sin fallas' %}selected{% endif %}">Operativo/Sin fallas</span><span class="choice {% if returned_equipment.get('operational_status', '')|lower in ['no enciende/dañado', 'no enciende/danado'] %}selected{% endif %}">No enciende/Dañado</span></div></div>
                 <div class="field"><span class="field-label">Otros / observaciones</span><div class="field-value">{{ record.observations or returned_equipment.get('observations') or 'Sin observaciones' }}</div></div>
             </div>
         </section>

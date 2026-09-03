@@ -1,6 +1,7 @@
 import base64
 import json
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -14,6 +15,7 @@ MARGIN = 34
 BLUE = colors.HexColor("#30516f")
 LIGHT_BLUE = colors.HexColor("#eaf0f5")
 TEXT = colors.HexColor("#34495e")
+OFFICIAL_LOGO = Path(__file__).resolve().parent.parent / "static" / "images" / "servicio-medico-legal.png"
 
 
 def _safe(value) -> str:
@@ -50,22 +52,25 @@ def build_delivery_record_pdf(record, integrity_hash: str) -> BytesIO:
     pdf.setTitle(f"Acta de entrega {record.reference}")
     y = PAGE_HEIGHT - 38
 
-    pdf.setFillColor(colors.HexColor("#cf4a58"))
-    pdf.rect(MARGIN, y - 34, 76, 32, fill=1, stroke=0)
-    pdf.setFillColor(colors.white)
-    pdf.setFont("Helvetica-Bold", 6)
-    pdf.drawCentredString(MARGIN + 38, y - 13, "SERVICIO")
-    pdf.drawCentredString(MARGIN + 38, y - 20, "MÉDICO LEGAL")
-    pdf.setFont("Helvetica", 5)
-    pdf.drawCentredString(MARGIN + 38, y - 28, "Gobierno de Chile")
+    if OFFICIAL_LOGO.exists():
+        pdf.drawImage(
+            ImageReader(str(OFFICIAL_LOGO)),
+            MARGIN,
+            y - 58,
+            width=64,
+            height=58,
+            preserveAspectRatio=True,
+            anchor="sw",
+            mask="auto",
+        )
     pdf.setFillColor(TEXT)
     pdf.setFont("Helvetica-Bold", 11)
-    pdf.drawString(MARGIN + 92, y - 13, "SERVICIO MÉDICO LEGAL")
+    pdf.drawString(MARGIN + 78, y - 18, "SERVICIO MÉDICO LEGAL")
     pdf.setFont("Helvetica", 8)
-    pdf.drawString(MARGIN + 92, y - 25, "Departamento de Computación e Informática")
-    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 13, f"Fecha: {record.delivery_date.strftime('%d / %m / %Y')}")
-    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 25, f"Sede: {_safe(record.site)}")
-    y -= 47
+    pdf.drawString(MARGIN + 78, y - 31, "Departamento de Computación e Informática")
+    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 18, f"Fecha: {record.delivery_date.strftime('%d / %m / %Y')}")
+    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 31, f"Sede: {_safe(record.site)}")
+    y -= 67
     pdf.setFillColor(BLUE)
     pdf.rect(MARGIN, y - 18, PAGE_WIDTH - MARGIN * 2, 18, fill=1, stroke=0)
     pdf.setFillColor(colors.white)
