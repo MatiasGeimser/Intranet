@@ -105,6 +105,19 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (phone_numbers.is_active): {e} ======")
 
+    # Vincula las actas al Directorio Corporativo, no a cuentas de acceso.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE delivery_records ADD COLUMN IF NOT EXISTS collaborator_id INTEGER REFERENCES collaborators(id) ON DELETE SET NULL"))
+        else:
+            existing_columns = {column["name"] for column in inspect(engine).get_columns("delivery_records")}
+            if "collaborator_id" not in existing_columns:
+                db.execute(text("ALTER TABLE delivery_records ADD COLUMN collaborator_id INTEGER REFERENCES collaborators(id) ON DELETE SET NULL"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (delivery_records.collaborator_id): {e} ======")
+
     # Gestión de puertos: asignación física a puesto y habilitación administrativa.
     try:
         if engine.name == "postgresql":

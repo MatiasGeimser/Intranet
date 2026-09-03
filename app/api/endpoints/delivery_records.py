@@ -13,6 +13,7 @@ from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.delivery_record import DeliveryRecord
+from app.models.collaborator import Collaborator
 from app.models.user import User
 from app.schemas.delivery_record import (
     DeliveryRecordCreate,
@@ -151,14 +152,16 @@ def list_recipients(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_delivery_record_manager),
 ):
-    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    collaborators = db.query(Collaborator).filter(
+        Collaborator.status.notin_(["Desvinculado", "Inactivo"])
+    ).order_by(Collaborator.full_name).all()
     return [{
-        "id": user.id,
-        "name": user.full_name,
-        "email": user.email,
-        "role": user.role.name if user.role else "",
-        "area": user.area.name if user.area else "",
-    } for user in users]
+        "id": collaborator.id,
+        "name": collaborator.full_name,
+        "email": collaborator.email,
+        "position": collaborator.position,
+        "area": collaborator.area or collaborator.department,
+    } for collaborator in collaborators]
 
 
 @router.post("", response_model=DeliveryRecordDetail, status_code=status.HTTP_201_CREATED)
@@ -168,7 +171,8 @@ def create_delivery_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_delivery_record_manager),
 ):
-    recipient = db.query(User).filter(User.id == payload.recipient_id, User.is_active.is_(True)).first() if payload.recipient_id else None
+    collaborator_reference_id = payload.collaborator_id or payload.recipient_id
+    collaborator = db.query(Collaborator).filter(Collaborator.id == collaborator_reference_id).first() if collaborator_reference_id else None
     token, token_hash, expires_at = _new_signature_token()
     reference = f"ACTA-{datetime.now(timezone.utc):%Y}-{secrets.randbelow(900000) + 100000}"
     while db.query(DeliveryRecord.id).filter(DeliveryRecord.reference == reference).first():
@@ -177,19 +181,19 @@ def create_delivery_record(
     record = DeliveryRecord(
         reference=reference,
         created_by_id=current_user.id,
-        recipient_id=recipient.id if recipient else None,
+        collaborator_id=collaborator.id if collaborator else None,
         signature_token_hash=token_hash,
         signature_expires_at=expires_at,
-        **payload.model_dump(exclude={"accessories", "migration", "returned_equipment"}),
+        **payload.model_dump(exclude={"accessories", "migration", "returned_equipment", "collaborator_id", "recipient_id"}),
         accessories_json=json.dumps(payload.accessories),
         migration_json=json.dumps(payload.migration),
         returned_equipment_json=payload.returned_equipment.model_dump_json(),
     )
-    if recipient:
-        record.recipient_name = recipient.full_name
-        record.recipient_email = recipient.email
-        record.recipient_role = recipient.role.name if recipient.role else record.recipient_role
-        record.recipient_unit = recipient.area.name if recipient.area else record.recipient_unit
+    if collaborator:
+        record.recipient_name = collaborator.full_name
+        record.recipient_email = collaborator.email
+        record.recipient_role = collaborator.position or record.recipient_role
+        record.recipient_unit = collaborator.area or collaborator.department or record.recipient_unit
     record.content_hash = _document_hash(record)
     db.add(record)
     db.commit()

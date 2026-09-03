@@ -16,6 +16,8 @@ class ReturnedEquipment(BaseModel):
 class DeliveryRecordCreate(BaseModel):
     delivery_date: date
     site: Optional[str] = Field(None, max_length=120)
+    collaborator_id: Optional[int] = None
+    # Compatibilidad con formularios ya abiertos antes de migrar al directorio.
     recipient_id: Optional[int] = None
     recipient_name: str = Field(..., min_length=2, max_length=140)
     recipient_email: Optional[str] = Field(None, max_length=140)

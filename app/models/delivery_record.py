@@ -15,6 +15,7 @@ class DeliveryRecord(Base):
     reference = Column(String(32), unique=True, nullable=False, index=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recipient_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    collaborator_id = Column(Integer, ForeignKey("collaborators.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(24), nullable=False, default="pending_signature")
 
     delivery_date = Column(Date, nullable=False)
@@ -59,3 +60,4 @@ class DeliveryRecord(Base):
 
     created_by = relationship("User", foreign_keys=[created_by_id])
     recipient = relationship("User", foreign_keys=[recipient_id])
+    collaborator = relationship("Collaborator", foreign_keys=[collaborator_id])
