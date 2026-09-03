@@ -7,10 +7,11 @@
     <style>
         :root { color: #1e293b; font-family: Inter, "Segoe UI", Arial, sans-serif; }
         * { box-sizing: border-box; }
+        html, body { min-height: 100%; overflow-y: auto; }
         body { background: #eef3f7; margin: 0; min-width: 0; }
         main { margin: 0 auto; max-width: 900px; padding: 18px 12px 48px; }
         .brand { color: #049dd9; font-size: 20px; font-weight: 800; letter-spacing: .04em; margin: 4px 0 12px; }
-        .sheet { background: #fff; border: 1px solid #d9e3ec; box-shadow: 0 12px 32px rgba(15, 23, 42, .1); overflow: hidden; }
+        .sheet { background: #fff; border: 1px solid #d9e3ec; box-shadow: 0 12px 32px rgba(15, 23, 42, .1); max-height: calc(100vh - 76px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
         .document-head { align-items: center; border-bottom: 5px solid #049dd9; display: flex; gap: 18px; justify-content: space-between; padding: 22px 24px; }
         .document-head h1 { color: #234c71; font-size: 22px; line-height: 1.25; margin: 0; text-transform: uppercase; }
         .document-head p { color: #64748b; font-size: 13px; margin: 6px 0 0; }
@@ -63,6 +64,7 @@
             canvas { height: 140px; }
             .actions { padding: 16px; }
             .primary { width: 100%; }
+            .sheet { max-height: calc(100vh - 58px); -webkit-overflow-scrolling: touch; }
         }
     </style>
 </head>
