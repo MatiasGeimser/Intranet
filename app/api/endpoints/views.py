@@ -339,6 +339,7 @@ def delivery_records_view(request: Request, db: Session = Depends(get_db)):
 @router.get("/actas/firma/{token}", response_class=HTMLResponse)
 def public_delivery_signature(token: str, request: Request, db: Session = Depends(get_db)):
     import hashlib
+    import json
     from datetime import datetime, timezone
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -348,9 +349,19 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
         and record.status != "signed"
         and record.signature_expires_at.replace(tzinfo=timezone.utc) >= datetime.now(timezone.utc)
     )
+    def parse_json(value, fallback):
+        try:
+            return json.loads(value or "")
+        except (TypeError, json.JSONDecodeError):
+            return fallback
+
     return templates.TemplateResponse(request=request, name="delivery_signature.html", context={
         "record": record if valid else None,
         "token": token if valid else None,
+        "accessories": parse_json(record.accessories_json, []) if valid else [],
+        "migration_items": parse_json(record.migration_json, []) if valid else [],
+        "returned_equipment": parse_json(record.returned_equipment_json, {}) if valid else {},
+        "issuer_name": record.created_by.full_name if valid and record.created_by else "GEIMSER",
         "project_name": settings.PROJECT_NAME,
         "invalid_link": not valid,
     })
