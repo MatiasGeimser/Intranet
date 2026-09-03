@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Firma de acta | GEIMSER</title>
+    <style>
+        :root { color:#1e293b; font-family:Inter,Segoe UI,Arial,sans-serif; } * { box-sizing:border-box; } body { background:#f1f5f9; margin:0; } main { margin:0 auto; max-width:680px; padding:24px 16px 48px; } .brand { color:#049DD9; font-size:20px; font-weight:800; letter-spacing:.04em; } .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 12px 32px rgba(15,23,42,.08); overflow:hidden; } .head { background:#049DD9; color:white; padding:22px; } .body { padding:22px; } h1 { font-size:21px; margin:0; } h2 { font-size:15px; margin:24px 0 10px; } p { color:#475569; font-size:14px; line-height:1.55; } .details { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; display:grid; gap:10px; padding:14px; } .details b { color:#64748b; display:block; font-size:10px; letter-spacing:.06em; text-transform:uppercase; } label { color:#475569; display:block; font-size:12px; font-weight:700; margin:0 0 7px; } input { border:1px solid #cbd5e1; border-radius:8px; font-size:16px; padding:12px; width:100%; } canvas { background:#fff; border:2px dashed #94a3b8; border-radius:10px; cursor:crosshair; display:block; height:190px; touch-action:none; width:100%; } button { border:0; border-radius:8px; cursor:pointer; font-size:14px; font-weight:700; padding:12px 16px; } .primary { background:#049DD9; color:white; width:100%; } .secondary { background:#e2e8f0; color:#334155; } .actions { display:flex; gap:10px; margin-top:12px; } .actions button { flex:1; } .notice { background:#eff6ff; border:1px solid #bae6fd; border-radius:9px; color:#075985; font-size:12px; line-height:1.5; padding:12px; } .hidden { display:none; }
+    </style>
+</head>
+<body><main>
+    <div class="brand">GEIMSER</div>
+    {% if invalid_link %}
+    <section class="card" style="margin-top:18px"><div class="body"><h1>Enlace no disponible</h1><p>Este enlace de firma expiró, ya fue utilizado o no es válido. Solicita uno nuevo a la persona que emitió el acta.</p></div></section>
+    {% else %}
+    <section class="card" style="margin-top:18px"><div class="head"><p style="color:#e0f2fe;margin:0 0 6px;font-size:12px;font-weight:700">{{ record.reference }}</p><h1>Acta de entrega y recepción</h1></div><div class="body">
+        <p>Revisa los antecedentes y confirma la recepción del equipamiento. Tu firma se registrará en esta acta.</p>
+        <div class="details"><div><b>Receptor</b>{{ record.recipient_name }}</div><div><b>Equipo</b>{{ record.equipment_type }}{% if record.equipment_brand_model %} · {{ record.equipment_brand_model }}{% endif %}</div><div><b>N° de serie</b>{{ record.equipment_serial or 'No informado' }}</div><div><b>Fecha de entrega</b>{{ record.delivery_date.strftime('%d-%m-%Y') }}</div></div>
+        <h2>Firma de conformidad</h2><div class="notice">Dibuja tu firma con el dedo o lápiz táctil. Al enviar, confirmas haber recibido el equipo descrito y aceptar las responsabilidades de su custodia institucional.</div>
+        <form id="signature-form" style="margin-top:18px"><label for="signer-name">Nombre de quien firma</label><input id="signer-name" value="{{ record.recipient_name }}" maxlength="140" required><label style="margin-top:18px">Firma</label><canvas id="signature-canvas"></canvas><div class="actions"><button class="secondary" type="button" id="clear-signature">Limpiar</button></div><button class="primary" id="sign-submit" type="submit" style="margin-top:14px">Confirmar y firmar acta</button></form><p id="signature-result" class="hidden"></p>
+    </div></section>
+    <script>
+        const token = {{ token | tojson }}, canvas = document.getElementById('signature-canvas'), context = canvas.getContext('2d'); let drawing = false, hasInk = false;
+        function resizeCanvas(){ const rect = canvas.getBoundingClientRect(), image = hasInk ? canvas.toDataURL() : null; canvas.width = Math.floor(rect.width * devicePixelRatio); canvas.height = Math.floor(rect.height * devicePixelRatio); context.scale(devicePixelRatio, devicePixelRatio); context.lineCap='round'; context.lineJoin='round'; context.lineWidth=2.2; context.strokeStyle='#0f172a'; if(image){ const img=new Image(); img.onload=()=>context.drawImage(img,0,0,rect.width,rect.height); img.src=image; } }
+        function point(event){ const rect=canvas.getBoundingClientRect(), touch=event.touches ? event.touches[0] : event; return {x:touch.clientX-rect.left,y:touch.clientY-rect.top}; }
+        function start(event){ event.preventDefault(); drawing=true; const p=point(event); context.beginPath(); context.moveTo(p.x,p.y); }
+        function move(event){ if(!drawing) return; event.preventDefault(); const p=point(event); context.lineTo(p.x,p.y); context.stroke(); hasInk=true; }
+        function end(){ drawing=false; }
+        canvas.addEventListener('pointerdown', start); canvas.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('resize', resizeCanvas); resizeCanvas();
+        document.getElementById('clear-signature').onclick=()=>{ context.clearRect(0,0,canvas.width,canvas.height); hasInk=false; };
+        document.getElementById('signature-form').onsubmit=async event=>{ event.preventDefault(); if(!hasInk) return alert('Ingresa tu firma antes de confirmar.'); const button=document.getElementById('sign-submit'); button.disabled=true; button.textContent='Registrando firma...'; try { const response=await fetch(`/api/delivery-records/sign/${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signer_name:document.getElementById('signer-name').value.trim(),signature_data:canvas.toDataURL('image/png')})}); const data=await response.json(); if(!response.ok) throw new Error(data.detail || 'No fue posible registrar la firma.'); document.getElementById('signature-form').classList.add('hidden'); const result=document.getElementById('signature-result'); result.textContent='Firma registrada correctamente. Puedes cerrar esta página.'; result.style.color='#047857'; result.classList.remove('hidden'); } catch(error) { alert(error.message); button.disabled=false; button.textContent='Confirmar y firmar acta'; } };
+    </script>
+    {% endif %}
+</main></body></html>

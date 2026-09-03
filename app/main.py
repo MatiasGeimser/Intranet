@@ -13,7 +13,7 @@ from app.middlewares.rate_limit import RateLimitMiddleware
 from app.middlewares.role_access import RoleAccessMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators, search, inventory_map, admin_chat, assistant_bridge
+from app.api.endpoints import auth, users, roles, credentials, events, documents, news, audit, dashboard, views, it_assets, vlans, network_devices, phone_numbers, tasks, notes, areas, duplicate_phones, collaborators, search, inventory_map, admin_chat, assistant_bridge, delivery_records
 
 # Crear Aplicación FastAPI
 app = FastAPI(
@@ -90,6 +90,7 @@ app.include_router(search.router, prefix="/api/search", tags=["Búsqueda Global"
 app.include_router(inventory_map.router, tags=["Mapa de Inventario"])
 app.include_router(admin_chat.router, prefix="/api/admin-chat", tags=["Chat Institucional"])
 app.include_router(assistant_bridge.router, prefix="/api/assistant-bridge", tags=["Integración Asistente ITSM"])
+app.include_router(delivery_records.router, prefix="/api/delivery-records", tags=["Actas de Entrega"])
 
 from app.services.scheduler_service import scheduler_service
 

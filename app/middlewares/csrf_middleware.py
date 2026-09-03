@@ -17,7 +17,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         # authenticates every request with a short-lived HMAC assertion, not a
         # browser cookie, so CSRF tokens do not apply to this isolated route.
         # The endpoint still rejects requests without a valid bridge signature.
-        if path in exempt_paths or path.startswith("/static") or path.startswith("/api/assistant-bridge/"):
+        if path in exempt_paths or path.startswith("/static") or path.startswith("/api/assistant-bridge/") or path.startswith("/api/delivery-records/sign/"):
             return await call_next(request)
             
         # Si la petición es mutable, verificamos el token CSRF

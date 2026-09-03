@@ -9,6 +9,41 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     @staticmethod
+    def send_delivery_signature_email(
+        recipient_email: str,
+        recipient_name: str,
+        record_reference: str,
+        signature_url: str,
+        expires_at,
+    ) -> bool:
+        """Envía el enlace seguro para firmar un acta desde cualquier teléfono."""
+        expiration = expires_at.strftime("%d-%m-%Y %H:%M")
+        subject = f"Firma requerida: acta de entrega {record_reference}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html><head><meta charset="utf-8"></head>
+        <body style="margin:0;padding:24px;background:#F4F6F8;font-family:Segoe UI,Arial,sans-serif;color:#262523;">
+            <div style="max-width:600px;margin:auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;">
+                <div style="padding:24px 28px;background:#049DD9;color:#FFFFFF;">
+                    <h1 style="margin:0;font-size:20px;">Acta de entrega pendiente de firma</h1>
+                </div>
+                <div style="padding:28px;line-height:1.55;">
+                    <p>Hola, {escape(recipient_name)}:</p>
+                    <p>Tienes una acta de entrega y recepción de equipamiento pendiente de confirmación.</p>
+                    <p style="padding:14px 16px;background:#F4F6F8;border-radius:8px;"><strong>Referencia:</strong> {escape(record_reference)}</p>
+                    <p>Abre el siguiente enlace desde tu celular o computador, revisa la información y firma directamente en la pantalla.</p>
+                    <p style="text-align:center;margin:28px 0;">
+                        <a href="{escape(signature_url, quote=True)}" style="display:inline-block;padding:13px 22px;background:#049DD9;color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:700;">Revisar y firmar acta</a>
+                    </p>
+                    <p style="font-size:12px;color:#6B7280;">El enlace vence el {expiration}. No lo reenvíes a otras personas.</p>
+                </div>
+                <div style="padding:16px 28px;background:#F8F9FA;border-top:1px solid #E5E7EB;color:#8C8C8C;font-size:11px;">Correo automático de GEIMSER. No responder.</div>
+            </div>
+        </body></html>
+        """
+        return EmailService._send_html_email(recipient_email, subject, html_content)
+
+    @staticmethod
     def send_task_assigned_email(
         recipient_email: str,
         recipient_name: str,

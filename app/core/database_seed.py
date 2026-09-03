@@ -16,6 +16,7 @@ from app.models.admin_chat_presence import AdminChatPresence  # noqa: F401
 from app.models.document import Document  # noqa: F401
 from app.models.folder_access import FolderAccess  # noqa: F401
 from app.models.task import TaskComment  # noqa: F401
+from app.models.delivery_record import DeliveryRecord  # noqa: F401
 
 
 NATURA_MONTHS = (

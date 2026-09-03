@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Actas de Entrega{% endblock %}
+{% block page_title %}Actas de Entrega{% endblock %}
+{% block page_subtitle %}Registro digital de entrega, recepción y firmas de equipamiento{% endblock %}
+
+{% block extra_head %}
+<style>
+    .record-card { border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; transition: box-shadow .18s, transform .18s; }
+    .record-card:hover { box-shadow: 0 10px 22px rgba(15, 23, 42, .08); transform: translateY(-1px); }
+    .field-label { display:block; color:#64748b; font-size:10px; font-weight:700; letter-spacing:.04em; margin:0 0 6px; text-transform:uppercase; }
+    .field-input { width:100%; border:1px solid #dbe1e8; border-radius:8px; color:#1e293b; font-size:13px; outline:none; padding:10px 12px; }
+    .field-input:focus { border-color:#049DD9; box-shadow:0 0 0 3px rgba(4,157,217,.12); }
+    .check-option { align-items:center; border:1px solid #e5e7eb; border-radius:7px; cursor:pointer; display:flex; font-size:12px; gap:7px; padding:8px 10px; }
+    .check-option:hover { background:#f8fafc; }
+    .modal-pane { max-height:calc(100vh - 40px); overflow:auto; }
+    @media print { aside, header, #global-chat-toggle, .no-print { display:none !important; } main { margin:0 !important; padding:0 !important; } #record-detail-modal { position:static !important; background:white !important; padding:0 !important; } #record-detail-modal > div { box-shadow:none !important; max-width:none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <p class="text-sm text-[#64748b]">Crea actas de entrega y envía una firma segura para completar desde celular.</p>
+        </div>
+        <button class="no-print inline-flex items-center gap-2 rounded-lg bg-[#049DD9] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#049DD9]/20 hover:bg-[#038bc2]" onclick="openCreateModal()">
+            <i class="fa-solid fa-file-circle-plus"></i> Nueva acta
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="record-card p-4"><p class="text-xs text-[#64748b]">Actas registradas</p><p class="mt-1 text-2xl font-bold text-[#262523]" id="total-count">-</p></div>
+        <div class="record-card p-4"><p class="text-xs text-[#64748b]">Pendientes de firma</p><p class="mt-1 text-2xl font-bold text-[#d97706]" id="pending-count">-</p></div>
+        <div class="record-card p-4"><p class="text-xs text-[#64748b]">Firmadas</p><p class="mt-1 text-2xl font-bold text-[#059669]" id="signed-count">-</p></div>
+    </div>
+
+    <div class="record-card overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h2 class="font-bold text-[#262523]">Actas recientes</h2>
+            <button class="text-xs font-semibold text-[#049DD9] hover:underline" onclick="loadRecords()"><i class="fa-solid fa-rotate-right mr-1"></i>Actualizar</button>
+        </div>
+        <div id="records-list" class="divide-y divide-slate-100"><div class="p-10 text-center text-sm text-[#8C8C8C]"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Cargando actas...</div></div>
+    </div>
+</section>
+
+<div id="create-modal" class="hidden fixed inset-0 z-[70] bg-slate-950/45 p-3 sm:p-6">
+    <div class="modal-pane mx-auto max-w-5xl rounded-xl bg-white shadow-2xl">
+        <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+            <div><h2 class="font-bold text-[#262523]">Nueva acta de entrega</h2><p class="text-xs text-[#64748b]">Completa los antecedentes antes de enviar la firma.</p></div>
+            <button class="rounded-lg p-2 text-[#64748b] hover:bg-slate-100" onclick="closeModal('create-modal')" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="record-form" class="space-y-7 p-5" onsubmit="createRecord(event)">
+            <section>
+                <h3 class="mb-3 text-sm font-bold text-[#262523]"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#049DD9]/10 text-[#049DD9]">1</span>Receptor responsable</h3>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div class="md:col-span-2"><label class="field-label">Colaborador registrado</label><select id="recipient-id" class="field-input" onchange="fillRecipient()"><option value="">Ingresar datos manualmente</option></select></div>
+                    <div><label class="field-label">Fecha de entrega</label><input id="delivery-date" class="field-input" type="date" required></div>
+                    <div><label class="field-label">Nombre completo</label><input id="recipient-name" class="field-input" required maxlength="140"></div>
+                    <div><label class="field-label">Correo</label><input id="recipient-email" class="field-input" type="email" maxlength="140"></div>
+                    <div><label class="field-label">RUN</label><input id="recipient-run" class="field-input" maxlength="32"></div>
+                    <div><label class="field-label">Cargo / función</label><input id="recipient-role" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">Área / unidad</label><input id="recipient-unit" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">Sede</label><input id="site" class="field-input" maxlength="120" placeholder="Ej. Casa matriz"></div>
+                    <div><label class="field-label">Calidad jurídica</label><select id="employment-type" class="field-input"><option value="">Sin especificar</option><option>Planta</option><option>Contrata</option><option>Honorarios</option></select></div>
+                </div>
+            </section>
+            <section>
+                <h3 class="mb-3 text-sm font-bold text-[#262523]"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#049DD9]/10 text-[#049DD9]">2</span>Equipo entregado</h3>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div><label class="field-label">Tipo de equipo</label><select id="equipment-type" class="field-input" required><option>Notebook</option><option>Desktop</option><option>All-in-One</option><option>Otro</option></select></div>
+                    <div><label class="field-label">Marca y modelo</label><input id="equipment-brand-model" class="field-input" maxlength="160"></div>
+                    <div><label class="field-label">Nombre del equipo</label><input id="equipment-hostname" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">N° de serie</label><input id="equipment-serial" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">Dirección MAC</label><input id="mac-address" class="field-input" maxlength="64"></div>
+                    <div><label class="field-label">N° de rótulo</label><input id="label-number" class="field-input" maxlength="64"></div>
+                    <div><label class="field-label">Serie pantalla adicional</label><input id="monitor-serial" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">Serie dock</label><input id="dock-serial" class="field-input" maxlength="120"></div>
+                    <div><label class="field-label">Estado al entregar</label><select id="delivery-condition" class="field-input"><option value="">Sin especificar</option><option>Nuevo / sellado</option><option>Buen estado</option></select></div>
+                </div>
+                <div class="mt-4"><span class="field-label">Accesorios entregados</span><div class="grid grid-cols-2 gap-2 sm:grid-cols-4"><label class="check-option"><input type="checkbox" name="accessory" value="Mouse">Mouse</label><label class="check-option"><input type="checkbox" name="accessory" value="Teclado">Teclado</label><label class="check-option"><input type="checkbox" name="accessory" value="Cargador">Cargador</label><label class="check-option"><input type="checkbox" name="accessory" value="Otro">Otro</label></div></div>
+                <div class="mt-4"><span class="field-label">Migración de datos</span><div class="grid grid-cols-2 gap-2 sm:grid-cols-3"><label class="check-option"><input type="checkbox" name="migration" value="Archivo PST">Archivo PST</label><label class="check-option"><input type="checkbox" name="migration" value="Perfil de usuario">Perfil de usuario</label><label class="check-option"><input type="checkbox" name="migration" value="Solo datos">Solo datos</label></div></div>
+            </section>
+            <section>
+                <h3 class="mb-3 text-sm font-bold text-[#262523]"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#049DD9]/10 text-[#049DD9]">3</span>Equipo retirado</h3>
+                <label class="check-option w-fit"><input id="returned-applies" type="checkbox" onchange="toggleReturned()">Registrar equipo retirado</label>
+                <div id="returned-fields" class="mt-4 hidden grid grid-cols-1 gap-4 md:grid-cols-3"><div><label class="field-label">Tipo</label><select id="returned-type" class="field-input"><option>Notebook</option><option>Desktop</option><option>All-in-One</option><option>Otro</option></select></div><div><label class="field-label">Marca y modelo</label><input id="returned-brand" class="field-input"></div><div><label class="field-label">N° de serie</label><input id="returned-serial" class="field-input"></div><div><label class="field-label">Motivo</label><select id="returned-reason" class="field-input"><option>Renovación</option><option>Falla técnica</option><option>Baja</option></select></div><div><label class="field-label">Estado operacional</label><select id="returned-status" class="field-input"><option>Operativo / sin fallas</option><option>No enciende / dañado</option></select></div></div>
+            </section>
+            <section><label class="field-label">Observaciones</label><textarea id="observations" class="field-input min-h-24" maxlength="4000" placeholder="Antecedentes relevantes de la entrega, estado del equipo o accesorios."></textarea></section>
+            <div class="sticky bottom-0 -mx-5 flex justify-end gap-3 border-t border-slate-200 bg-white px-5 py-4"><button type="button" class="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600" onclick="closeModal('create-modal')">Cancelar</button><button id="record-submit" type="submit" class="rounded-lg bg-[#049DD9] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#049DD9]/20">Crear acta y preparar firma</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="record-detail-modal" class="hidden fixed inset-0 z-[70] bg-slate-950/45 p-3 sm:p-6"><div class="modal-pane mx-auto max-w-4xl rounded-xl bg-white shadow-2xl"><div id="record-detail"></div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let recipients = [], records = [];
+const $ = id => document.getElementById(id);
+const text = value => String(value || '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+const value = id => $(id).value.trim() || null;
+const checkedValues = name => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value);
+function openCreateModal(){ $('record-form').reset(); $('delivery-date').value = new Date().toISOString().slice(0,10); $('returned-fields').classList.add('hidden'); $('create-modal').classList.remove('hidden'); }
+function closeModal(id){ $(id).classList.add('hidden'); }
+function toggleReturned(){ $('returned-fields').classList.toggle('hidden', !$('returned-applies').checked); }
+function fillRecipient(){ const recipient = recipients.find(item => String(item.id) === $('recipient-id').value); if (!recipient) return; $('recipient-name').value = recipient.name; $('recipient-email').value = recipient.email; $('recipient-role').value = recipient.role; $('recipient-unit').value = recipient.area; }
+async function loadRecipients(){ const response = await fetchAPI('/api/delivery-records/recipients'); if (!response.ok) return; recipients = await response.json(); $('recipient-id').innerHTML += recipients.map(item => `<option value="${item.id}">${text(item.name)} · ${text(item.area || 'Sin área')}</option>`).join(''); }
+async function loadRecords(){ try { const response = await fetchAPI('/api/delivery-records'); if (!response.ok) throw new Error(); records = await response.json(); $('total-count').textContent = records.length; $('pending-count').textContent = records.filter(r => r.status !== 'signed').length; $('signed-count').textContent = records.filter(r => r.status === 'signed').length; $('records-list').innerHTML = records.length ? records.map(record => `<button class="w-full px-5 py-4 text-left hover:bg-slate-50" onclick="openRecord(${record.id})"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="font-semibold text-[#262523]">${text(record.recipient_name)} <span class="ml-2 text-xs font-medium text-[#64748b]">${text(record.reference)}</span></p><p class="mt-1 text-xs text-[#64748b]">${text(record.equipment_type)}${record.equipment_brand_model ? ' · ' + text(record.equipment_brand_model) : ''} · ${new Date(record.delivery_date + 'T12:00:00').toLocaleDateString('es-CL')}</p></div><span class="rounded-full px-2.5 py-1 text-xs font-semibold ${record.status === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${record.status === 'signed' ? 'Firmada' : 'Pendiente de firma'}</span></div></button>`).join('') : '<div class="p-10 text-center text-sm text-[#8C8C8C]">Aún no hay actas creadas.</div>'; } catch { showToast('No se pudieron cargar las actas.', 'error'); } }
+async function createRecord(event){ event.preventDefault(); const submit = $('record-submit'); submit.disabled = true; submit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Creando...'; const data = { delivery_date:$('delivery-date').value, site:value('site'), recipient_id:$('recipient-id').value ? Number($('recipient-id').value) : null, recipient_name:value('recipient-name'), recipient_email:value('recipient-email'), recipient_run:value('recipient-run'), recipient_role:value('recipient-role'), recipient_unit:value('recipient-unit'), employment_type:value('employment-type'), equipment_type:$('equipment-type').value, equipment_brand_model:value('equipment-brand-model'), equipment_hostname:value('equipment-hostname'), equipment_serial:value('equipment-serial'), mac_address:value('mac-address'), monitor_serial:value('monitor-serial'), dock_serial:value('dock-serial'), accessories:checkedValues('accessory'), delivery_condition:value('delivery-condition'), label_number:value('label-number'), migration:checkedValues('migration'), returned_equipment:{ applies:$('returned-applies').checked, equipment_type:value('returned-type'), brand_model:value('returned-brand'), serial:value('returned-serial'), reason:value('returned-reason'), operational_status:value('returned-status') }, observations:value('observations') }; try { const response = await fetchAPI('/api/delivery-records', {method:'POST', body:data}); const record = await response.json(); if (!response.ok) throw new Error(record.detail || 'No fue posible crear el acta.'); closeModal('create-modal'); showToast('Acta creada. El enlace de firma está listo.', 'success'); await loadRecords(); openRecord(record.id, record); } catch(error) { showToast(error.message, 'error'); } finally { submit.disabled = false; submit.textContent = 'Crear acta y preparar firma'; } }
+async function openRecord(id, createdRecord){ let record = createdRecord; if (!record || !record.signature_expires_at) { const response = await fetchAPI(`/api/delivery-records/${id}`); if (!response.ok) return showToast('No fue posible abrir el acta.', 'error'); record = await response.json(); } const signed = record.status === 'signed'; const signatureActions = signed ? `<span class="text-sm font-semibold text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>Firmada el ${new Date(record.recipient_signed_at).toLocaleString('es-CL')}</span>` : `<div class="flex flex-wrap gap-2"><button class="rounded-lg border border-[#049DD9] px-3 py-2 text-xs font-semibold text-[#049DD9]" onclick="copySignatureLink('${text(record.signature_url || '')}')"><i class="fa-solid fa-link mr-1"></i>Copiar enlace</button><button class="rounded-lg bg-[#049DD9] px-3 py-2 text-xs font-semibold text-white" onclick="sendSignatureLink(${record.id})"><i class="fa-solid fa-envelope mr-1"></i>Enviar correo</button><button class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700" onclick="renewLink(${record.id})"><i class="fa-solid fa-rotate mr-1"></i>Renovar</button></div>`; $('record-detail').innerHTML = `<div class="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 no-print"><div><p class="text-xs font-bold text-[#049DD9]">${text(record.reference)}</p><h2 class="font-bold text-[#262523]">Acta de entrega y recepción</h2></div><button class="rounded-lg p-2 text-[#64748b] hover:bg-slate-100" onclick="closeModal('record-detail-modal')"><i class="fa-solid fa-xmark"></i></button></div><article class="space-y-6 p-5"><div class="rounded-lg border border-slate-200 bg-slate-50 p-4"><div class="grid grid-cols-1 gap-3 sm:grid-cols-3"><div><p class="field-label">Receptor</p><p class="font-semibold">${text(record.recipient_name)}</p><p class="text-xs text-slate-500">${text(record.recipient_email)}</p></div><div><p class="field-label">Entrega</p><p class="text-sm">${new Date(record.delivery_date + 'T12:00:00').toLocaleDateString('es-CL')} · ${text(record.site || 'Sin sede')}</p></div><div><p class="field-label">Emitida por</p><p class="text-sm">${text(record.created_by_name)}</p></div></div></div><div class="grid grid-cols-1 gap-4 md:grid-cols-2"><section><h3 class="mb-2 font-bold">Equipo entregado</h3><dl class="space-y-1 text-sm text-slate-700"><div><dt class="inline text-slate-500">Tipo: </dt><dd class="inline">${text(record.equipment_type)}</dd></div><div><dt class="inline text-slate-500">Marca / modelo: </dt><dd class="inline">${text(record.equipment_brand_model || '—')}</dd></div><div><dt class="inline text-slate-500">Serie: </dt><dd class="inline">${text(record.equipment_serial || '—')}</dd></div><div><dt class="inline text-slate-500">Nombre: </dt><dd class="inline">${text(record.equipment_hostname || '—')}</dd></div><div><dt class="inline text-slate-500">Accesorios: </dt><dd class="inline">${text((record.accessories || []).join(', ') || '—')}</dd></div></dl></section><section><h3 class="mb-2 font-bold">Equipo retirado</h3><p class="text-sm text-slate-700">${record.returned_equipment && record.returned_equipment.applies ? `${text(record.returned_equipment.equipment_type || '')} · ${text(record.returned_equipment.brand_model || '')} · ${text(record.returned_equipment.reason || '')}` : 'No aplica (primera entrega).'}</p><h3 class="mb-2 mt-4 font-bold">Observaciones</h3><p class="whitespace-pre-wrap text-sm text-slate-700">${text(record.observations || 'Sin observaciones.')}</p></section></div>${signed ? `<section class="border-t border-slate-200 pt-5"><h3 class="font-bold">Recepción conforme</h3><p class="mt-1 text-sm text-slate-600">Firmado por ${text(record.recipient_signer_name)}</p><img src="${record.recipient_signature_data}" class="mt-3 h-24 max-w-full border-b border-slate-300 object-contain" alt="Firma del receptor"></section>` : `<section class="rounded-lg border border-amber-200 bg-amber-50 p-4"><p class="font-semibold text-amber-900">Firma pendiente</p><p class="mt-1 text-sm text-amber-800">El receptor puede abrir el enlace desde su teléfono y firmar directamente en pantalla.</p><p class="mt-2 break-all text-xs text-amber-900">${text(record.signature_url || 'Renueva el enlace para visualizarlo.')}</p></section>`}<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5 no-print">${signatureActions}<button class="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white" onclick="window.print()"><i class="fa-solid fa-print mr-1"></i>Imprimir</button></div></article>`; $('record-detail-modal').classList.remove('hidden'); }
+async function renewLink(id){ const response = await fetchAPI(`/api/delivery-records/${id}/renew-signature-link`, {method:'POST'}); const data = await response.json(); if(!response.ok) return showToast(data.detail || 'No fue posible renovar el enlace.', 'error'); showToast('Enlace renovado por 7 días.', 'success'); openRecord(id, data); }
+async function sendSignatureLink(id){ const response = await fetchAPI(`/api/delivery-records/${id}/send-signature-link`, {method:'POST'}); const data = await response.json(); showToast(data.detail || 'No fue posible enviar el correo.', response.ok ? 'success' : 'error'); }
+async function copySignatureLink(url){ if (!url) return showToast('Renueva el enlace para compartirlo.', 'error'); await navigator.clipboard.writeText(url); showToast('Enlace de firma copiado.', 'success'); }
+function downloadSignedPdf(id){ window.location.assign(`/api/delivery-records/${id}/pdf`); }
+function openSignedPdf(id){ window.open(`/api/delivery-records/${id}/pdf?inline=true`, '_blank', 'noopener'); }
+const renderRecordDetail = openRecord;
+openRecord = async function(id, createdRecord) {
+    await renderRecordDetail(id, createdRecord);
+    const record = createdRecord || records.find(item => item.id === id);
+    if (record?.status !== 'signed') return;
+    const actions = document.querySelector('#record-detail .no-print');
+    if (!actions || actions.querySelector('[data-official-pdf]')) return;
+    actions.insertAdjacentHTML('beforeend', `<div class="flex gap-2"><button data-official-pdf class="rounded-lg bg-[#049DD9] px-3 py-2 text-xs font-semibold text-white" onclick="downloadSignedPdf(${id})"><i class="fa-solid fa-download mr-1"></i>Descargar PDF oficial</button><button class="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white" onclick="openSignedPdf(${id})"><i class="fa-solid fa-print mr-1"></i>Abrir para imprimir</button></div>`);
+    const integrity = await fetchAPI(`/api/delivery-records/${id}/integrity`);
+    if (integrity.ok) {
+        const validation = await integrity.json();
+        const article = document.querySelector('#record-detail article');
+        article.insertAdjacentHTML('beforeend', `<p class="text-xs ${validation.valid ? 'text-emerald-700' : 'text-red-600'}"><i class="fa-solid ${validation.valid ? 'fa-shield-halved' : 'fa-triangle-exclamation'} mr-1"></i>${validation.valid ? 'Integridad validada' : 'Integridad no válida'} · SHA-256 ${text(validation.signed_document_hash || validation.content_hash)}</p>`);
+    }
+}
+document.addEventListener('DOMContentLoaded', async () => { await Promise.all([loadRecipients(), loadRecords()]); });
+</script>
+{% endblock %}

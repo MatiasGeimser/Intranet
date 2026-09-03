@@ -10,6 +10,7 @@ from app.api.deps import get_token_from_request
 from jose import jwt
 from app.core.config import settings
 from app.models.user import User
+from app.models.delivery_record import DeliveryRecord
 from app.services.natura_access import is_natura_manager
 
 router = APIRouter()
@@ -57,6 +58,10 @@ def can_manage_vault_folders(user: User) -> bool:
         and user.area
         and user.area.name in {"Administración", "Administracion"}
     )
+
+
+def can_manage_delivery_records(user: User) -> bool:
+    return bool(user.role and user.role.name == "Administrador")
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -314,6 +319,40 @@ def phone_numbers_view(request: Request, db: Session = Depends(get_db)):
         "user": user,
         "active_page": "phone-numbers",
         "project_name": settings.PROJECT_NAME
+    })
+
+
+@router.get("/delivery-records", response_class=HTMLResponse)
+def delivery_records_view(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    if not can_manage_delivery_records(user):
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(request=request, name="delivery_records.html", context={
+        "user": user,
+        "active_page": "delivery-records",
+        "project_name": settings.PROJECT_NAME,
+    })
+
+
+@router.get("/actas/firma/{token}", response_class=HTMLResponse)
+def public_delivery_signature(token: str, request: Request, db: Session = Depends(get_db)):
+    import hashlib
+    from datetime import datetime, timezone
+
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    record = db.query(DeliveryRecord).filter(DeliveryRecord.signature_token_hash == token_hash).first()
+    valid = bool(
+        record
+        and record.status != "signed"
+        and record.signature_expires_at.replace(tzinfo=timezone.utc) >= datetime.now(timezone.utc)
+    )
+    return templates.TemplateResponse(request=request, name="delivery_signature.html", context={
+        "record": record if valid else None,
+        "token": token if valid else None,
+        "project_name": settings.PROJECT_NAME,
+        "invalid_link": not valid,
     })
 
 
