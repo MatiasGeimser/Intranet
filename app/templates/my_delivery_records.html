@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Mis Actas de Entrega{% endblock %}
+{% block page_title %}Mis Actas de Entrega{% endblock %}
+{% block page_subtitle %}Revisa y firma tus actas de equipamiento{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-4xl">
+    <div class="mb-6 flex items-end justify-between gap-4">
+        <div><h2 class="text-xl font-bold text-[#262523]">Actas asignadas</h2><p class="mt-1 text-sm text-[#64748b]">Las actas pendientes se firman directamente desde esta intranet.</p></div>
+        <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-[#049DD9] hover:bg-slate-50" onclick="loadMyRecords()"><i class="fa-solid fa-rotate-right mr-1"></i>Actualizar</button>
+    </div>
+    <div id="my-records" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div class="p-10 text-center text-sm text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Cargando actas...</div></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const myRecords = document.getElementById('my-records');
+const escapeText = value => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+async function loadMyRecords() {
+    try {
+        const response = await fetchAPI('/api/delivery-records/mine');
+        if (!response.ok) throw new Error();
+        const records = await response.json();
+        myRecords.innerHTML = records.length ? records.map(record => {
+            const date = new Date(record.delivery_date + 'T12:00:00').toLocaleDateString('es-CL');
+            const pending = record.status !== 'signed';
+            return `<a href="${pending ? `/actas/${record.id}/firma` : '#'}" class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 last:border-0 ${pending ? 'hover:bg-slate-50' : 'cursor-default'}"><div><p class="font-semibold text-[#262523]">${escapeText(record.reference)}</p><p class="mt-1 text-sm text-slate-600">${escapeText(record.equipment_type)}${record.equipment_brand_model ? ` · ${escapeText(record.equipment_brand_model)}` : ''}</p><p class="mt-1 text-xs text-slate-400">Entrega: ${date}</p></div><span class="rounded-full px-3 py-1.5 text-xs font-bold ${pending ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">${pending ? 'Pendiente de firma' : 'Firmada'}</span></a>`;
+        }).join('') : '<div class="p-10 text-center text-sm text-slate-400">No tienes actas de entrega asignadas.</div>';
+    } catch { myRecords.innerHTML = '<div class="p-10 text-center text-sm text-red-500">No fue posible cargar tus actas.</div>'; }
+}
+document.addEventListener('DOMContentLoaded', loadMyRecords);
+</script>
+{% endblock %}

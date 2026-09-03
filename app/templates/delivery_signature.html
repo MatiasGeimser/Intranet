@@ -160,7 +160,8 @@
         <p id="signature-result" class="result hidden"></p>
     </form>
     <script>
-        const token = {{ token | tojson }};
+        const signatureEndpoint = {{ signature_endpoint | tojson }};
+        const csrfToken = document.cookie.split('; ').find(item => item.startsWith('csrf_token='))?.split('=')[1];
         const canvas = document.getElementById('signature-canvas');
         const context = canvas.getContext('2d');
         let drawing = false;
@@ -224,8 +225,8 @@
             button.disabled = true;
             button.textContent = 'Registrando firma...';
             try {
-                const response = await fetch(`/api/delivery-records/sign/${token}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                const response = await fetch(signatureEndpoint, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
                     body: JSON.stringify({ signer_name: document.getElementById('signer-name').value.trim(), signature_data: canvas.toDataURL('image/png') })
                 });
                 const data = await response.json();

@@ -60,6 +60,14 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             if not user or user.role.name == "Administrador":
                 return await call_next(request)
 
+            if (
+                path == "/my-delivery-records"
+                or (path.startswith("/actas/") and path.endswith("/firma"))
+                or path == "/api/delivery-records/mine"
+                or path.startswith("/api/delivery-records/") and path.endswith("/sign-intranet")
+            ):
+                return await call_next(request)
+
             if self._has_full_scrum_access(user) and self._is_allowed_full_scrum_request(request):
                 return await call_next(request)
 

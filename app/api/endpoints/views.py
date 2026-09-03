@@ -336,6 +336,55 @@ def delivery_records_view(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/my-delivery-records", response_class=HTMLResponse)
+def my_delivery_records_view(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request=request, name="my_delivery_records.html", context={
+        "user": user,
+        "active_page": "my-delivery-records",
+        "project_name": settings.PROJECT_NAME,
+    })
+
+
+@router.get("/actas/{record_id}/firma", response_class=HTMLResponse)
+def intranet_delivery_signature(record_id: int, request: Request, db: Session = Depends(get_db)):
+    import json
+
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    record = db.query(DeliveryRecord).filter(DeliveryRecord.id == record_id).first()
+    is_recipient = bool(
+        record
+        and record.status != "signed"
+        and record.recipient_email
+        and user.email
+        and record.recipient_email.strip().casefold() == user.email.strip().casefold()
+    )
+    if not is_recipient:
+        return RedirectResponse(url="/my-delivery-records", status_code=status.HTTP_303_SEE_OTHER)
+
+    def parse_json(value, fallback):
+        try:
+            return json.loads(value or "")
+        except (TypeError, json.JSONDecodeError):
+            return fallback
+
+    return templates.TemplateResponse(request=request, name="delivery_signature.html", context={
+        "record": record,
+        "token": None,
+        "signature_endpoint": f"/api/delivery-records/{record.id}/sign-intranet",
+        "accessories": parse_json(record.accessories_json, []),
+        "migration_items": parse_json(record.migration_json, []),
+        "returned_equipment": parse_json(record.returned_equipment_json, {}),
+        "issuer_name": record.created_by.full_name if record.created_by else "GEIMSER",
+        "project_name": settings.PROJECT_NAME,
+        "invalid_link": False,
+    })
+
+
 @router.get("/actas/firma/{token}", response_class=HTMLResponse)
 def public_delivery_signature(token: str, request: Request, db: Session = Depends(get_db)):
     import hashlib
@@ -358,6 +407,7 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
     return templates.TemplateResponse(request=request, name="delivery_signature.html", context={
         "record": record if valid else None,
         "token": token if valid else None,
+        "signature_endpoint": f"/api/delivery-records/sign/{token}" if valid else None,
         "accessories": parse_json(record.accessories_json, []) if valid else [],
         "migration_items": parse_json(record.migration_json, []) if valid else [],
         "returned_equipment": parse_json(record.returned_equipment_json, {}) if valid else {},

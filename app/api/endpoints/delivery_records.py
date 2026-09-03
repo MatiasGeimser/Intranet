@@ -139,6 +139,46 @@ def _get_record_or_404(db: Session, record_id: int) -> DeliveryRecord:
     return record
 
 
+def _is_record_recipient(record: DeliveryRecord, user: User) -> bool:
+    return bool(
+        record.recipient_email
+        and user.email
+        and record.recipient_email.strip().casefold() == user.email.strip().casefold()
+    )
+
+
+def _validate_signature_payload(payload: PublicSignatureCreate) -> None:
+    if not payload.signature_data.startswith("data:image/png;base64,"):
+        raise HTTPException(status_code=400, detail="La firma debe ser una imagen PNG válida.")
+    try:
+        base64.b64decode(payload.signature_data.split(",", 1)[1], validate=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="La imagen de firma no es válida.") from exc
+
+
+def _complete_signature(record: DeliveryRecord, payload: PublicSignatureCreate, request: Request, db: Session) -> None:
+    _validate_signature_payload(payload)
+    now = datetime.now(timezone.utc)
+    record.recipient_signature_data = payload.signature_data
+    record.recipient_signer_name = payload.signer_name.strip()
+    record.recipient_signed_at = now
+    record.recipient_signature_ip = request.client.host if request.client else None
+    record.status = "signed"
+    signed_payload = "|".join([
+        record.content_hash,
+        record.recipient_signature_data,
+        record.recipient_signer_name,
+        record.recipient_signed_at.isoformat(),
+    ])
+    record.signed_document_hash = hashlib.sha256(signed_payload.encode("utf-8")).hexdigest()
+    db.commit()
+    audit_service.log_action(
+        db=db, user_id=record.created_by_id, action="delivery_record_signed",
+        ip_address=record.recipient_signature_ip,
+        details=f"El receptor firmó digitalmente el acta {record.reference}.",
+    )
+
+
 @router.get("", response_model=List[DeliveryRecordSummary])
 def list_delivery_records(
     db: Session = Depends(get_db),
@@ -162,6 +202,18 @@ def list_recipients(
         "position": collaborator.position,
         "area": collaborator.area or collaborator.department,
     } for collaborator in collaborators]
+
+
+@router.get("/mine", response_model=List[DeliveryRecordSummary])
+def list_my_delivery_records(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if not current_user.email:
+        return []
+    return db.query(DeliveryRecord).filter(
+        DeliveryRecord.recipient_email.ilike(current_user.email)
+    ).order_by(DeliveryRecord.created_at.desc()).all()
 
 
 @router.post("", response_model=DeliveryRecordDetail, status_code=status.HTTP_201_CREATED)
@@ -319,29 +371,22 @@ def sign_delivery_record(
     now = datetime.now(timezone.utc)
     if not record or record.status == "signed" or record.signature_expires_at.replace(tzinfo=timezone.utc) < now:
         raise HTTPException(status_code=404, detail="El enlace de firma no es válido o ya expiró.")
-    if not payload.signature_data.startswith("data:image/png;base64,"):
-        raise HTTPException(status_code=400, detail="La firma debe ser una imagen PNG válida.")
-    try:
-        base64.b64decode(payload.signature_data.split(",", 1)[1], validate=True)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="La imagen de firma no es válida.") from exc
+    _complete_signature(record, payload, request, db)
+    return {"detail": "Firma registrada correctamente."}
 
-    record.recipient_signature_data = payload.signature_data
-    record.recipient_signer_name = payload.signer_name.strip()
-    record.recipient_signed_at = now
-    record.recipient_signature_ip = request.client.host if request.client else None
-    record.status = "signed"
-    signed_payload = "|".join([
-        record.content_hash,
-        record.recipient_signature_data,
-        record.recipient_signer_name,
-        record.recipient_signed_at.isoformat(),
-    ])
-    record.signed_document_hash = hashlib.sha256(signed_payload.encode("utf-8")).hexdigest()
-    db.commit()
-    audit_service.log_action(
-        db=db, user_id=record.created_by_id, action="delivery_record_signed",
-        ip_address=record.recipient_signature_ip,
-        details=f"El receptor firmó digitalmente el acta {record.reference}.",
-    )
+
+@router.post("/{record_id}/sign-intranet")
+def sign_delivery_record_intranet(
+    record_id: int,
+    payload: PublicSignatureCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    record = _get_record_or_404(db, record_id)
+    if record.status == "signed":
+        raise HTTPException(status_code=400, detail="Esta acta ya fue firmada.")
+    if not _is_record_recipient(record, current_user):
+        raise HTTPException(status_code=403, detail="Sólo el receptor asignado puede firmar esta acta.")
+    _complete_signature(record, payload, request, db)
     return {"detail": "Firma registrada correctamente."}
