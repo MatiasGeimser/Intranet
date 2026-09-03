@@ -154,7 +154,7 @@
                     <div class="signature-name">GEIMSER</div>
                 </div>
             </div>
-            <div class="notice">Al confirmar, declaras haber recibido el equipo indicado y aceptas las responsabilidades descritas en esta acta.</div>
+            <div class="notice">{% if field_signature %}Entrega este dispositivo al receptor para que dibuje su firma. La sesión del agente de terreno quedará registrada en la auditoría de esta acta.{% else %}Al confirmar, declaras haber recibido el equipo indicado y aceptas las responsabilidades descritas en esta acta.{% endif %}</div>
         </section>
         <div class="actions"><button class="primary" id="sign-submit" type="submit">Confirmar y firmar acta</button></div>
         <p id="signature-result" class="result hidden"></p>

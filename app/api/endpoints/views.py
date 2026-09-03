@@ -61,7 +61,13 @@ def can_manage_vault_folders(user: User) -> bool:
 
 
 def can_manage_delivery_records(user: User) -> bool:
-    return bool(user.role and user.role.name == "Administrador")
+    return bool(
+        user.role
+        and (
+            user.role.name == "Administrador"
+            or any(permission.code == "it:manage" for permission in user.role.permissions)
+        )
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -348,6 +354,39 @@ def my_delivery_records_view(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/delivery-records/{record_id}/firma-terreno", response_class=HTMLResponse)
+def field_delivery_signature(record_id: int, request: Request, db: Session = Depends(get_db)):
+    import json
+
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    if not can_manage_delivery_records(user):
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    record = db.query(DeliveryRecord).filter(DeliveryRecord.id == record_id).first()
+    if not record or record.status == "signed":
+        return RedirectResponse(url="/delivery-records", status_code=status.HTTP_303_SEE_OTHER)
+
+    def parse_json(value, fallback):
+        try:
+            return json.loads(value or "")
+        except (TypeError, json.JSONDecodeError):
+            return fallback
+
+    return templates.TemplateResponse(request=request, name="delivery_signature.html", context={
+        "record": record,
+        "token": None,
+        "signature_endpoint": f"/api/delivery-records/{record.id}/sign-field",
+        "accessories": parse_json(record.accessories_json, []),
+        "migration_items": parse_json(record.migration_json, []),
+        "returned_equipment": parse_json(record.returned_equipment_json, {}),
+        "issuer_name": record.created_by.full_name if record.created_by else "GEIMSER",
+        "project_name": settings.PROJECT_NAME,
+        "invalid_link": False,
+        "field_signature": True,
+    })
+
+
 @router.get("/actas/{record_id}/firma", response_class=HTMLResponse)
 def intranet_delivery_signature(record_id: int, request: Request, db: Session = Depends(get_db)):
     import json
@@ -382,6 +421,7 @@ def intranet_delivery_signature(record_id: int, request: Request, db: Session = 
         "issuer_name": record.created_by.full_name if record.created_by else "GEIMSER",
         "project_name": settings.PROJECT_NAME,
         "invalid_link": False,
+        "field_signature": False,
     })
 
 
@@ -414,6 +454,7 @@ def public_delivery_signature(token: str, request: Request, db: Session = Depend
         "issuer_name": record.created_by.full_name if valid and record.created_by else "GEIMSER",
         "project_name": settings.PROJECT_NAME,
         "invalid_link": not valid,
+        "field_signature": False,
     })
 
 

@@ -31,7 +31,13 @@ SIGNATURE_LINK_VALIDITY_DAYS = 7
 
 
 def can_manage_delivery_records(user: User) -> bool:
-    return user.role and user.role.name == "Administrador"
+    return bool(
+        user.role
+        and (
+            user.role.name == "Administrador"
+            or any(permission.code == "it:manage" for permission in user.role.permissions)
+        )
+    )
 
 
 def require_delivery_record_manager(user: User = Depends(get_current_active_user)) -> User:
@@ -156,7 +162,14 @@ def _validate_signature_payload(payload: PublicSignatureCreate) -> None:
         raise HTTPException(status_code=400, detail="La imagen de firma no es válida.") from exc
 
 
-def _complete_signature(record: DeliveryRecord, payload: PublicSignatureCreate, request: Request, db: Session) -> None:
+def _complete_signature(
+    record: DeliveryRecord,
+    payload: PublicSignatureCreate,
+    request: Request,
+    db: Session,
+    audit_user_id: int | None = None,
+    field_agent_name: str | None = None,
+) -> None:
     _validate_signature_payload(payload)
     now = datetime.now(timezone.utc)
     record.recipient_signature_data = payload.signature_data
@@ -173,9 +186,12 @@ def _complete_signature(record: DeliveryRecord, payload: PublicSignatureCreate, 
     record.signed_document_hash = hashlib.sha256(signed_payload.encode("utf-8")).hexdigest()
     db.commit()
     audit_service.log_action(
-        db=db, user_id=record.created_by_id, action="delivery_record_signed",
+        db=db, user_id=audit_user_id or record.created_by_id, action="delivery_record_signed",
         ip_address=record.recipient_signature_ip,
-        details=f"El receptor firmó digitalmente el acta {record.reference}.",
+        details=(
+            f"{field_agent_name} registró en terreno la firma del receptor para el acta {record.reference}."
+            if field_agent_name else f"El receptor firmó digitalmente el acta {record.reference}."
+        ),
     )
 
 
@@ -388,5 +404,24 @@ def sign_delivery_record_intranet(
         raise HTTPException(status_code=400, detail="Esta acta ya fue firmada.")
     if not _is_record_recipient(record, current_user):
         raise HTTPException(status_code=403, detail="Sólo el receptor asignado puede firmar esta acta.")
-    _complete_signature(record, payload, request, db)
+    _complete_signature(record, payload, request, db, audit_user_id=current_user.id)
     return {"detail": "Firma registrada correctamente."}
+
+
+@router.post("/{record_id}/sign-field")
+def sign_delivery_record_in_field(
+    record_id: int,
+    payload: PublicSignatureCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_delivery_record_manager),
+):
+    record = _get_record_or_404(db, record_id)
+    if record.status == "signed":
+        raise HTTPException(status_code=400, detail="Esta acta ya fue firmada.")
+    _complete_signature(
+        record, payload, request, db,
+        audit_user_id=current_user.id,
+        field_agent_name=current_user.full_name,
+    )
+    return {"detail": "Firma del receptor registrada en terreno correctamente."}

@@ -7,6 +7,7 @@ from app.api.deps import get_token_from_request
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
+from app.models.role import Role
 from app.services.natura_access import is_natura_manager
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -53,11 +54,19 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         try:
             user = (
                 db.query(User)
-                .options(joinedload(User.role), selectinload(User.folder_permissions))
+                .options(joinedload(User.role).selectinload(Role.permissions), selectinload(User.folder_permissions))
                 .filter(User.id == user_id, User.is_active.is_(True))
                 .first()
             )
             if not user or user.role.name == "Administrador":
+                return await call_next(request)
+
+            is_it_manager = any(permission.code == "it:manage" for permission in user.role.permissions)
+            if is_it_manager and (
+                path == "/delivery-records"
+                or path.startswith("/delivery-records/")
+                or path.startswith("/api/delivery-records")
+            ):
                 return await call_next(request)
 
             if (
