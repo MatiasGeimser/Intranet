@@ -176,8 +176,20 @@ const renderRecordDetail = async (id, createdRecord) => {
     renderFullRecordDetail(record);
 };
 openRecord = async function(id, createdRecord) {
-    await renderRecordDetail(id, createdRecord);
-    const record = createdRecord || records.find(item => item.id === id);
+    let listedRecord = createdRecord || records.find(item => item.id === id);
+    if (!listedRecord) {
+        const response = await fetchAPI(`/api/delivery-records/${id}`);
+        if (!response.ok) return showToast('No fue posible abrir el acta.', 'error');
+        listedRecord = await response.json();
+    }
+    // El agente debe entregar el dispositivo directamente al receptor en la
+    // plantilla oficial; no se abre una vista resumida antes de firmar.
+    if (listedRecord && listedRecord.status !== 'signed') {
+        window.location.assign(`/delivery-records/${id}/firma-terreno`);
+        return;
+    }
+    await renderRecordDetail(id, listedRecord);
+    const record = listedRecord;
     if (record?.status !== 'signed') return;
     const actions = document.querySelector('#record-detail .no-print');
     if (!actions || actions.querySelector('[data-official-pdf]')) return;

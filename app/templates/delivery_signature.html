@@ -5,43 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Acta de entrega y recepción de equipamiento computacional</title>
     <style>
-        :root { color: #1e293b; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+        :root { color: #334155; font-family: Arial, Helvetica, sans-serif; }
         * { box-sizing: border-box; }
-        html, body { min-height: 100%; overflow-y: auto; }
-        body { background: #eef3f7; margin: 0; min-width: 0; }
-        main { margin: 0 auto; max-width: 900px; padding: 18px 12px 48px; }
-        .brand { color: #fff; background:#cf4a58; font-size: 11px; font-weight: 800; line-height:1.1; margin: 4px 0 12px; padding:10px 8px; width:110px; }
-        .sheet { background: #fff; border: 1px solid #d9e3ec; box-shadow: 0 12px 32px rgba(15, 23, 42, .1); max-height: calc(100vh - 76px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-        .document-head { align-items: center; border-bottom: 0; display: flex; gap: 18px; justify-content: space-between; padding: 12px 24px; }
-        .document-head h1 { color: #2c3e50; font-size: 19px; line-height: 1.25; margin: 0; text-transform: uppercase; }
-        .document-head p { color: #64748b; font-size: 13px; margin: 6px 0 0; }
-        .reference { color: #049dd9; font-size: 13px; font-weight: 800; text-align: right; }
-        .acta-section { border-bottom: 1px solid #d9e3ec; padding: 0 24px 22px; }
-        .section-title { background: #e7edf3; color: #53687d; font-size: 14px; font-weight: 700; margin: 0 -24px 18px; padding: 10px 24px; text-transform: uppercase; }
-        .grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .grid-three { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .field { border: 1px solid #d9e3ec; border-radius: 7px; min-width: 0; padding: 10px 12px; }
-        .field-label { color: #64748b; display: block; font-size: 10px; font-weight: 800; letter-spacing: .05em; margin-bottom: 5px; text-transform: uppercase; }
-        .field-value { color: #24364a; font-size: 14px; line-height: 1.4; min-height: 20px; overflow-wrap: anywhere; }
+        html, body { min-height: 100%; }
+        body { background: #edf1f4; margin: 0; min-width: 0; }
+        main { margin: 0 auto; max-width: 1040px; padding: 22px 14px 54px; }
+        .brand { color: #fff; background:#c94d59; font-size: 10px; font-weight: 800; line-height:1.1; margin: 0 0 8px 8px; padding:9px 7px; width:100px; }
+        .sheet { background: #fff; border: 1px solid #cbd5df; box-shadow: 0 5px 18px rgba(15, 23, 42, .10); overflow: visible; }
+        .document-head { align-items: center; border-bottom: 0; display: flex; gap: 18px; justify-content: space-between; padding: 14px 28px; }
+        .document-head h1 { color: #303f4f; font-size: 18px; line-height: 1.2; margin: 0; text-transform: uppercase; }
+        .document-head p { color: #526579; font-size: 13px; margin: 5px 0 0; }
+        .reference { color: #334155; font-size: 13px; font-weight: 700; line-height: 1.7; text-align: left; }
+        .acta-section { border-bottom: 1px solid #cbd5df; padding: 0 28px 18px; }
+        .section-title { background: #e6edf4; color: #53687d; font-size: 14px; font-weight: 700; margin: 0 -28px 14px; padding: 9px 28px; text-transform: uppercase; }
+        .grid { display: grid; gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-three { display: grid; gap: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .field { border: 1px solid #d5dde5; margin: -1px 0 0 -1px; min-width: 0; min-height: 68px; padding: 9px 11px; }
+        .field-label { color: #586a7c; display: block; font-size: 11px; font-weight: 700; margin-bottom: 7px; }
+        .field-value { color: #334155; font-size: 14px; line-height: 1.35; min-height: 20px; overflow-wrap: anywhere; }
         .full { grid-column: 1 / -1; }
         .choice-list { color: #334155; display: flex; flex-wrap: wrap; font-size: 13px; gap: 8px 18px; line-height: 1.45; }
         .choice { align-items: center; display: inline-flex; gap: 6px; }
         .choice::before { border: 1px solid #64748b; content: ""; display: inline-block; height: 11px; width: 11px; }
-        .declaration { color: #334155; font-size: 13px; line-height: 1.55; margin: 0; padding-left: 20px; }
+        .declaration { color: #334155; font-size: 12px; line-height: 1.5; margin: 0; padding-left: 20px; }
         .declaration li + li { margin-top: 9px; }
-        .signature-grid { align-items: stretch; display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .signature-box { border: 1px solid #d9e3ec; border-radius: 8px; display: flex; flex-direction: column; min-height: 258px; min-width: 0; padding: 14px; }
-        .signature-title { color: #234c71; font-size: 12px; font-weight: 800; min-height: 34px; text-align: center; text-transform: uppercase; }
+        .signature-grid { align-items: stretch; display: grid; gap: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .signature-box { border: 1px solid #cbd5df; display: flex; flex-direction: column; margin-left: -1px; min-height: 266px; min-width: 0; padding: 14px; }
+        .signature-title { color: #53687d; font-size: 12px; font-weight: 800; min-height: 34px; text-align: center; text-transform: uppercase; }
         .signature-line { border-bottom: 1px dashed #64748b; margin-top: auto; min-height: 92px; }
         .signature-name { color: #64748b; font-size: 11px; line-height: 1.45; padding-top: 8px; text-align: center; }
-        .signature-box.active { border: 2px solid #049dd9; }
+        .signature-box.active { border: 2px solid #049dd9; position: relative; }
         label { color: #475569; display: block; font-size: 12px; font-weight: 800; margin: 10px 0 7px; }
-        input { border: 1px solid #b8c9d8; border-radius: 7px; color: #1e293b; font-size: 16px; padding: 11px; width: 100%; }
-        canvas { background: #fff; border: 2px dashed #049dd9; border-radius: 7px; cursor: crosshair; display: block; height: 150px; touch-action: none; width: 100%; }
-        .clear { align-self: flex-start; background: #e8f1f8; border: 0; border-radius: 7px; color: #234c71; cursor: pointer; font-size: 12px; font-weight: 700; margin-top: 10px; padding: 9px 12px; }
-        .notice { background: #eff8ff; border: 1px solid #bae6fd; border-radius: 7px; color: #075985; font-size: 12px; line-height: 1.5; margin-top: 16px; padding: 12px; }
+        input { border: 1px solid #aab8c5; border-radius: 0; color: #1e293b; font-size: 16px; padding: 10px; width: 100%; }
+        canvas { background: #fff; border: 1px dashed #049dd9; border-radius: 0; cursor: crosshair; display: block; height: 150px; touch-action: none; width: 100%; }
+        .clear { align-self: flex-start; background: #e8f1f8; border: 0; border-radius: 0; color: #234c71; cursor: pointer; font-size: 12px; font-weight:700; margin-top: 10px; padding: 9px 12px; }
+        .notice { background: #eff8ff; border: 1px solid #bae6fd; border-radius: 0; color: #075985; font-size: 12px; line-height: 1.5; margin-top: 16px; padding: 12px; }
         .actions { display: flex; justify-content: flex-end; padding: 20px 24px 24px; }
-        .primary { background: #049dd9; border: 0; border-radius: 8px; box-shadow: 0 5px 12px rgba(4, 157, 217, .22); color: #fff; cursor: pointer; font-size: 14px; font-weight: 800; padding: 13px 20px; }
+        .primary { background: #049dd9; border: 0; border-radius: 3px; box-shadow: 0 5px 12px rgba(4, 157, 217, .22); color: #fff; cursor: pointer; font-size: 14px; font-weight: 800; padding: 13px 20px; }
         .primary:disabled { cursor: wait; opacity: .7; }
         .result { color: #047857; font-size: 14px; font-weight: 700; padding: 0 24px 24px; }
         .hidden { display: none; }
@@ -64,7 +64,7 @@
             canvas { height: 140px; }
             .actions { padding: 16px; }
             .primary { width: 100%; }
-            .sheet { max-height: calc(100vh - 58px); -webkit-overflow-scrolling: touch; }
+            .sheet { box-shadow: none; }
         }
     </style>
 </head>
