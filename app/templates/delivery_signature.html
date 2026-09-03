@@ -3,21 +3,21 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Acta de entrega | GEIMSER</title>
+    <title>Acta de entrega y recepción de equipamiento computacional</title>
     <style>
         :root { color: #1e293b; font-family: Inter, "Segoe UI", Arial, sans-serif; }
         * { box-sizing: border-box; }
         html, body { min-height: 100%; overflow-y: auto; }
         body { background: #eef3f7; margin: 0; min-width: 0; }
         main { margin: 0 auto; max-width: 900px; padding: 18px 12px 48px; }
-        .brand { color: #049dd9; font-size: 20px; font-weight: 800; letter-spacing: .04em; margin: 4px 0 12px; }
+        .brand { color: #fff; background:#cf4a58; font-size: 11px; font-weight: 800; line-height:1.1; margin: 4px 0 12px; padding:10px 8px; width:110px; }
         .sheet { background: #fff; border: 1px solid #d9e3ec; box-shadow: 0 12px 32px rgba(15, 23, 42, .1); max-height: calc(100vh - 76px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-        .document-head { align-items: center; border-bottom: 5px solid #049dd9; display: flex; gap: 18px; justify-content: space-between; padding: 22px 24px; }
-        .document-head h1 { color: #234c71; font-size: 22px; line-height: 1.25; margin: 0; text-transform: uppercase; }
+        .document-head { align-items: center; border-bottom: 0; display: flex; gap: 18px; justify-content: space-between; padding: 12px 24px; }
+        .document-head h1 { color: #2c3e50; font-size: 19px; line-height: 1.25; margin: 0; text-transform: uppercase; }
         .document-head p { color: #64748b; font-size: 13px; margin: 6px 0 0; }
         .reference { color: #049dd9; font-size: 13px; font-weight: 800; text-align: right; }
         .acta-section { border-bottom: 1px solid #d9e3ec; padding: 0 24px 22px; }
-        .section-title { background: #e8f1f8; color: #234c71; font-size: 15px; font-weight: 800; margin: 0 -24px 18px; padding: 11px 24px; text-transform: uppercase; }
+        .section-title { background: #e7edf3; color: #53687d; font-size: 14px; font-weight: 700; margin: 0 -24px 18px; padding: 10px 24px; text-transform: uppercase; }
         .grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .grid-three { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .field { border: 1px solid #d9e3ec; border-radius: 7px; min-width: 0; padding: 10px 12px; }
@@ -70,7 +70,7 @@
 </head>
 <body>
 <main>
-    <div class="brand">GEIMSER</div>
+    <div class="brand">SERVICIO<br>MÉDICO LEGAL<br><small>Gobierno de Chile</small></div>
     {% if invalid_link %}
     <section class="sheet invalid">
         <h1>Enlace no disponible</h1>
@@ -79,9 +79,11 @@
     {% else %}
     <form id="signature-form" class="sheet">
         <header class="document-head">
-            <div><h1>Acta de entrega y recepción de equipamiento computacional</h1><p>Documento de entrega de activos tecnológicos</p></div>
-            <div class="reference">{{ record.reference }}<br><span style="color:#64748b;font-weight:600">{{ record.delivery_date.strftime('%d-%m-%Y') }}</span></div>
+            <div><h1>SERVICIO MÉDICO LEGAL</h1><p>Departamento de Computación e Informática</p></div>
+            <div class="reference" style="color:#334155">Fecha: {{ record.delivery_date.strftime('%d / %m / %Y') }}<br>Sede: {{ record.site or '________________' }}</div>
         </header>
+
+        <div style="background:#536f8b;color:#fff;font-size:16px;font-weight:800;padding:10px 24px;text-align:center">ACTA DE ENTREGA Y RECEPCIÓN DE EQUIPAMIENTO COMPUTACIONAL</div>
 
         <section class="acta-section">
             <h2 class="section-title">1. Datos del funcionario responsable</h2>
@@ -126,9 +128,9 @@
         <section class="acta-section">
             <h2 class="section-title">4. Declaración de responsabilidad</h2>
             <ol class="declaration">
-                <li><strong>Custodia del bien fiscal:</strong> la persona receptora asume la responsabilidad administrativa y custodia del equipamiento individualizado en esta acta, destinado exclusivamente a labores institucionales.</li>
-                <li><strong>Respaldo y confidencialidad:</strong> la persona receptora declara haber respaldado su información y mantendrá reserva y confidencialidad respecto de datos, documentos y antecedentes institucionales.</li>
-                <li><strong>Políticas de ciberseguridad:</strong> queda prohibida la instalación de software no autorizado y el uso del equipo para fines ajenos a la organización. Cualquier pérdida, extravío, hurto o daño debe ser reportado de inmediato.</li>
+                <li><strong>Custodia del bien fiscal:</strong> El funcionario/a receptor asume la responsabilidad administrativa y custodia del equipamiento individualizado precedentemente, destinándolo exclusivamente a labores institucionales a su cargo en el Servicio Médico Legal.</li>
+                <li><strong>Respaldo y confidencialidad:</strong> El usuario declara bajo firma el haber realizado respaldo íntegro de sus archivos y antecedentes de trabajo antes de la entrega del equipo anterior. Asimismo, reconoce que debe de existir reserva y confidencialidad respecto a datos sensibles.</li>
+                <li><strong>Políticas de ciberseguridad institucional:</strong> Queda estrictamente prohibida la instalación de software no autorizado o sin licenciamiento institucional, el desarme o intervención física de los componentes y el préstamo a terceros ajenos al Servicio. Cualquier pérdida, extravío o hurto deberá ser reportado de inmediato.</li>
             </ol>
         </section>
 
@@ -136,7 +138,7 @@
             <h2 class="section-title">5. Firmas de conformidad</h2>
             <div class="signature-grid">
                 <div class="signature-box">
-                    <div class="signature-title">Entrega conforme</div>
+                    <div class="signature-title">Entrega conforme (DCI)</div>
                     <div class="signature-line"></div>
                     <div class="signature-name">Emitida por<br><strong>{{ issuer_name }}</strong></div>
                 </div>
@@ -149,9 +151,9 @@
                     <button class="clear" type="button" id="clear-signature">Limpiar firma</button>
                 </div>
                 <div class="signature-box">
-                    <div class="signature-title">Técnico responsable</div>
+                    <div class="signature-title">Técnico instalador</div>
                     <div class="signature-line"></div>
-                    <div class="signature-name">GEIMSER</div>
+                    <div class="signature-name">Firma Técnico/a responsable</div>
                 </div>
             </div>
             <div class="notice">{% if field_signature %}Entrega este dispositivo al receptor para que dibuje su firma. La sesión del agente de terreno quedará registrada en la auditoría de esta acta.{% else %}Al confirmar, declaras haber recibido el equipo indicado y aceptas las responsabilidades descritas en esta acta.{% endif %}</div>

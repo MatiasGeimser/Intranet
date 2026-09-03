@@ -50,19 +50,28 @@ def build_delivery_record_pdf(record, integrity_hash: str) -> BytesIO:
     pdf.setTitle(f"Acta de entrega {record.reference}")
     y = PAGE_HEIGHT - 38
 
-    pdf.setFillColor(colors.HexColor("#049DD9"))
-    pdf.roundRect(MARGIN, y - 28, 100, 25, 3, fill=1, stroke=0)
+    pdf.setFillColor(colors.HexColor("#cf4a58"))
+    pdf.rect(MARGIN, y - 34, 76, 32, fill=1, stroke=0)
     pdf.setFillColor(colors.white)
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawCentredString(MARGIN + 50, y - 20, "GEIMSER")
+    pdf.setFont("Helvetica-Bold", 6)
+    pdf.drawCentredString(MARGIN + 38, y - 13, "SERVICIO")
+    pdf.drawCentredString(MARGIN + 38, y - 20, "MÉDICO LEGAL")
+    pdf.setFont("Helvetica", 5)
+    pdf.drawCentredString(MARGIN + 38, y - 28, "Gobierno de Chile")
     pdf.setFillColor(TEXT)
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(MARGIN + 116, y - 13, "ACTA DE ENTREGA Y RECEPCIÓN")
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(MARGIN + 92, y - 13, "SERVICIO MÉDICO LEGAL")
     pdf.setFont("Helvetica", 8)
-    pdf.drawString(MARGIN + 116, y - 25, "DE EQUIPAMIENTO COMPUTACIONAL")
-    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 13, f"Fecha: {record.delivery_date.strftime('%d-%m-%Y')}")
-    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 25, f"Acta: {record.reference}")
-    y -= 49
+    pdf.drawString(MARGIN + 92, y - 25, "Departamento de Computación e Informática")
+    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 13, f"Fecha: {record.delivery_date.strftime('%d / %m / %Y')}")
+    pdf.drawRightString(PAGE_WIDTH - MARGIN, y - 25, f"Sede: {_safe(record.site)}")
+    y -= 47
+    pdf.setFillColor(BLUE)
+    pdf.rect(MARGIN, y - 18, PAGE_WIDTH - MARGIN * 2, 18, fill=1, stroke=0)
+    pdf.setFillColor(colors.white)
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawCentredString(PAGE_WIDTH / 2, y - 12, "ACTA DE ENTREGA Y RECEPCIÓN DE EQUIPAMIENTO COMPUTACIONAL")
+    y -= 28
 
     y = _section(pdf, y, 1, "Datos del funcionario responsable")
     half = (PAGE_WIDTH - MARGIN * 2 - 14) / 2
@@ -115,9 +124,12 @@ def build_delivery_record_pdf(record, integrity_hash: str) -> BytesIO:
 
     y = _section(pdf, y, 4, "Declaración de responsabilidad")
     statement = (
-        "La persona receptora asume la custodia y responsabilidad del equipamiento descrito, "
-        "destinándolo exclusivamente a labores institucionales. Se compromete a proteger la información, "
-        "no instalar software no autorizado y reportar de inmediato cualquier pérdida, daño o extravío."
+        "1. Custodia del bien fiscal: El funcionario/a receptor asume la responsabilidad administrativa y custodia del equipamiento "
+        "individualizado precedentemente, destinándolo exclusivamente a labores institucionales a su cargo en el Servicio Médico Legal. "
+        "2. Respaldo y confidencialidad: El usuario declara bajo firma el haber realizado respaldo íntegro de sus archivos y antecedentes "
+        "de trabajo antes de la entrega del equipo anterior. 3. Políticas de ciberseguridad institucional: Queda estrictamente prohibida "
+        "la instalación de software no autorizado o sin licenciamiento institucional, el desarme o intervención física de los componentes "
+        "y el préstamo a terceros ajenos al Servicio."
     )
     pdf.setFillColor(TEXT)
     pdf.setFont("Helvetica", 7.2)
@@ -133,14 +145,14 @@ def build_delivery_record_pdf(record, integrity_hash: str) -> BytesIO:
 
     y = _section(pdf, y, 5, "Firmas de conformidad")
     columns = [MARGIN + 15, PAGE_WIDTH / 2 - 64, PAGE_WIDTH - MARGIN - 143]
-    titles = ["ENTREGA CONFORME", "RECEPCIÓN CONFORME", "TÉCNICO INSTALADOR"]
+    titles = ["ENTREGA CONFORME (DCI)", "RECEPCIÓN CONFORME", "TÉCNICO INSTALADOR"]
     for x, title in zip(columns, titles):
         pdf.setFillColor(BLUE); pdf.setFont("Helvetica-Bold", 7.5); pdf.drawCentredString(x + 57, y, title)
         pdf.setStrokeColor(colors.HexColor("#64748b")); pdf.line(x, y - 54, x + 114, y - 54)
     pdf.setFillColor(TEXT); pdf.setFont("Helvetica", 7)
-    pdf.drawCentredString(columns[0] + 57, y - 66, record.created_by.full_name if record.created_by else "Encargado GEIMSER")
+    pdf.drawCentredString(columns[0] + 57, y - 66, record.created_by.full_name if record.created_by else "Firma encargado DCI")
     pdf.drawCentredString(columns[1] + 57, y - 66, record.recipient_signer_name or record.recipient_name)
-    pdf.drawCentredString(columns[2] + 57, y - 66, "Técnico responsable")
+    pdf.drawCentredString(columns[2] + 57, y - 66, "Firma Técnico/a responsable")
     if record.recipient_signature_data:
         try:
             raw = base64.b64decode(record.recipient_signature_data.split(",", 1)[1])
