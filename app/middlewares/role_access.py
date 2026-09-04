@@ -9,6 +9,7 @@ from app.core.database import SessionLocal
 from app.models.user import User
 from app.models.role import Role
 from app.services.natura_access import is_natura_manager
+from app.services.delivery_record_access import is_delivery_records_only_user
 from sqlalchemy.orm import joinedload, selectinload
 
 
@@ -58,7 +59,25 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 .filter(User.id == user_id, User.is_active.is_(True))
                 .first()
             )
-            if not user or user.role.name == "Administrador":
+            if not user:
+                return await call_next(request)
+
+            if is_delivery_records_only_user(user):
+                if (
+                    path == "/delivery-records"
+                    or path.startswith("/delivery-records/")
+                    or path.startswith("/api/delivery-records")
+                    or path in {"/api/auth/refresh", "/api/auth/logout"}
+                ):
+                    return await call_next(request)
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Esta cuenta sólo tiene acceso a Actas de Entrega."},
+                    )
+                return RedirectResponse(url="/delivery-records", status_code=303)
+
+            if user.role.name == "Administrador":
                 return await call_next(request)
 
             is_it_manager = any(permission.code == "it:manage" for permission in user.role.permissions)

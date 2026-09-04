@@ -126,8 +126,18 @@
             {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
             {% set is_full_scrum_supervisor = user.role.name in ['Administrador', 'Supervisor'] and user.area and user.area.name in ['Administración', 'Administracion', 'Ventas'] %}
             {% set is_technology_user = user.role.name == 'Usuario' and user.area and (user.area.name.lower().startswith('tecnolog') or user.area.name.lower() == 'it') %}
+            {% set is_delivery_records_only_user = user.email and user.email.lower() == 'rodrigo.torres@braincorp.cl' %}
 
-            {% if is_natura_user or is_natura_manager %}
+            {% if is_delivery_records_only_user %}
+            <div class="pt-4 pb-2 px-4">
+                <p class="text-[10px] font-semibold text-[#8C8C8C] tracking-wider uppercase">Actas</p>
+            </div>
+            <a href="/delivery-records"
+                class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'delivery-records' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
+                <i class="fa-solid fa-file-signature text-base"></i>
+                <span>Actas de Entrega</span>
+            </a>
+            {% elif is_natura_user or is_natura_manager %}
             {% if is_full_scrum_supervisor %}
             <a href="/dashboard"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'dashboard' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
@@ -301,7 +311,7 @@
         <!-- Footer de Sidebar (Usuario Activo y Ajustes) -->
         <div class="p-4 border-t border-[#8C8C8C]/10 bg-[#262523]/50">
             <div class="flex items-center space-x-3 justify-between">
-                <a href="{{ '/documents' if is_natura_user else '/profile' }}"
+                <a href="{{ '/delivery-records' if is_delivery_records_only_user else ('/documents' if is_natura_user else '/profile') }}"
                     class="flex items-center space-x-3 group cursor-pointer overflow-hidden max-w-[160px]">
                     <img src="{{ user.avatar_url or '/static/images/default-avatar.png' }}" alt="Avatar"
                         class="w-10 h-10 rounded-xl object-cover border border-[#8C8C8C]/30 group-hover:border-[#79F2E6] transition-colors duration-200">

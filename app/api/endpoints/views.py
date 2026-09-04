@@ -13,6 +13,7 @@ from app.core.database_seed import ensure_delivery_record_signature_columns
 from app.models.user import User
 from app.models.delivery_record import DeliveryRecord
 from app.services.natura_access import is_natura_manager
+from app.services.delivery_record_access import is_delivery_records_only_user
 
 router = APIRouter()
 
@@ -67,11 +68,14 @@ def can_manage_delivery_records(user: User) -> bool:
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(
+        is_delivery_records_only_user(user)
+        or (
         user.role
         and (
             user.role.name == "Administrador"
             or any(permission.code == "it:manage" for permission in user.role.permissions)
             or is_technology_user
+        )
         )
     )
 
@@ -81,6 +85,8 @@ def login_view(request: Request, db: Session = Depends(get_db)):
     """Muestra la página de inicio de sesión. Si ya tiene sesión, redirige al Dashboard."""
     user = get_current_user_optional(request, db)
     if user and user.is_active:
+        if is_delivery_records_only_user(user):
+            return RedirectResponse(url="/delivery-records")
         use_documents_home = is_natura_user(user) and not has_full_scrum_access(user)
         return RedirectResponse(url="/documents" if use_documents_home else "/dashboard")
     

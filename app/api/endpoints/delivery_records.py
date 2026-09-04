@@ -27,6 +27,7 @@ from app.schemas.delivery_record import (
 from app.services.audit_service import audit_service
 from app.services.email_service import EmailService
 from app.services.delivery_record_pdf import build_delivery_record_pdf
+from app.services.delivery_record_access import is_delivery_records_only_user
 
 router = APIRouter()
 SIGNATURE_LINK_VALIDITY_DAYS = 7
@@ -38,11 +39,14 @@ def can_manage_delivery_records(user: User) -> bool:
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(
+        is_delivery_records_only_user(user)
+        or (
         user.role
         and (
             user.role.name == "Administrador"
             or any(permission.code == "it:manage" for permission in user.role.permissions)
             or is_technology_user
+        )
         )
     )
 
