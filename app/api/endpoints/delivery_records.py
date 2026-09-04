@@ -34,6 +34,8 @@ SIGNATURE_LINK_VALIDITY_DAYS = 7
 
 
 def can_manage_delivery_records(user: User) -> bool:
+    if is_delivery_records_only_user(user):
+        return False
     area_name = (user.area.name if user.area else "").strip().casefold()
     is_technology_user = user.role and user.role.name == "Usuario" and (
         area_name.startswith("tecnolog") or area_name == "it"
