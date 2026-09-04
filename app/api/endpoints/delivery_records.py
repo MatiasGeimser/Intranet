@@ -39,21 +39,28 @@ def can_manage_delivery_records(user: User) -> bool:
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(
-        is_delivery_records_only_user(user)
-        or (
         user.role
         and (
             user.role.name == "Administrador"
             or any(permission.code == "it:manage" for permission in user.role.permissions)
             or is_technology_user
         )
-        )
     )
+
+
+def can_view_delivery_records(user: User) -> bool:
+    return is_delivery_records_only_user(user) or can_manage_delivery_records(user)
 
 
 def require_delivery_record_manager(user: User = Depends(get_current_active_user)) -> User:
     if not can_manage_delivery_records(user):
         raise HTTPException(status_code=403, detail="No tienes permiso para gestionar actas de entrega.")
+    return user
+
+
+def require_delivery_record_reader(user: User = Depends(get_current_active_user)) -> User:
+    if not can_view_delivery_records(user):
+        raise HTTPException(status_code=403, detail="No tienes permiso para consultar actas de entrega.")
     return user
 
 
@@ -232,7 +239,7 @@ def _complete_signature(
 @router.get("", response_model=List[DeliveryRecordSummary])
 def list_delivery_records(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_delivery_record_manager),
+    current_user: User = Depends(require_delivery_record_reader),
 ):
     ensure_delivery_record_signature_columns(db)
     return db.query(DeliveryRecord).order_by(DeliveryRecord.created_at.desc()).all()
@@ -317,7 +324,7 @@ def create_delivery_record(
 def get_delivery_record(
     record_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_delivery_record_manager),
+    current_user: User = Depends(require_delivery_record_reader),
 ):
     return _serialize(_get_record_or_404(db, record_id))
 
@@ -380,7 +387,7 @@ def send_signature_link(
 def validate_integrity(
     record_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_delivery_record_manager),
+    current_user: User = Depends(require_delivery_record_reader),
 ):
     record = _get_record_or_404(db, record_id)
     current_hash = _document_hash(record)
@@ -397,7 +404,7 @@ def download_delivery_record_pdf(
     record_id: int,
     inline: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_delivery_record_manager),
+    current_user: User = Depends(require_delivery_record_reader),
 ):
     record = _get_record_or_404(db, record_id)
     if record.status != "signed" or not record.signed_document_hash:

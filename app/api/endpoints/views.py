@@ -68,16 +68,17 @@ def can_manage_delivery_records(user: User) -> bool:
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(
-        is_delivery_records_only_user(user)
-        or (
         user.role
         and (
             user.role.name == "Administrador"
             or any(permission.code == "it:manage" for permission in user.role.permissions)
             or is_technology_user
         )
-        )
     )
+
+
+def can_view_delivery_records(user: User) -> bool:
+    return is_delivery_records_only_user(user) or can_manage_delivery_records(user)
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -345,12 +346,13 @@ def delivery_records_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if not can_manage_delivery_records(user):
+    if not can_view_delivery_records(user):
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(request=request, name="delivery_records.html", context={
         "user": user,
         "active_page": "delivery-records",
         "project_name": settings.PROJECT_NAME,
+        "can_manage_records": can_manage_delivery_records(user),
     })
 
 

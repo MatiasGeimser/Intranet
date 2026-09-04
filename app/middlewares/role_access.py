@@ -64,9 +64,11 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
 
             if is_delivery_records_only_user(user):
                 if (
-                    path == "/delivery-records"
-                    or path.startswith("/delivery-records/")
-                    or path.startswith("/api/delivery-records")
+                    (request.method == "GET" and (
+                        path == "/delivery-records"
+                        or path.startswith("/delivery-records/")
+                        or path.startswith("/api/delivery-records")
+                    ))
                     or path in {"/api/auth/refresh", "/api/auth/logout"}
                 ):
                     return await call_next(request)
