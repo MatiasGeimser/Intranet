@@ -40,6 +40,8 @@ def is_natura_manager_actor(db: Session, actor: User) -> bool:
 def ensure_supervisor_scope(db: Session, actor: User, target: User | None = None, email: str | None = None) -> None:
     """Supervisores y responsables administran exclusivamente cuentas Natura."""
     if is_natura_manager_actor(db, actor):
+        if target is not None and not is_natura_account(target):
+            raise HTTPException(status_code=403, detail="El responsable Natura solo puede administrar usuarios de Natura.")
         return
     if actor.role.name != "Supervisor":
         return
@@ -384,7 +386,7 @@ def update_user(
     # Actualizar campos comunes
     if user_data.full_name:
         user.full_name = user_data.full_name
-    if user_data.supervisor_id is not None:
+    if "supervisor_id" in user_data.model_fields_set:
         user.supervisor_id = user_data.supervisor_id
     if user_data.gender:
         user.gender = user_data.gender
