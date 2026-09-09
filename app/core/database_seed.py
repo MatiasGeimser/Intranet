@@ -47,6 +47,19 @@ def ensure_delivery_record_signature_columns(db: Session) -> None:
     db.commit()
 
 
+def ensure_user_phone_column(db: Session) -> None:
+    """Añade el teléfono de contacto a instalaciones ya existentes."""
+    from sqlalchemy import text
+
+    if engine.name == "postgresql":
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)"))
+    else:
+        existing_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "phone" not in existing_columns:
+            db.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(50)"))
+    db.commit()
+
+
 def migrate_natura_document_structure(db: Session) -> None:
     """Normaliza las rutas Natura y crea la rama compartida de Personas Natura."""
     for permission in db.query(FolderAccess).all():
@@ -129,13 +142,7 @@ def seed_database(db: Session):
 
     # Teléfono de contacto en las cuentas corporativas existentes.
     try:
-        if engine.name == "postgresql":
-            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)"))
-        else:
-            existing_columns = {column["name"] for column in inspect(engine).get_columns("users")}
-            if "phone" not in existing_columns:
-                db.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(50)"))
-        db.commit()
+        ensure_user_phone_column(db)
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (users.phone): {e} ======")

@@ -4,7 +4,7 @@ import os
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.database_seed import seed_database
+from app.core.database_seed import ensure_user_phone_column, seed_database
 
 # Importar Middlewares de Seguridad
 from app.middlewares.security_headers import SecurityHeadersMiddleware
@@ -99,7 +99,15 @@ from app.services.scheduler_service import scheduler_service
 def on_startup():
     """Siembra y configura automáticamente la base de datos local o Postgres."""
     if os.environ.get("VERCEL"):
-        print("====== INTRANET SERVERLESS: se omite la siembra de arranque ======")
+        db = SessionLocal()
+        try:
+            ensure_user_phone_column(db)
+            print("====== INTRANET SERVERLESS: migración users.phone verificada ======")
+        except Exception as e:
+            db.rollback()
+            print(f"====== ERROR AL MIGRAR users.phone: {e} ======")
+        finally:
+            db.close()
         return
     db = SessionLocal()
     try:
