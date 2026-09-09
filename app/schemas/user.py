@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     area_id: Optional[int] = None
     birth_date: Optional[datetime] = None
     gender: Optional[str] = "Hombre"
+    phone: Optional[str] = Field(None, max_length=50)
     supervisor_id: Optional[int] = None
 
 class UserCreate(UserBase):
@@ -29,6 +30,7 @@ class UserUpdate(BaseModel):
     area_id: Optional[int] = None
     supervisor_id: Optional[int] = None
     gender: Optional[str] = None
+    phone: Optional[str] = Field(None, max_length=50)
     password: Optional[str] = Field(None, min_length=6, max_length=50)
     folder_permissions: Optional[List[FolderAccessCreate]] = None
 

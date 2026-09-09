@@ -127,6 +127,19 @@ def seed_database(db: Session):
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (phone_numbers.is_active): {e} ======")
 
+    # Teléfono de contacto en las cuentas corporativas existentes.
+    try:
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)"))
+        else:
+            existing_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+            if "phone" not in existing_columns:
+                db.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(50)"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (users.phone): {e} ======")
+
     # Vincula las actas al Directorio Corporativo, no a cuentas de acceso.
     try:
         if engine.name == "postgresql":

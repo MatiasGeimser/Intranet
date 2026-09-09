@@ -18,6 +18,7 @@ class User(Base):
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)
     birth_date = Column(DateTime, nullable=True)
     gender = Column(String(10), default="Hombre", nullable=True)
+    phone = Column(String(50), nullable=True)
     supervisor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 

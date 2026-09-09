@@ -150,11 +150,17 @@
                     </div>
                 </div>
                 
-                <div>
-                    <label for="user-supervisor" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Supervisor Directo</label>
-                    <select id="user-supervisor" class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
-                        <option value="">Ninguno</option>
-                    </select>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <label for="user-supervisor" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Supervisor Directo</label>
+                        <select id="user-supervisor" class="w-full text-xs bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                            <option value="">Ninguno</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="user-phone" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Número Telefónico</label>
+                        <input type="tel" id="user-phone" inputmode="tel" maxlength="50" placeholder="ej. +56 9 1234 5678" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
+                    </div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
@@ -484,6 +490,7 @@
         document.getElementById('admin-user-id').value = u.id;
         document.getElementById('user-name').value = u.full_name;
         document.getElementById('user-email').value = u.email;
+        document.getElementById('user-phone').value = u.phone || '';
         document.getElementById('user-email').disabled = false;
         document.getElementById('user-role').disabled = IS_NATURA_MANAGER;
         document.getElementById('user-area').disabled = IS_NATURA_MANAGER;
@@ -668,6 +675,7 @@
         const is_active = document.getElementById("user-active").checked;
         const gender = document.getElementById("user-gender").value;
         const supervisor_id = document.getElementById("user-supervisor").value;
+        const phone = document.getElementById("user-phone").value.trim();
 
         const payload = {
             email: email,
@@ -675,6 +683,7 @@
             role_id: parseInt(role_id),
             area_id: area_id ? parseInt(area_id) : null,
             supervisor_id: supervisor_id ? parseInt(supervisor_id) : null,
+            phone: phone || null,
             is_active: is_active,
             gender: gender
         };

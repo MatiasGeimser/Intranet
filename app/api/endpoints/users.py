@@ -305,6 +305,7 @@ def create_user(
         is_natura_user=is_natura_manager_actor(db, admin_user) or is_natura_account(user_data.email),
         supervisor_id=user_data.supervisor_id,
         gender=user_data.gender,
+        phone=user_data.phone.strip() if user_data.phone else None,
         avatar_url=user_data.avatar_url or default_avatar,
         is_active=user_data.is_active
     )
@@ -393,6 +394,9 @@ def update_user(
         # Si no tiene avatar o es uno autogenerado/predeterminado, lo actualizamos al cambiar género/nombre
         if not user.avatar_url or "avatar.iran.liara.run" in user.avatar_url or "default-avatar.png" in user.avatar_url or "api.dicebear.com" in user.avatar_url:
             user.avatar_url = "/static/uploads/avatars/woman.png" if user.gender and user.gender.lower() == 'mujer' else "/static/uploads/avatars/man.png"
+
+    if "phone" in user_data.model_fields_set:
+        user.phone = user_data.phone.strip() if user_data.phone else None
             
     if user_data.avatar_url is not None:
         user.avatar_url = user_data.avatar_url
