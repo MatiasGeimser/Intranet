@@ -177,7 +177,12 @@
                     </div>
                 </div>
                 
-                <div>
+                <div id="user-temp-pw-info" class="hidden p-3 bg-[#049DD9]/10 border border-[#049DD9]/20 rounded-xl text-[11px] text-[#262523] leading-relaxed">
+                    <i class="fa-solid fa-key text-[#049DD9] mr-1"></i>
+                    El sistema generará una <span class="font-bold">contraseña temporal</span> al guardar. El colaborador deberá cambiarla en su primer ingreso.
+                </div>
+
+                <div id="user-password-wrapper">
                     <label for="user-password" id="user-pw-label" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Contraseña Inicial (mínimo 6 chars)</label>
                     <input type="text" id="user-password" required placeholder="Ingresar contraseña fuerte" class="w-full text-xs bg-gray-50 rounded-xl px-3.5 py-2.5 border border-gray-200 focus:outline-none focus:border-[#049DD9] transition-all">
                 </div>
@@ -241,6 +246,30 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- MODAL CONTRASEÑA TEMPORAL -->
+<div id="temp-pw-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl">
+        <div class="h-1.5 w-full bg-[#049DD9]"></div>
+        <div class="p-6 space-y-4">
+            <h3 class="text-base font-bold text-[#262523] flex items-center gap-2">
+                <i class="fa-solid fa-key text-[#049DD9]"></i>
+                <span>Contraseña temporal generada</span>
+            </h3>
+            <p class="text-xs text-[#8C8C8C] leading-relaxed">
+                Entregue esta contraseña a <span id="temp-pw-email" class="font-semibold text-[#262523] break-all"></span>.
+                Se mostrará solo esta vez; el colaborador deberá cambiarla al iniciar sesión.
+            </p>
+            <div class="flex items-center gap-2">
+                <code id="temp-pw-value" class="flex-1 select-all text-sm font-mono bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 break-all"></code>
+                <button type="button" onclick="copyTempPassword()" class="shrink-0 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl px-3 py-2.5 text-xs font-semibold" title="Copiar">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
+            </div>
+            <button type="button" onclick="closeTempPasswordModal()" class="w-full bg-[#049DD9] text-white rounded-xl py-2.5 text-xs font-semibold hover:bg-[#049DD9]/90">Entendido</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let usersList = [];
     const IS_SUPERVISOR = {{ 'true' if user.role.name == 'Supervisor' else 'false' }};
@@ -476,8 +505,9 @@
         document.getElementById('user-email').disabled = false;
         document.getElementById('user-role').disabled = false;
         document.getElementById('user-area').disabled = false;
-        document.getElementById('user-password').required = true;
-        document.getElementById('user-pw-label').innerText = "Contraseña Inicial (mínimo 6 chars)";
+        document.getElementById('user-password').required = false;
+        document.getElementById('user-password-wrapper').classList.add('hidden');
+        document.getElementById('user-temp-pw-info').classList.remove('hidden');
         document.getElementById('user-modal-title').innerText = "Crear Nuevo Colaborador";
         await loadRolesIntoSelect();
         await loadAreasIntoSelect();
@@ -500,7 +530,9 @@
         document.getElementById("user-gender").value = u.gender || "Hombre";
         document.getElementById('user-password').value = '';
         document.getElementById('user-password').required = false;
-        document.getElementById('user-pw-label').innerText = "Modificar Contraseña (dejar en blanco para conservar)";
+        document.getElementById('user-password-wrapper').classList.remove('hidden');
+        document.getElementById('user-temp-pw-info').classList.add('hidden');
+        document.getElementById('user-pw-label').innerText = "Restablecer Contraseña Temporal (dejar en blanco para conservar)";
         document.getElementById('user-modal-title').innerText = "Modificar Colaborador";
         await loadRolesIntoSelect(u.role_id);
         await loadAreasIntoSelect(u.area_id);
@@ -687,7 +719,7 @@
             is_active: is_active,
             gender: gender
         };
-        if (password) payload.password = password;
+        if (id && password) payload.password = password;
 
         // Recolectar permisos de carpeta
         const folders = ['General', 'IT', 'RRHH', 'Finanzas', 'Claves', 'Natura', 'FACTURACION', 'REPORTES'];
@@ -706,11 +738,7 @@
                     body: payload
                 });
             } else {
-                // Creación
-                if (!password) {
-                    showToast("La contraseña inicial es obligatoria.", "error");
-                    return;
-                }
+                // Creación: la contraseña temporal la genera el servidor
                 payload.email = email;
                 response = await fetchAPI('/api/users', {
                     method: 'POST',
@@ -719,15 +747,40 @@
             }
 
             if (response && response.ok) {
+                const saved = await response.json().catch(() => ({}));
                 showToast("Colaborador guardado con éxito.", "success");
                 closeUserModal();
                 loadUsers();
+                if (!id && saved.temporary_password) {
+                    showTempPasswordModal(saved.email, saved.temporary_password);
+                }
             } else {
                 const data = await response.json();
                 showToast(data.detail || "Error al procesar colaborador.", "error");
             }
         } catch (err) {
             showToast("Error de conexión con el servidor.", "error");
+        }
+    }
+
+    function showTempPasswordModal(email, tempPassword) {
+        document.getElementById('temp-pw-email').textContent = email;
+        document.getElementById('temp-pw-value').textContent = tempPassword;
+        document.getElementById('temp-pw-modal').classList.remove('hidden');
+    }
+
+    function closeTempPasswordModal() {
+        document.getElementById('temp-pw-value').textContent = '';
+        document.getElementById('temp-pw-modal').classList.add('hidden');
+    }
+
+    async function copyTempPassword() {
+        const value = document.getElementById('temp-pw-value').textContent;
+        try {
+            await navigator.clipboard.writeText(value);
+            showToast("Contraseña temporal copiada.", "success");
+        } catch (err) {
+            showToast("No se pudo copiar; selecciónela manualmente.", "error");
         }
     }
 

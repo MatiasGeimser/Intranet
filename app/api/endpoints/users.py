@@ -4,14 +4,14 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
-from app.schemas.user import UserResponse, UserCreate, UserUpdate, NaturaManagersUpdate
+from app.schemas.user import UserResponse, UserCreate, UserUpdate, NaturaManagersUpdate, UserCreatedResponse
 from app.models.user import User
 from app.models.role import Role
 from app.models.folder_access import FolderAccess
 from app.models.area import Area
 from app.services.natura_access import is_natura_manager
 from app.api.deps import get_current_active_user, PermissionChecker
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_temporary_password
 from app.services.audit_service import audit_service
 from datetime import datetime
 from app.core.config import settings
@@ -263,7 +263,7 @@ def update_natura_managers(
     return {"manager_ids": manager_ids, "folder_count": len(folder_names)}
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserCreatedResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     request: Request,
     user_data: UserCreate,
@@ -293,12 +293,15 @@ def create_user(
         raise HTTPException(status_code=403, detail="Un supervisor solo puede crear usuarios con rol Usuario.")
     ensure_natura_manager_fields(db, admin_user, role, user_data.area_id)
 
-    hashed_pw = get_password_hash(user_data.password)
+    # Toda cuenta nueva nace con una contraseña temporal que el usuario debe cambiar al ingresar.
+    temporary_password = user_data.password or generate_temporary_password()
+    hashed_pw = get_password_hash(temporary_password)
     default_avatar = "/static/uploads/avatars/woman.png" if user_data.gender and user_data.gender.lower() == 'mujer' else "/static/uploads/avatars/man.png"
     
     db_user = User(
         email=user_data.email,
         hashed_password=hashed_pw,
+        must_change_password=True,
         full_name=user_data.full_name,
         role_id=user_data.role_id,
         area_id=user_data.area_id,
@@ -337,10 +340,12 @@ def create_user(
         user_id=admin_user.id,
         action="user_create",
         ip_address=request.client.host if request.client else None,
-        details=f"Creó el usuario con ID {db_user.id} ({db_user.email}) con rol {role.name}."
+        details=f"Creó el usuario con ID {db_user.id} ({db_user.email}) con rol {role.name} y contraseña temporal."
     )
 
-    return db_user
+    response = UserCreatedResponse.model_validate(db_user)
+    response.temporary_password = temporary_password
+    return response
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -406,7 +411,9 @@ def update_user(
             raise HTTPException(status_code=400, detail="No puede desactivar su propia cuenta de administrador.")
         user.is_active = user_data.is_active
     if user_data.password:
+        # Una contraseña asignada por un administrador es temporal hasta que el usuario la cambie.
         user.hashed_password = get_password_hash(user_data.password)
+        user.must_change_password = user.id != admin_user.id
 
     # Actualizar permisos de carpeta si vienen en la petición
     if user_data.folder_permissions is not None:

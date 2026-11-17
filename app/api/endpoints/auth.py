@@ -88,7 +88,8 @@ def login(
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "must_change_password": bool(user.must_change_password),
     }
 
 
@@ -185,7 +186,14 @@ def change_password(
             detail="La contraseña actual proporcionada es incorrecta."
         )
 
+    if verify_password(pw_data.new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe ser distinta a la actual."
+        )
+
     current_user.hashed_password = get_password_hash(pw_data.new_password)
+    current_user.must_change_password = False
     db.commit()
 
     # Log de auditoría

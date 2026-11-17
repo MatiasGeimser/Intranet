@@ -277,6 +277,21 @@ def it_assets_view(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url="/network", status_code=303)
 
 
+@router.get("/change-password", response_class=HTMLResponse)
+def change_password_view(request: Request, db: Session = Depends(get_db)):
+    """Pantalla obligatoria para reemplazar la contraseña temporal en el primer ingreso."""
+    user = get_current_user_optional(request, db)
+    if not user or not user.is_active:
+        return RedirectResponse(url="/login")
+    if not user.must_change_password:
+        return RedirectResponse(url="/")
+
+    return templates.TemplateResponse(request=request, name="change_password.html", context={
+        "user": user,
+        "project_name": settings.PROJECT_NAME
+    })
+
+
 @router.get("/profile", response_class=HTMLResponse)
 def profile_view(request: Request, db: Session = Depends(get_db)):
     """Muestra el perfil y configuración del usuario actual."""

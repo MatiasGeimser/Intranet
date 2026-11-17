@@ -14,6 +14,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_natura_user = Column(Boolean, default=False, nullable=False)
     is_document_admin = Column(Boolean, default=False, nullable=False)
+    must_change_password = Column(Boolean, default=False, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=True)
     birth_date = Column(DateTime, nullable=True)

@@ -19,6 +19,13 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
     public_paths = {"/", "/login", "/favicon.ico"}
     member_pages = {"/passwords", "/vault", "/directory", "/profile"}
     chat_roles = {"Administrador", "Supervisor"}
+    # Rutas permitidas mientras el usuario mantiene una contraseña temporal.
+    password_change_paths = {
+        "/change-password",
+        "/api/auth/change-password",
+        "/api/auth/logout",
+        "/api/auth/refresh",
+    }
 
     @staticmethod
     def _is_natura_user(user: User) -> bool:
@@ -61,6 +68,17 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             )
             if not user:
                 return await call_next(request)
+
+            # Contraseña temporal: nada más está disponible hasta que el usuario la cambie.
+            if user.must_change_password:
+                if path in self.password_change_paths:
+                    return await call_next(request)
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Debe cambiar su contraseña temporal antes de continuar."},
+                    )
+                return RedirectResponse(url="/change-password", status_code=303)
 
             if is_delivery_records_only_user(user):
                 if (

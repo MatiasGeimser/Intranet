@@ -103,3 +103,25 @@ def verify_token(token: str, token_type: str = "access") -> Optional[str]:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    """Genera una contraseña temporal aleatoria con mayúsculas, minúsculas, dígitos y símbolos."""
+    import secrets
+    import string
+
+    # Se excluyen caracteres ambiguos (0/O, 1/l/I) para facilitar su transcripción.
+    upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    lower = "abcdefghijkmnopqrstuvwxyz"
+    digits = "23456789"
+    symbols = "@#$%&*?!"
+    alphabet = upper + lower + digits + symbols
+    chars = [
+        secrets.choice(upper),
+        secrets.choice(lower),
+        secrets.choice(digits),
+        secrets.choice(symbols),
+    ]
+    chars += [secrets.choice(alphabet) for _ in range(max(length, 8) - len(chars))]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)

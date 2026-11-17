@@ -60,6 +60,19 @@ def ensure_user_phone_column(db: Session) -> None:
     db.commit()
 
 
+def ensure_user_must_change_password_column(db: Session) -> None:
+    """Añade el indicador de contraseña temporal a instalaciones existentes."""
+    from sqlalchemy import text
+
+    if engine.name == "postgresql":
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE"))
+    else:
+        existing_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "must_change_password" not in existing_columns:
+            db.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0"))
+    db.commit()
+
+
 def migrate_natura_document_structure(db: Session) -> None:
     """Normaliza las rutas Natura y crea la rama compartida de Personas Natura."""
     for permission in db.query(FolderAccess).all():
@@ -146,6 +159,13 @@ def seed_database(db: Session):
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (users.phone): {e} ======")
+
+    # Contraseñas temporales: obliga a cambiarlas en el primer ingreso.
+    try:
+        ensure_user_must_change_password_column(db)
+    except Exception as e:
+        db.rollback()
+        print(f"====== AVISO MIGRACIÓN (users.must_change_password): {e} ======")
 
     # Vincula las actas al Directorio Corporativo, no a cuentas de acceso.
     try:

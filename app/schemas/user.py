@@ -17,7 +17,8 @@ class UserBase(BaseModel):
     supervisor_id: Optional[int] = None
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6, max_length=50)
+    # Si no se indica, el sistema genera una contraseña temporal automáticamente.
+    password: Optional[str] = Field(None, min_length=6, max_length=50)
     role_id: int
     folder_permissions: Optional[List[FolderAccessCreate]] = None
 
@@ -50,6 +51,7 @@ class UserResponse(UserBase):
     id: int
     is_natura_user: bool = False
     is_document_admin: bool = False
+    must_change_password: bool = False
     role_id: int
     role: RoleSimple
     area: Optional[AreaSimple] = None
@@ -59,3 +61,8 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class UserCreatedResponse(UserResponse):
+    # Se entrega una única vez al administrador para que la comunique al colaborador.
+    temporary_password: Optional[str] = None

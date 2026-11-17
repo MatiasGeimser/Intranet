@@ -221,10 +221,17 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showLocalToast("Autenticación correcta. Iniciando sesión...", "success");
-                    setTimeout(() => {
-                        window.location.href = '/dashboard';
-                    }, 1000);
+                    if (data.must_change_password) {
+                        showLocalToast("Debe definir una nueva contraseña para continuar.", "success");
+                        setTimeout(() => {
+                            window.location.href = '/change-password';
+                        }, 1000);
+                    } else {
+                        showLocalToast("Autenticación correcta. Iniciando sesión...", "success");
+                        setTimeout(() => {
+                            window.location.href = '/dashboard';
+                        }, 1000);
+                    }
                 } else {
                     showLocalToast(data.detail || "Error al iniciar sesión.", "error");
                     submitBtn.disabled = false;
