@@ -12,7 +12,8 @@ class TaskBase(BaseModel):
     note_id: Optional[int] = None
 
 class TaskCreate(TaskBase):
-    pass
+    # Varias personas: se crea una copia de la tarea para cada una (cada quien avanza la suya).
+    assigned_to_user_ids: Optional[List[int]] = Field(default=None, max_length=50)
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)

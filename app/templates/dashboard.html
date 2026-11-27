@@ -334,19 +334,20 @@
                 <textarea id="taskDescription" placeholder="Detalles de la tarea..." rows="3" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-corp/50 outline-none resize-none"></textarea>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Proyecto</label>
-                    <select id="taskProject" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
-                        <option value="">Seleccionar...</option>
-                    </select>
+            <div>
+                <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Proyecto</label>
+                <select id="taskProject" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
+                    <option value="">Seleccionar...</option>
+                </select>
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-[10px] font-bold text-grey-main uppercase">Encargados (Asignar a)</label>
+                    <span id="taskAssigneeCount" class="text-[10px] font-semibold text-blue-corp">0 seleccionados</span>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-grey-main uppercase mb-1">Encargado (Asignar a)</label>
-                    <select id="taskAssignee" required class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
-                        <option value="">Sin asignar</option>
-                    </select>
-                </div>
+                <input id="taskAssigneeSearch" type="search" oninput="filterTaskAssignees()" placeholder="Buscar persona..." class="w-full bg-gray-50 border border-gray-200 rounded-t-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-corp/50">
+                <div id="taskAssigneeList" class="max-h-40 overflow-y-auto border border-t-0 border-gray-200 rounded-b-xl bg-white divide-y divide-gray-50"></div>
+                <p class="mt-1 text-[10px] text-gray-400">Puedes marcar varias personas: cada una recibe su propia copia de la tarea.</p>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
@@ -1552,14 +1553,60 @@
             projectSelect.value = activeProjectId;
         }
 
-        // Poblar selector de encargados en el modal
-        const assigneeSelect = document.getElementById("taskAssignee");
+        // Poblar lista de encargados (selección múltiple) en el modal
         const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
-        assigneeSelect.innerHTML = '<option value="">Seleccionar encargado...</option>';
-        appendGroupedAssignees(
-            assigneeSelect,
+        renderTaskAssigneeList(
             usersList.filter(u => !isNaturaCollaborator(u) && allowedRoles.includes(u.role?.name || "Usuario"))
         );
+    }
+
+    // Lista con casillas agrupada en "Equipo" y "Practicantes"
+    function renderTaskAssigneeList(users) {
+        const list = document.getElementById("taskAssigneeList");
+        document.getElementById("taskAssigneeSearch").value = "";
+        const sorted = [...users].sort((a, b) => a.full_name.localeCompare(b.full_name, "es"));
+        const groups = [
+            ["Equipo", sorted.filter(u => !isIntern(u))],
+            ["Practicantes", sorted.filter(isIntern)],
+        ];
+        list.innerHTML = groups.filter(([, members]) => members.length).map(([label, members]) => `
+            <div data-assignee-group>
+                <div class="flex items-center justify-between px-3 py-1.5 bg-gray-50 sticky top-0">
+                    <span class="text-[9px] font-bold uppercase tracking-wider text-gray-500">${label}</span>
+                    <button type="button" onclick="toggleAssigneeGroup(this)" class="text-[9px] font-semibold text-blue-corp hover:underline">Marcar todos</button>
+                </div>
+                ${members.map(u => `
+                    <label data-assignee-row data-name="${escapeTaskHtml(u.full_name.toLowerCase())}" class="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-corp/5 cursor-pointer">
+                        <input type="checkbox" name="taskAssignees" value="${u.id}" onchange="updateTaskAssigneeCount()" class="rounded border-gray-300 text-blue-corp focus:ring-blue-corp/40">
+                        <span class="truncate">${escapeTaskHtml(u.full_name)}</span>
+                        <span class="ml-auto text-[10px] text-gray-400">${isIntern(u) ? "Practicante" : escapeTaskHtml(u.role?.name || "Usuario")}</span>
+                    </label>`).join("")}
+            </div>`).join("") || '<p class="px-3 py-4 text-center text-[11px] text-gray-400">No hay personas disponibles.</p>';
+        updateTaskAssigneeCount();
+    }
+
+    function selectedTaskAssignees() {
+        return [...document.querySelectorAll('input[name="taskAssignees"]:checked')].map(input => parseInt(input.value));
+    }
+
+    function updateTaskAssigneeCount() {
+        const count = selectedTaskAssignees().length;
+        document.getElementById("taskAssigneeCount").textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+    }
+
+    function toggleAssigneeGroup(button) {
+        const inputs = [...button.closest("[data-assignee-group]").querySelectorAll("[data-assignee-row]:not(.hidden) input")];
+        const markAll = inputs.some(input => !input.checked);
+        inputs.forEach(input => { input.checked = markAll; });
+        button.textContent = markAll ? "Desmarcar" : "Marcar todos";
+        updateTaskAssigneeCount();
+    }
+
+    function filterTaskAssignees() {
+        const term = document.getElementById("taskAssigneeSearch").value.trim().toLowerCase();
+        document.querySelectorAll("#taskAssigneeList [data-assignee-row]").forEach(row => {
+            row.classList.toggle("hidden", Boolean(term) && !row.dataset.name.includes(term));
+        });
     }
 
     // Practicantes: usuarios del área "Practicantes"
@@ -1607,7 +1654,11 @@
         const title = document.getElementById('taskTitle').value;
         const description = document.getElementById('taskDescription').value;
         const noteId = document.getElementById('taskProject').value;
-        const assigneeId = document.getElementById('taskAssignee').value;
+        const assigneeIds = selectedTaskAssignees();
+        if (!assigneeIds.length) {
+            showToast("Selecciona al menos un encargado.", "error");
+            return;
+        }
         const initialStatus = document.getElementById('taskInitialStatus').value;
         const dueDate = document.getElementById('taskDueDate').value;
 
@@ -1616,7 +1667,7 @@
             description: description || null,
             status: initialStatus,
             note_id: noteId ? parseInt(noteId) : null,
-            assigned_to_user_id: assigneeId ? parseInt(assigneeId) : null,
+            assigned_to_user_ids: assigneeIds,
             due_date: dueDate ? new Date(dueDate).toISOString() : null
         };
 
@@ -1628,7 +1679,9 @@
             
             if (response && response.ok) {
                 closeNewTaskModal();
-                showToast("Tarea creada e insertada en el tablero.", "success");
+                showToast(assigneeIds.length > 1
+                    ? `Tarea asignada a ${assigneeIds.length} personas (una copia para cada una).`
+                    : "Tarea creada e insertada en el tablero.", "success");
                 
                 // Recargar proyectos y tareas
                 await loadProjectsAndTasks();

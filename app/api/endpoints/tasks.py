@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List
@@ -78,6 +78,7 @@ def read_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_c
 def create_task(
     task_in: TaskCreate,
     background_tasks: BackgroundTasks,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -93,41 +94,48 @@ def create_task(
     if task_in.assigned_to_role_id is not None:
         raise HTTPException(status_code=400, detail="Las tareas Scrum deben asignarse a una persona específica.")
 
-    assignee_id = task_in.assigned_to_user_id
-    if not assignee_id:
-        raise HTTPException(status_code=400, detail="Selecciona un encargado para la tarea.")
-    assignee = db.query(User).filter(User.id == assignee_id, User.is_active.is_(True)).first()
-    if not assignee:
-        raise HTTPException(status_code=400, detail="Selecciona un usuario activo para asignar la tarea.")
-    validate_task_assignee(current_user, assignee)
+    # Una o varias personas encargadas (se conserva el orden y se eliminan duplicados).
+    assignee_ids = list(dict.fromkeys(task_in.assigned_to_user_ids or []))
+    if not assignee_ids and task_in.assigned_to_user_id:
+        assignee_ids = [task_in.assigned_to_user_id]
+    if not assignee_ids:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un encargado para la tarea.")
 
-    task_data = task_in.dict()
-    task_data["assigned_to_user_id"] = assignee_id
-    db_task = Task(
-        **task_data,
-        created_by_id=current_user.id
-    )
-    db.add(db_task)
+    assignees = db.query(User).filter(User.id.in_(assignee_ids), User.is_active.is_(True)).all()
+    if len(assignees) != len(assignee_ids):
+        raise HTTPException(status_code=400, detail="Selecciona solo usuarios activos para asignar la tarea.")
+    for assignee in assignees:
+        validate_task_assignee(current_user, assignee)
+    assignees_by_id = {assignee.id: assignee for assignee in assignees}
+
+    task_data = task_in.dict(exclude={"assigned_to_user_ids", "assigned_to_user_id"})
+    created_tasks = []
+    for assignee_id in assignee_ids:
+        db_task = Task(**task_data, assigned_to_user_id=assignee_id, created_by_id=current_user.id)
+        db.add(db_task)
+        created_tasks.append(db_task)
     db.commit()
-    db.refresh(db_task)
-    
-    # Enviar correo si se asignó a un usuario
-    if db_task.assigned_to_user_id:
-        recipient = db.query(User).filter(User.id == db_task.assigned_to_user_id).first()
-        if recipient:
-            from app.models.note import Note
-            from app.services.email_service import EmailService
-            note = db.query(Note).filter(Note.id == db_task.note_id).first() if db_task.note_id else None
-            background_tasks.add_task(
-                EmailService.send_task_assigned_email,
-                recipient_email=recipient.email,
-                recipient_name=recipient.full_name,
-                task_title=db_task.title,
-                assigner_name=current_user.full_name,
-                note_title=note.title if note else "General"
-            )
-            
-    return db_task
+    for db_task in created_tasks:
+        db.refresh(db_task)
+
+    # Enviar correo a cada persona asignada
+    from app.models.note import Note
+    from app.services.email_service import EmailService
+    note = db.query(Note).filter(Note.id == task_in.note_id).first() if task_in.note_id else None
+    for db_task in created_tasks:
+        recipient = assignees_by_id[db_task.assigned_to_user_id]
+        background_tasks.add_task(
+            EmailService.send_task_assigned_email,
+            recipient_email=recipient.email,
+            recipient_name=recipient.full_name,
+            task_title=db_task.title,
+            assigner_name=current_user.full_name,
+            note_title=note.title if note else "General"
+        )
+
+    # Se devuelve la primera tarea para mantener compatibilidad; la cantidad va en la cabecera.
+    response.headers["X-Tasks-Created"] = str(len(created_tasks))
+    return created_tasks[0]
 
 @router.put("/{task_id}", response_model=TaskOut)
 def update_task(
