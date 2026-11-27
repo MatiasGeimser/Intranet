@@ -25,7 +25,15 @@ def get_runtime_database_url() -> str:
     return database_url
 
 
-runtime_database_url = get_runtime_database_url()
+def force_psycopg2_driver(database_url: str) -> str:
+    """SQLAlchemy 2.1 usa psycopg (v3) por defecto; el proyecto instala psycopg2."""
+    for prefix in ("postgresql://", "postgres://"):
+        if database_url.startswith(prefix):
+            return "postgresql+psycopg2://" + database_url[len(prefix):]
+    return database_url
+
+
+runtime_database_url = force_psycopg2_driver(get_runtime_database_url())
 
 # Determinar si estamos usando SQLite
 is_sqlite = runtime_database_url.startswith("sqlite")
