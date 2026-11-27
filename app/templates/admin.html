@@ -312,7 +312,8 @@
         try {
             const response = await fetchAPI('/api/users');
             if (response && response.ok) {
-                usersList = await response.json();
+                usersList = (await response.json()).sort((a, b) =>
+                    (a.full_name || "").localeCompare(b.full_name || "", "es", { sensitivity: "base" }));
                 tbody.innerHTML = "";
                 
                 usersList.forEach(u => {

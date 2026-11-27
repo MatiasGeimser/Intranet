@@ -151,6 +151,10 @@ def provision_natura_personal_folders(db: Session, user: User) -> list[str]:
             grant_natura_folder_access(db, manager_id, folder_names)
     return folder_names
 
+# Orden alfabético por nombre (sin distinguir mayúsculas) para todas las listas de usuarios.
+ALPHABETICAL = (func.lower(User.full_name), User.id)
+
+
 @router.get("/birthdays", response_model=List[UserResponse])
 def get_birthdays(
     db: Session = Depends(get_db),
@@ -169,10 +173,10 @@ def get_users(
 ):
     """Obtiene la lista completa de usuarios corporativos, filtrada por área si no es admin."""
     if current_user.role.name == "Supervisor" or is_natura_manager_actor(db, current_user):
-        return db.query(User).filter(or_(User.is_natura_user.is_(True), func.lower(User.email).like("%@natura.cl"))).all()
+        return db.query(User).filter(or_(User.is_natura_user.is_(True), func.lower(User.email).like("%@natura.cl"))).order_by(*ALPHABETICAL).all()
     if current_user.role.name != "Administrador":
-        return db.query(User).filter(User.area_id == current_user.area_id).all()
-    return db.query(User).all()
+        return db.query(User).filter(User.area_id == current_user.area_id).order_by(*ALPHABETICAL).all()
+    return db.query(User).order_by(*ALPHABETICAL).all()
 
 
 @router.get("/me", response_model=UserResponse)
@@ -196,8 +200,8 @@ def get_users_minimal(
                 User.id == current_user.id,
                 Role.name.in_(["Administrador", "Supervisor"]),
             ),
-        ).all()
-    return db.query(User).filter(User.is_active == True).all()
+        ).order_by(*ALPHABETICAL).all()
+    return db.query(User).filter(User.is_active == True).order_by(*ALPHABETICAL).all()
 
 
 @router.get("/natura-managers")
@@ -207,7 +211,7 @@ def get_natura_managers(
 ):
     folder_names = get_natura_folder_names(db)
     manager_ids = get_natura_manager_ids(db, folder_names)
-    managers = db.query(User).filter(User.id.in_(manager_ids)).all() if manager_ids else []
+    managers = db.query(User).filter(User.id.in_(manager_ids)).order_by(*ALPHABETICAL).all() if manager_ids else []
     return {
         "manager_ids": sorted(manager_ids),
         "folder_count": len(folder_names),
