@@ -5,6 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 import os
 from typing import Optional
+from app.core.roles import is_limited_role
 from app.core.database import get_db
 from app.api.deps import get_token_from_request
 from jose import jwt
@@ -66,7 +67,7 @@ def can_manage_delivery_records(user: User) -> bool:
     if is_delivery_records_only_user(user):
         return False
     area_name = (user.area.name if user.area else "").strip().casefold()
-    is_technology_user = user.role and user.role.name == "Usuario" and (
+    is_technology_user = user.role and is_limited_role(user.role.name) and (
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(
@@ -168,7 +169,7 @@ def passwords_view(request: Request, db: Session = Depends(get_db)):
         
     # Verificar si el rol tiene permiso
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name not in ["Administrador", "Usuario", "Supervisor"] and "credentials:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario", "Practicante", "Supervisor"] and "credentials:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="passwords.html", context={
@@ -199,7 +200,7 @@ def admin_chat_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if user.role.name == "Usuario":
+    if is_limited_role(user.role.name):
         return RedirectResponse(url="/passwords", status_code=303)
 
     response = templates.TemplateResponse(request=request, name="admin_chat.html", context={
@@ -240,7 +241,7 @@ def documents_view(request: Request, db: Session = Depends(get_db)):
         
     permissions = [p.code for p in user.role.permissions]
     natura_manager = is_natura_manager(db, user)
-    if not natura_manager and user.role.name not in ["Administrador", "Usuario"] and "documents:manage" not in permissions:
+    if not natura_manager and user.role.name not in ["Administrador", "Usuario", "Practicante"] and "documents:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="documents.html", context={
@@ -273,7 +274,7 @@ def news_view(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login")
         
     permissions = [p.code for p in user.role.permissions]
-    if user.role.name not in ["Administrador", "Usuario"] and "news:manage" not in permissions:
+    if user.role.name not in ["Administrador", "Usuario", "Practicante"] and "news:manage" not in permissions:
         return RedirectResponse(url="/dashboard")
         
     return templates.TemplateResponse(request=request, name="news.html", context={

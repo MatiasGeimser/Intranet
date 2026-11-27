@@ -326,6 +326,7 @@
                     if (u.role.name === 'Administrador') roleBadgeColor = "bg-red-500/10 text-red-500";
                     else if (u.role.name === 'Supervisor') roleBadgeColor = "bg-[#79F2E6]/25 text-[#049DD9]";
                     else if (u.role.name === 'Usuario') roleBadgeColor = "bg-blue-corp/10 text-blue-corp";
+                    else if (u.role.name === 'Practicante') roleBadgeColor = "bg-amber-500/10 text-amber-600";
 
                     tr.innerHTML = `
                         <td class="px-6 py-4 font-bold text-black-dark">
@@ -650,7 +651,7 @@
             const eligibleUsers = usersList.filter(user =>
                 user.is_active
                 && !user.email.toLowerCase().endsWith('@natura.cl')
-                && ['Administrador', 'Supervisor', 'Usuario'].includes(user.role?.name)
+                && ['Administrador', 'Supervisor', 'Usuario', 'Practicante'].includes(user.role?.name)
             );
             setNaturaManagerOptions('natura-manager-one', eligibleUsers, data.manager_ids[0]);
             setNaturaManagerOptions('natura-manager-two', eligibleUsers, data.manager_ids[1]);

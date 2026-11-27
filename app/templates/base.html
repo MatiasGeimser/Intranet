@@ -131,7 +131,7 @@
             {% set is_natura_user = user.is_natura_user or (user.email and user.email.lower().endswith('@natura.cl')) %}
             {% set is_administration_area = user.area and user.area.name in ['Administración', 'Administracion'] %}
             {% set is_full_scrum_supervisor = user.role.name in ['Administrador', 'Supervisor'] and user.area and user.area.name in ['Administración', 'Administracion', 'Ventas'] %}
-            {% set is_technology_user = user.role.name == 'Usuario' and user.area and (user.area.name.lower().startswith('tecnolog') or user.area.name.lower() == 'it') %}
+            {% set is_technology_user = user.role.name in ['Usuario', 'Practicante'] and user.area and (user.area.name.lower().startswith('tecnolog') or user.area.name.lower() == 'it') %}
             {% set is_delivery_records_only_user = user.email and user.email.lower() == 'rodrigo.torres@braincorp.cl' %}
 
             {% if is_delivery_records_only_user %}
@@ -190,7 +190,7 @@
             {% set _ = user_perms.append(perm.code) %}
             {% endfor %}
 
-            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario'] or 'credentials:manage' in user_perms %}
+            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario', 'Practicante'] or 'credentials:manage' in user_perms %}
             <a href="/passwords"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'passwords' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-users text-base"></i>
@@ -200,7 +200,7 @@
             </a>
             {% endif %}
 
-            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario'] or 'credentials:manage' in user_perms %}
+            {% if user.role.name in ['Administrador', 'Supervisor', 'Usuario', 'Practicante'] or 'credentials:manage' in user_perms %}
             <a href="/vault"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'vault' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-key text-base"></i>
@@ -218,7 +218,7 @@
             </a>
             {% endif %}
 
-            {% if user and user.role and user.role.name != 'Usuario' %}
+            {% if user and user.role and user.role.name not in ['Usuario', 'Practicante'] %}
             <a href="/admin-chat"
                 class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {% if active_page == 'admin-chat' %} bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/25 {% else %} text-[#8C8C8C] hover:bg-[#8C8C8C]/10 hover:text-white {% endif %}">
                 <i class="fa-solid fa-comments text-base"></i>
@@ -698,7 +698,7 @@
         }
     </script>
 
-    {% if user and user.role and user.role.name != 'Usuario' %}
+    {% if user and user.role and user.role.name not in ['Usuario', 'Practicante'] %}
     <script src="/static/js/push.js"></script>
     <div id="push-prompt" class="hidden fixed bottom-20 left-4 right-4 sm:left-auto sm:right-5 sm:w-[340px] z-[60] rounded-2xl border border-[#049DD9]/20 bg-white p-4 shadow-xl">
         <div class="flex items-start gap-3">
@@ -737,7 +737,7 @@
     })();
     </script>
     {% endif %}
-    {% if user and user.role and user.role.name != 'Usuario' and active_page != 'admin-chat' %}
+    {% if user and user.role and user.role.name not in ['Usuario', 'Practicante'] and active_page != 'admin-chat' %}
     <aside id="global-chat" class="fixed bottom-5 right-5 z-50">
         <button id="global-chat-toggle" type="button" class="relative h-12 w-12 rounded-full bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/30 hover:bg-[#038bc2]" title="Chat institucional"><i class="fa-solid fa-comments"></i><span id="global-chat-unread" class="hidden absolute -right-1 -top-1 min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold">0</span></button>
         <section id="global-chat-panel" class="hidden absolute bottom-16 right-0 h-[430px] w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">

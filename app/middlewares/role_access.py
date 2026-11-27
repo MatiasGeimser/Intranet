@@ -3,6 +3,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core.roles import is_limited_role
 from app.api.deps import get_token_from_request
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -102,7 +103,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
 
             is_it_manager = any(permission.code == "it:manage" for permission in user.role.permissions)
             area_name = (user.area.name if user.area else "").strip().casefold()
-            is_technology_user = user.role.name == "Usuario" and (area_name.startswith("tecnolog") or area_name == "it")
+            is_technology_user = is_limited_role(user.role.name) and (area_name.startswith("tecnolog") or area_name == "it")
             if (is_it_manager or is_technology_user) and (
                 path == "/delivery-records"
                 or path.startswith("/delivery-records/")
@@ -205,7 +206,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         method = request.method
         role_name = user.role.name
 
-        if role_name != "Usuario" and (
+        if not is_limited_role(role_name) and (
             path == "/admin-chat" or path.startswith("/api/admin-chat")
         ):
             return True

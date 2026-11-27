@@ -1091,7 +1091,7 @@
     }
 
     function getTaskAssigneeOptions(selectedUserId) {
-        const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
+        const allowedRoles = ["Administrador", "Supervisor", "Usuario", "Practicante"];
 
         return usersList
             .filter(user => !isNaturaCollaborator(user) && allowedRoles.includes(user.role?.name || "Usuario"))
@@ -1571,7 +1571,7 @@
         }
 
         // Poblar lista de encargados (selección múltiple) en el modal
-        const allowedRoles = ["Administrador", "Supervisor", "Usuario"];
+        const allowedRoles = ["Administrador", "Supervisor", "Usuario", "Practicante"];
         renderTaskAssigneeList(
             usersList.filter(u => !isNaturaCollaborator(u) && allowedRoles.includes(u.role?.name || "Usuario"))
         );
@@ -1628,7 +1628,7 @@
 
     // Practicantes: usuarios del área "Practicantes"
     function isIntern(u) {
-        return (u?.area?.name || "").trim().toLowerCase().startsWith("practicante");
+        return u?.role?.name === "Practicante" || (u?.area?.name || "").trim().toLowerCase().startsWith("practicante");
     }
 
     // Agrupa el selector en "Equipo" y "Practicantes" para encontrarlos rápido

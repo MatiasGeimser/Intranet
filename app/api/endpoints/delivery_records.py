@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.core.roles import is_limited_role
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
@@ -37,7 +38,7 @@ def can_manage_delivery_records(user: User) -> bool:
     if is_delivery_records_only_user(user):
         return False
     area_name = (user.area.name if user.area else "").strip().casefold()
-    is_technology_user = user.role and user.role.name == "Usuario" and (
+    is_technology_user = user.role and is_limited_role(user.role.name) and (
         area_name.startswith("tecnolog") or area_name == "it"
     )
     return bool(

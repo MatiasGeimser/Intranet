@@ -280,7 +280,7 @@
         `;
 
         panel.appendChild(listDiv);
-        if ("{{ user.role.name }}" !== "Usuario") {
+        if (!["Usuario", "Practicante"].includes("{{ user.role.name }}")) {
             panel.appendChild(form);
         }
     }

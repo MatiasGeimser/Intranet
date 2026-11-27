@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.roles import LIMITED_ROLES
 from app.api.endpoints import admin_chat
 from app.core.config import settings
 from app.core.database import get_db
@@ -57,7 +58,7 @@ def assistant_chat_user(
     user = (
         db.query(User)
         .join(User.role)
-        .filter(User.email.ilike(payload["email"].strip()), User.is_active.is_(True), Role.name != "Usuario")
+        .filter(User.email.ilike(payload["email"].strip()), User.is_active.is_(True), Role.name.notin_(LIMITED_ROLES))
         .first()
     )
     if not user:

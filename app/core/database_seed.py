@@ -400,7 +400,8 @@ def seed_database(db: Session):
     roles_list = [
         {"name": "Administrador", "description": "Acceso total, configuración global y auditoría"},
         {"name": "Supervisor", "description": "Acceso parcial a reportes, noticias y gestión de equipos"},
-        {"name": "Usuario", "description": "Acceso limitado a sus propios módulos autorizados"}
+        {"name": "Usuario", "description": "Acceso limitado a sus propios módulos autorizados"},
+        {"name": "Practicante", "description": "Practicante: mismo acceso limitado que Usuario, con tareas asignadas"}
     ]
 
     db_roles = {}
@@ -444,6 +445,7 @@ def seed_database(db: Session):
         db_permissions["documents:read"]
     ]
     usuario_role.permissions = usuario_permissions
+    db_roles["Practicante"].permissions = list(usuario_permissions)
 
     db.commit()
 
