@@ -16,6 +16,8 @@ class AdminChatMessage(Base):
     recipient_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    # Momento en que el destinatario abrió la conversación (None = no leído).
+    read_at = Column(DateTime, nullable=True)
 
     sender = relationship("User", foreign_keys=[sender_id])
     recipient = relationship("User", foreign_keys=[recipient_id])

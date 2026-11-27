@@ -14,6 +14,9 @@ from app.services.delivery_record_access import is_delivery_records_only_user
 from sqlalchemy.orm import joinedload, selectinload
 
 
+_ALLOW = object()
+
+
 class RoleAccessMiddleware(BaseHTTPMiddleware):
     """Limita a usuarios no administradores a los tres modulos autorizados."""
 
@@ -59,6 +62,14 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         except (JWTError, TypeError, ValueError):
             return await call_next(request)
 
+        # La decisión se toma con la sesión de BD ya cerrada: así la conexión no queda tomada
+        # ("idle in transaction") mientras corre el endpoint, lo que saturaba el pooler de Supabase.
+        decision = self._decide(request, path, user_id)
+        if decision is _ALLOW:
+            return await call_next(request)
+        return decision
+
+    def _decide(self, request: Request, path: str, user_id: int):
         db = SessionLocal()
         try:
             user = (
@@ -68,12 +79,12 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 .first()
             )
             if not user:
-                return await call_next(request)
+                return _ALLOW
 
             # Contraseña temporal: nada más está disponible hasta que el usuario la cambie.
             if user.must_change_password:
                 if path in self.password_change_paths:
-                    return await call_next(request)
+                    return _ALLOW
                 if path.startswith("/api/"):
                     return JSONResponse(
                         status_code=403,
@@ -90,7 +101,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                     ))
                     or path in {"/api/auth/refresh", "/api/auth/logout"}
                 ):
-                    return await call_next(request)
+                    return _ALLOW
                 if path.startswith("/api/"):
                     return JSONResponse(
                         status_code=403,
@@ -99,7 +110,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(url="/delivery-records", status_code=303)
 
             if user.role.name == "Administrador":
-                return await call_next(request)
+                return _ALLOW
 
             is_it_manager = any(permission.code == "it:manage" for permission in user.role.permissions)
             area_name = (user.area.name if user.area else "").strip().casefold()
@@ -109,7 +120,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 or path.startswith("/delivery-records/")
                 or path.startswith("/api/delivery-records")
             ):
-                return await call_next(request)
+                return _ALLOW
 
             if (
                 path == "/my-delivery-records"
@@ -117,14 +128,14 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
                 or path == "/api/delivery-records/mine"
                 or path.startswith("/api/delivery-records/") and path.endswith("/sign-intranet")
             ):
-                return await call_next(request)
+                return _ALLOW
 
             if self._has_full_scrum_access(user) and self._is_allowed_full_scrum_request(request):
-                return await call_next(request)
+                return _ALLOW
 
             if is_natura_manager(db, user):
                 if self._is_allowed_natura_manager_request(request):
-                    return await call_next(request)
+                    return _ALLOW
                 if path.startswith("/api/"):
                     return JSONResponse(
                         status_code=403,
@@ -134,7 +145,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
 
             if self._is_natura_user(user):
                 if self._is_allowed_natura_request(request):
-                    return await call_next(request)
+                    return _ALLOW
                 if path.startswith("/api/"):
                     return JSONResponse(
                         status_code=403,
@@ -145,7 +156,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
             db.close()
 
         if self._is_allowed_member_request(request, user):
-            return await call_next(request)
+            return _ALLOW
 
         if path.startswith("/api/"):
             return JSONResponse(

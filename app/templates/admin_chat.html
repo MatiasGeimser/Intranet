@@ -132,6 +132,34 @@
     let conversationRequestId = 0;
     let highestIncomingId = 0;
     const unreadCountsPerUser = {};
+    // Último mensaje por contacto: ordena la lista como WhatsApp (conversación más reciente arriba).
+    const lastActivityPerUser = {};
+    const touchActivity = (userId, messageId) => {
+        if (userId && userId !== CURRENT_USER) lastActivityPerUser[userId] = Math.max(lastActivityPerUser[userId] || 0, messageId || 0);
+    };
+    let markReadTimer;
+    const markConversationRead = contactId => {
+        if (!contactId || document.hidden) return;
+        unreadCountsPerUser[contactId] = 0;
+        clearTimeout(markReadTimer);
+        markReadTimer = setTimeout(() => fetchAPI(`/api/admin-chat/conversations/${contactId}/read`, {method: 'POST'}).catch(() => {}), 400);
+    };
+
+    async function loadConversations() {
+        try {
+            const response = await fetchAPI('/api/admin-chat/conversations');
+            if (!response.ok) return [];
+            const items = await response.json();
+            items.forEach(item => {
+                touchActivity(item.contact_id, item.last_message_id);
+                unreadCountsPerUser[item.contact_id] = item.contact_id === selectedContactId && !document.hidden ? 0 : item.unread;
+            });
+            renderParticipants();
+            return items;
+        } catch (error) {
+            return [];
+        }
+    }
 
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const formatTime = value => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit'}).format(new Date(value));
@@ -253,6 +281,10 @@
         document.getElementById('online-count').textContent = onlineUsers.length;
         const onlineIds = new Set(onlineUsers.map(user => user.id));
         const orderedParticipants = [...allParticipants].sort((a, b) => {
+            if (a.id === CURRENT_USER) return 1;
+            if (b.id === CURRENT_USER) return -1;
+            const activityDifference = (lastActivityPerUser[b.id] || 0) - (lastActivityPerUser[a.id] || 0);
+            if (activityDifference) return activityDifference;
             const onlineDifference = Number(onlineIds.has(b.id)) - Number(onlineIds.has(a.id));
             if (onlineDifference) return onlineDifference;
             if (a.id === CURRENT_USER) return 1;
@@ -294,6 +326,8 @@
     function renderSelectedConversationMessage(message) {
         if (selectedConversationMessageIds.has(message.id)) return;
         selectedConversationMessageIds.add(message.id);
+        touchActivity(message.sender.id === CURRENT_USER ? message.recipient_id : message.sender.id, message.id);
+        if (message.sender.id !== CURRENT_USER && message.sender.id === selectedContactId) markConversationRead(selectedContactId);
         const mine = message.sender.id === CURRENT_USER;
         const element = document.createElement('article');
         element.className = `chat-message ${mine ? 'mine' : ''}`;
@@ -496,6 +530,7 @@
         if (peerConnection || incomingCall) return;
         selectedContactId = userId;
         unreadCountsPerUser[userId] = 0;
+        markConversationRead(userId);
         const contact = allParticipants.find(user => user.id === userId);
         const online = onlineUsers.some(user => user.id === userId);
         renderParticipants();
@@ -696,7 +731,9 @@
                         notifyUser(`Mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
                     }
                 } else {
+                    // Igual que WhatsApp: no se cambia la conversación abierta; el contacto sube con su contador.
                     unreadCountsPerUser[senderId] = (unreadCountsPerUser[senderId] || 0) + 1;
+                    touchActivity(senderId, message.id);
                     renderParticipants();
                     notifyUser(`Mensaje de ${message.sender.name}`, message.content || 'Adjunto recibido');
                 }
@@ -784,8 +821,16 @@
 
             // Abrir la conversación indicada al tocar una notificación push (?contact=ID).
             const contactFromUrl = Number(new URLSearchParams(window.location.search).get('contact'));
-            if (contactFromUrl && contactFromUrl !== CURRENT_USER && allParticipants.some(p => p.id === contactFromUrl)) {
+            const conversations = await loadConversations();
+            const canOpen = id => id && id !== CURRENT_USER && allParticipants.some(p => p.id === id);
+            if (canOpen(contactFromUrl)) {
                 selectContact(contactFromUrl);
+            } else {
+                // Sin enlace: abrir directo el último mensaje recibido sin leer.
+                const latestUnread = conversations
+                    .filter(item => item.unread > 0 && canOpen(item.contact_id))
+                    .sort((a, b) => b.last_message_id - a.last_message_id)[0];
+                if (latestUnread) selectContact(latestUnread.contact_id);
             }
             
             // Inicializar cursor de mensajes entrantes
@@ -797,6 +842,10 @@
             directMessagePollTimer = window.setInterval(pollDirectMessages, 2500);
             window.setInterval(pollIncomingMessages, 2500);
             window.setInterval(reloadParticipants, 15000);
+            window.setInterval(loadConversations, 15000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && selectedContactId) { markConversationRead(selectedContactId); renderParticipants(); }
+            });
             window.setInterval(refreshPresence, 4000);
         } catch (error) {
             status.textContent = 'No fue posible cargar el chat.';

@@ -74,6 +74,17 @@ def ensure_user_must_change_password_column(db: Session) -> None:
     db.commit()
 
 
+def ensure_chat_read_at_column(db: Session) -> None:
+    """Añade el estado de lectura del chat; los mensajes previos quedan como leídos."""
+    from sqlalchemy import text
+
+    existing_columns = {column["name"] for column in inspect(engine).get_columns("admin_chat_messages")}
+    if "read_at" not in existing_columns:
+        db.execute(text("ALTER TABLE admin_chat_messages ADD COLUMN read_at TIMESTAMP"))
+        db.execute(text("UPDATE admin_chat_messages SET read_at = created_at"))
+    db.commit()
+
+
 def migrate_natura_document_structure(db: Session) -> None:
     """Normaliza las rutas Natura y crea la rama compartida de Personas Natura."""
     for permission in db.query(FolderAccess).all():
@@ -164,6 +175,7 @@ def seed_database(db: Session):
     # Contraseñas temporales: obliga a cambiarlas en el primer ingreso.
     try:
         ensure_user_must_change_password_column(db)
+        ensure_chat_read_at_column(db)
     except Exception as e:
         db.rollback()
         print(f"====== AVISO MIGRACIÓN (users.must_change_password): {e} ======")

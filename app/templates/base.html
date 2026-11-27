@@ -755,6 +755,37 @@
     (() => {
         const me={{ user.id }}, toggle=document.getElementById('global-chat-toggle'), panel=document.getElementById('global-chat-panel'), close=document.getElementById('global-chat-close'), select=document.getElementById('global-chat-select'), contact=document.getElementById('global-chat-contact'), list=document.getElementById('global-chat-messages'), form=document.getElementById('global-chat-form'), input=document.getElementById('global-chat-input'), unread=document.getElementById('global-chat-unread'), sidebarBadge=document.getElementById('sidebar-chat-unread'), imageViewer=document.getElementById('global-chat-image-viewer'), imageViewerImage=document.getElementById('global-chat-image-viewer-image'), imageViewerClose=document.getElementById('global-chat-image-viewer-close');
         let socket, selectedId=0, lastId=0, highestInId=0, people=[], rendered=new Set();
+        // Último remitente con mensajes sin leer: al abrir el chat (sin conversación activa) se va directo a él.
+        let latestUnreadSender=0, readTimer;
+        const panelOpen=()=>!panel.classList.contains('hidden');
+        const setUnreadBadges=count=>{
+            unread.textContent=String(count); unread.classList.toggle('hidden',!count); unread.classList.toggle('flex',!!count);
+            if(sidebarBadge){ sidebarBadge.textContent=String(count); sidebarBadge.classList.toggle('hidden',!count); }
+        };
+        const markRead=id=>{
+            if(!id||document.hidden||!panelOpen()) return;
+            if(latestUnreadSender===id) latestUnreadSender=0;
+            clearTimeout(readTimer);
+            readTimer=setTimeout(()=>fetchAPI(`/api/admin-chat/conversations/${id}/read`,{method:'POST'}).catch(()=>{}),400);
+        };
+        const syncConversations=async()=>{
+            try {
+                const res=await fetchAPI('/api/admin-chat/conversations');
+                if(!res.ok) return;
+                const pending=(await res.json()).filter(c=>c.unread>0&&!(panelOpen()&&c.contact_id===selectedId));
+                const total=pending.reduce((sum,c)=>sum+c.unread,0);
+                if(!panelOpen()) setUnreadBadges(total);
+                const latest=pending.sort((a,b)=>b.last_message_id-a.last_message_id)[0];
+                latestUnreadSender=latest?latest.contact_id:0;
+            } catch(e){}
+        };
+        const openContact=id=>{
+            if(!id) return;
+            if(!people.some(p=>p.id===id)) people.push({id, name:'Contacto'});
+            if(![...select.options].some(o=>Number(o.value)===id)) select.insertAdjacentHTML('beforeend',`<option value="${id}">${esc((people.find(p=>p.id===id)||{}).name||'Contacto')}</option>`);
+            select.value=String(id);
+            select.onchange();
+        };
         const esc=v=>String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
         const isImageAttachment=a=>(a.mime_type||'').startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(a.name||'');
         const imageMarkup=a=>`<button type="button" data-global-chat-image="${a.url}" data-global-chat-image-name="${esc(a.name)}" class="block mt-1.5 overflow-hidden rounded-lg border border-black/10 bg-black/5 text-left shadow-sm transition-opacity hover:opacity-90"><img src="${a.url}" alt="${esc(a.name)}" loading="lazy" class="block max-h-48 max-w-full rounded-lg object-contain"></button>`;
@@ -818,10 +849,11 @@
             el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${m.content?esc(m.content):''}${atts}</div>`;
             list.appendChild(el);
             list.scrollTop=list.scrollHeight;
+            if(!mine&&m.sender.id===selectedId) markRead(selectedId);
         };
 
         const load=async()=>{ rendered.clear(); lastId=0; if(!selectedId){list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Selecciona una persona.</p>';return;} list.innerHTML='<p class="py-12 text-center text-xs text-gray-400">Cargando conversación...</p>'; const res=await fetchAPI(`/api/admin-chat/messages?contact_id=${selectedId}`); if(!res.ok){list.innerHTML='<p class="py-12 text-center text-xs text-red-500">No fue posible cargar la conversación.</p>';return;} const history=await res.json(); list.innerHTML=history.length?'':'<p class="py-12 text-center text-xs text-gray-400">Sin mensajes todavía.</p>'; history.forEach(render); };
-        const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){triggerNotif(m.sender.name, m.content||'Adjunto');unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
+        const connect=()=>{const scheme=location.protocol==='https:'?'wss':'ws';socket=new WebSocket(`${scheme}://${location.host}/api/admin-chat/ws`);socket.onclose=()=>setTimeout(connect,2500);socket.onmessage=e=>{const p=JSON.parse(e.data);if(p.type!=='chat_message')return;const m=p.message;if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId))render(m);if(m.sender.id!==me&&m.recipient_id!=null){if(m.sender.id!==selectedId)latestUnreadSender=m.sender.id;triggerNotif(m.sender.name, m.content||'Adjunto');unread.textContent=String(Number(unread.textContent||0)+1);unread.classList.remove('hidden');unread.classList.add('flex');}}};
         const loadPeople=()=>{fetchAPI('/api/admin-chat/participants').then(r=>r.ok?r.json():[]).then(items=>{people=items;const cur=select.value;select.innerHTML='<option value="">Seleccionar agente...</option>'+people.filter(p=>p.id!==me).map(p=>`<option value="${p.id}" ${String(p.id)===String(cur)?'selected':''}>${esc(p.name)} (${esc(p.role||'Agente')})</option>`).join('')}).catch(()=>{});};
         const beat=()=>{fetchAPI('/api/admin-chat/presence/heartbeat',{method:'POST'}).catch(()=>{});};
 
@@ -880,6 +912,7 @@
                     if(selectedId&&(m.sender.id===selectedId||m.recipient_id===selectedId)){
                         render(m);
                     } else {
+                        latestUnreadSender=m.sender.id;
                         const count=Number(unread.textContent||0)+1;
                         unread.textContent=String(count);
                         unread.classList.remove('hidden');
@@ -893,6 +926,9 @@
                 });
             } catch(e){}
         };
+
+        syncConversations();
+        setInterval(()=>{ if(!panelOpen()) syncConversations(); },20000);
 
         // Initialize highest incoming ID
         fetchAPI('/api/admin-chat/incoming').then(r=>r.ok?r.json():[]).then(items=>{
@@ -910,8 +946,11 @@
 
         toggle.onclick=()=>{
             panel.classList.toggle('hidden');panel.classList.toggle('flex');
-            unread.textContent='0';unread.classList.add('hidden');
-            if(sidebarBadge){ sidebarBadge.textContent='0'; sidebarBadge.classList.add('hidden'); }
+            setUnreadBadges(0);
+            if(!panelOpen()) return;
+            // Como WhatsApp: si ya hay una conversación abierta se mantiene; si no, se abre el último mensaje sin leer.
+            if(!selectedId && latestUnreadSender) openContact(latestUnreadSender);
+            else if(selectedId) markRead(selectedId);
             if(selectedId)input.focus();
         };
         close.onclick=()=>{panel.classList.add('hidden');panel.classList.remove('flex')};

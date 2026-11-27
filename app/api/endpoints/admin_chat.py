@@ -10,7 +10,7 @@ import bleach
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from jose import JWTError, jwt
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from pydantic import BaseModel, Field
@@ -149,6 +149,54 @@ def list_messages(
         query = query.filter(AdminChatMessage.id > after_id)
     messages = query.order_by(AdminChatMessage.created_at.desc()).limit(100).all()
     return [_message_payload(message) for message in reversed(messages)]
+
+
+@router.get("/conversations")
+def list_conversations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> list[dict[str, Any]]:
+    """Conversaciones del usuario: último mensaje y mensajes sin leer por contacto (como WhatsApp)."""
+    me = current_user.id
+    other_id = case((AdminChatMessage.sender_id == me, AdminChatMessage.recipient_id), else_=AdminChatMessage.sender_id)
+    unread = func.sum(case(
+        (and_(AdminChatMessage.recipient_id == me, AdminChatMessage.read_at.is_(None)), 1),
+        else_=0,
+    ))
+    rows = (
+        db.query(other_id.label("contact_id"), func.max(AdminChatMessage.id).label("last_id"), unread.label("unread"))
+        .filter(
+            AdminChatMessage.recipient_id.isnot(None),
+            or_(AdminChatMessage.sender_id == me, AdminChatMessage.recipient_id == me),
+        )
+        .group_by(other_id)
+        .all()
+    )
+    return [
+        {"contact_id": row.contact_id, "last_message_id": row.last_id, "unread": int(row.unread or 0)}
+        for row in rows
+        if row.contact_id and row.contact_id != me
+    ]
+
+
+@router.post("/conversations/{contact_id}/read")
+def mark_conversation_read(
+    contact_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> dict[str, int]:
+    """Marca como leídos los mensajes que el contacto le envió al usuario actual."""
+    updated = (
+        db.query(AdminChatMessage)
+        .filter(
+            AdminChatMessage.sender_id == contact_id,
+            AdminChatMessage.recipient_id == current_user.id,
+            AdminChatMessage.read_at.is_(None),
+        )
+        .update({AdminChatMessage.read_at: datetime.now(timezone.utc).replace(tzinfo=None)}, synchronize_session=False)
+    )
+    db.commit()
+    return {"updated": updated}
 
 
 @router.get("/incoming")
