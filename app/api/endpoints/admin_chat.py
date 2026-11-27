@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Re
 from fastapi.responses import FileResponse
 from jose import JWTError, jwt
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from pydantic import BaseModel, Field
 
@@ -511,6 +511,8 @@ def _websocket_admin(websocket: WebSocket) -> User | None:
         return (
             db.query(User)
             .join(User.role)
+            # El rol se carga ahora: la sesión se cierra antes de usar el usuario en el websocket.
+            .options(contains_eager(User.role))
             .filter(
                 User.id == user_id,
                 User.is_active.is_(True),
