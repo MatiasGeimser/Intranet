@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List
 
 from app.core.database import get_db
@@ -16,7 +16,8 @@ def read_notes(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Obtiene el catálogo compartido de proyectos, con tareas filtradas por usuario.
     """
-    notes = db.query(Note).order_by(Note.created_at.desc()).all()
+    # Cargar las tareas de todos los proyectos en una sola consulta (evita N+1).
+    notes = db.query(Note).options(selectinload(Note.tasks)).order_by(Note.created_at.desc()).all()
     return [{
             "id": note.id,
             "title": note.title,

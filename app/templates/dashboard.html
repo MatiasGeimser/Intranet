@@ -584,25 +584,24 @@
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
+        // 1. Tablero primero y en paralelo: colaboradores + proyectos y tareas
+        await Promise.allSettled([
+            isLimitedScrumDashboard ? Promise.resolve() : loadUsersCache(),
+            loadProjectsAndTasks(),
+        ]);
+        // Con los colaboradores ya cargados, completar filtro y nombres del tablero
+        populateAssigneeSelector();
+        renderScrumBoard();
+
+        // 2. El resto de paneles se carga en paralelo, sin bloquear el tablero
         if (!isLimitedScrumDashboard) {
-            // Cargar actividad de auditoría reciente
-            await loadAuditFeed();
-
-            // Cargar eventos del calendario
-            await loadCalendarEvents();
-
-            // Cargar caché de colaboradores
-            await loadUsersCache();
-        }
-
-        // Cargar proyectos y tareas del tablero
-        await loadProjectsAndTasks();
-
-        if (!isLimitedScrumDashboard) {
-            // Cargar Noticias y Cumpleaños
-            await loadDashboardNews();
-            await loadDashboardBirthdays();
-            await loadDailyInstances();
+            await Promise.allSettled([
+                loadAuditFeed(),
+                loadCalendarEvents(),
+                loadDashboardNews(),
+                loadDashboardBirthdays(),
+                loadDailyInstances(),
+            ]);
         }
     });
 
@@ -784,6 +783,22 @@
     }
 
     // Cargar proyectos (notas) y tareas
+    function fillTaskProjectSelect() {
+        const projectSelect = document.getElementById("taskProject");
+        if (!projectSelect) return;
+        const previous = projectSelect.value;
+        projectSelect.innerHTML = '<option value="">Seleccionar Proyecto...</option>';
+        notesList.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = p.title;
+            projectSelect.appendChild(opt);
+        });
+        // Mantener la elección previa o el proyecto filtrado en el tablero
+        if (previous && notesList.some(n => String(n.id) === previous)) projectSelect.value = previous;
+        else if (activeProjectId !== "all") projectSelect.value = activeProjectId;
+    }
+
     async function loadProjectsAndTasks() {
         try {
             // 1. Obtener proyectos (notas)
@@ -1538,19 +1553,21 @@
             }
         }, 10);
 
-        // Poblar selector de proyectos en el modal
-        const projectSelect = document.getElementById("taskProject");
-        projectSelect.innerHTML = '<option value="">Seleccionar Proyecto...</option>';
-        notesList.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.textContent = p.title;
-            projectSelect.appendChild(opt);
-        });
-        
-        // Auto-seleccionar el proyecto actualmente filtrado si aplica
-        if (activeProjectId !== "all") {
-            projectSelect.value = activeProjectId;
+        // Poblar selector de proyectos en el modal (si aún no llegan, se piden ahora)
+        fillTaskProjectSelect();
+        if (!notesList.length) {
+            const projectSelect = document.getElementById("taskProject");
+            projectSelect.innerHTML = '<option value="">Cargando proyectos...</option>';
+            fetchAPI("/api/notes")
+                .then(r => (r && r.ok) ? r.json() : null)
+                .then(notes => {
+                    if (notes) {
+                        notesList = notes;
+                        populateProjectSelector();
+                    }
+                    fillTaskProjectSelect();
+                })
+                .catch(() => fillTaskProjectSelect());
         }
 
         // Poblar lista de encargados (selección múltiple) en el modal
