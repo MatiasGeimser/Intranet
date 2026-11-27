@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from pydantic import BaseModel, Field
 
-from app.core.roles import LIMITED_ROLES, is_limited_role
+from app.core.roles import NO_CHAT_ROLES, can_use_chat
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import SessionLocal, get_db
@@ -63,7 +63,7 @@ class PushUnsubscribeIn(BaseModel):
 
 
 def require_chat_member(current_user: User = Depends(get_current_active_user)) -> User:
-    if is_limited_role(current_user.role.name):
+    if not can_use_chat(current_user.role.name):
         raise HTTPException(status_code=403, detail="Este módulo no está disponible para usuarios estándar.")
     return current_user
 
@@ -133,7 +133,7 @@ def list_messages(
             .filter(
                 User.id == contact_id,
                 User.is_active.is_(True),
-                Role.name.notin_(LIMITED_ROLES),
+                Role.name.notin_(NO_CHAT_ROLES),
             )
             .first()
     )
@@ -201,7 +201,7 @@ async def send_chat_message(
         .filter(
             User.id == payload.recipient_id,
             User.is_active.is_(True),
-            Role.name.notin_(LIMITED_ROLES),
+            Role.name.notin_(NO_CHAT_ROLES),
         )
         .first()
     )
@@ -243,7 +243,7 @@ def list_participants(
     users = (
         db.query(User)
         .join(User.role)
-        .filter(User.is_active.is_(True), Role.name.notin_(LIMITED_ROLES))
+        .filter(User.is_active.is_(True), Role.name.notin_(NO_CHAT_ROLES))
         .order_by(User.full_name.asc())
         .all()
     )
@@ -264,7 +264,7 @@ def list_presence(
         .join(User.role)
         .filter(
             User.is_active.is_(True),
-            Role.name.notin_(LIMITED_ROLES),
+            Role.name.notin_(NO_CHAT_ROLES),
             AdminChatPresence.last_seen >= cutoff,
         )
         .all()
@@ -514,7 +514,7 @@ def _websocket_admin(websocket: WebSocket) -> User | None:
             .filter(
                 User.id == user_id,
                 User.is_active.is_(True),
-                Role.name.notin_(LIMITED_ROLES),
+                Role.name.notin_(NO_CHAT_ROLES),
             )
             .first()
         )
@@ -565,7 +565,7 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
             .filter(
                 User.id == recipient_id,
                 User.is_active.is_(True),
-                Role.name.notin_(LIMITED_ROLES),
+                Role.name.notin_(NO_CHAT_ROLES),
             )
             .first()
         )

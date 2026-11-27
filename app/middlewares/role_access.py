@@ -3,7 +3,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.roles import is_limited_role
+from app.core.roles import can_use_chat, is_limited_role
 from app.api.deps import get_token_from_request
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -206,7 +206,7 @@ class RoleAccessMiddleware(BaseHTTPMiddleware):
         method = request.method
         role_name = user.role.name
 
-        if not is_limited_role(role_name) and (
+        if can_use_chat(role_name) and (
             path == "/admin-chat" or path.startswith("/api/admin-chat")
         ):
             return True

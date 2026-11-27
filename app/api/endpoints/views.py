@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 import os
 from typing import Optional
-from app.core.roles import is_limited_role
+from app.core.roles import can_use_chat, is_limited_role
 from app.core.database import get_db
 from app.api.deps import get_token_from_request
 from jose import jwt
@@ -200,7 +200,7 @@ def admin_chat_view(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_optional(request, db)
     if not user or not user.is_active:
         return RedirectResponse(url="/login")
-    if is_limited_role(user.role.name):
+    if not can_use_chat(user.role.name):
         return RedirectResponse(url="/passwords", status_code=303)
 
     response = templates.TemplateResponse(request=request, name="admin_chat.html", context={
