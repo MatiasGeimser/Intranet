@@ -654,12 +654,20 @@ async def _handle_signal(user: User, payload: dict[str, Any]) -> None:
     await manager.send_to(target_id, {"type": "signal", "from": user.id, "signal": signal})
 
 
+def _utc_iso(value: datetime) -> str:
+    # La columna es "timestamp without time zone" y guarda UTC; sin la zona,
+    # el navegador la interpretaría como hora local.
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
 def _message_payload(message: AdminChatMessage, sender: User | None = None) -> dict[str, Any]:
     author = sender or message.sender
     return {
         "id": message.id,
         "content": message.content,
-        "created_at": message.created_at.isoformat(),
+        "created_at": _utc_iso(message.created_at),
         "recipient_id": message.recipient_id,
         "sender": {"id": author.id, "name": author.full_name, "email": author.email},
         "attachments": [_attachment_payload(attachment) for attachment in message.attachments],

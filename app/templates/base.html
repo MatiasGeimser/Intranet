@@ -26,6 +26,32 @@
     <!-- Script de TailwindCSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <script>
+        // Hora y separadores de fecha del chat (estilo WhatsApp).
+        window.chatTime = iso => new Intl.DateTimeFormat('es-CL', {hour: '2-digit', minute: '2-digit', hour12: false}).format(new Date(iso));
+        window.chatDayKey = iso => { const d = new Date(iso); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+        window.chatDayLabel = iso => {
+            const d = new Date(iso), today = new Date();
+            const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+            const diff = Math.round((startOf(today) - startOf(d)) / 86400000);
+            if (diff === 0) return 'Hoy';
+            if (diff === 1) return 'Ayer';
+            if (diff > 1 && diff < 7) { const w = new Intl.DateTimeFormat('es-CL', {weekday: 'long'}).format(d); return w.charAt(0).toUpperCase() + w.slice(1); }
+            return new Intl.DateTimeFormat('es-CL', {day: '2-digit', month: '2-digit', year: 'numeric'}).format(d);
+        };
+        // Inserta "Hoy" / "Ayer" / fecha si el mensaje es de un día distinto al último mostrado.
+        window.chatDaySeparator = (container, iso, element) => {
+            const key = chatDayKey(iso);
+            element.dataset.day = key;
+            const previous = [...container.querySelectorAll('[data-day]')].pop();
+            if (previous && previous.dataset.day === key) return;
+            const sep = document.createElement('div');
+            sep.className = 'my-2 flex justify-center';
+            sep.innerHTML = `<span class="rounded-md bg-gray-200/80 px-2.5 py-0.5 text-[10px] font-semibold text-gray-600 shadow-sm">${chatDayLabel(iso)}</span>`;
+            container.appendChild(sep);
+        };
+        window.chatTimeStamp = (iso, mine) => `<span class="mt-1 block text-right text-[10px] leading-none ${mine ? 'text-white/75' : 'text-gray-400'}">${chatTime(iso)}</span>`;
+    </script>
     <!-- Configuración del tema TailwindCSS con la paleta de colores corporativa estricta -->
     <script>
         tailwind.config = {
@@ -846,7 +872,8 @@
                     : `<a href="${a.url}" target="_blank" class="mt-1 flex items-center gap-1.5 text-[10px] text-blue-600 hover:underline"><i class="fa-solid fa-file"></i><span>${esc(a.name)}</span></a>`
                 ).join('');
             }
-            el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${m.content?esc(m.content):''}${atts}</div>`;
+            el.innerHTML=`<p class="mb-1 text-[10px] font-semibold text-gray-500 ${mine?'text-right':''}">${esc(m.sender.name)}</p><div class="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap break-words ${mine?'bg-[#049DD9] text-white':'border border-gray-200 bg-white text-gray-800'}">${m.content?esc(m.content):''}${atts}${chatTimeStamp(m.created_at,mine)}</div>`;
+            chatDaySeparator(list,m.created_at,el);
             list.appendChild(el);
             list.scrollTop=list.scrollHeight;
             if(!mine&&m.sender.id===selectedId) markRead(selectedId);
