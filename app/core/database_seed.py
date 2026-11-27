@@ -18,6 +18,7 @@ from app.models.document import Document  # noqa: F401
 from app.models.folder_access import FolderAccess  # noqa: F401
 from app.models.task import TaskComment  # noqa: F401
 from app.models.delivery_record import DeliveryRecord  # noqa: F401
+from app.models.push_subscription import PushSubscription  # noqa: F401
 
 
 NATURA_MONTHS = (
@@ -286,7 +287,8 @@ def seed_database(db: Session):
         {"name": "Tecnología", "description": "Departamento de sistemas y desarrollo"},
         {"name": "Soporte", "description": "Mesa de ayuda y soporte técnico"},
         {"name": "Finanzas", "description": "Contabilidad y finanzas"},
-        {"name": "Ventas", "description": "Comercialización y ventas"}
+        {"name": "Ventas", "description": "Comercialización y ventas"},
+        {"name": "Practicantes", "description": "Estudiantes en práctica con asignaciones y tareas"}
     ]
 
     db_areas = {}

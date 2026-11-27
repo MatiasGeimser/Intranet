@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload, selectinload
 class RoleAccessMiddleware(BaseHTTPMiddleware):
     """Limita a usuarios no administradores a los tres modulos autorizados."""
 
-    public_paths = {"/", "/login", "/favicon.ico"}
+    public_paths = {"/", "/login", "/favicon.ico", "/sw.js", "/manifest.webmanifest"}
     member_pages = {"/passwords", "/vault", "/directory", "/profile"}
     chat_roles = {"Administrador", "Supervisor"}
     # Rutas permitidas mientras el usuario mantiene una contraseña temporal.

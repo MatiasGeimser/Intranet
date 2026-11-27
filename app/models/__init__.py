@@ -17,11 +17,12 @@ from app.models.folder_access import FolderAccess
 from app.models.admin_chat import AdminChatAttachment, AdminChatMessage
 from app.models.admin_chat_presence import AdminChatPresence
 from app.models.delivery_record import DeliveryRecord
+from app.models.push_subscription import PushSubscription
 
 # Exportar todos los modelos para que Base.metadata.create_all() los encuentre
 __all__ = [
     "User", "Role", "Permission", "Session", "Credential", "Event",
     "Document", "News", "Comment", "AuditLog", "ITAsset", "VLAN",
     "NetworkDevice", "PhoneNumber", "Task", "TaskComment", "Note", "Area", "Collaborator",
-    "Workspace", "FolderAccess", "AdminChatMessage", "AdminChatAttachment", "AdminChatPresence", "DeliveryRecord"
+    "Workspace", "FolderAccess", "AdminChatMessage", "AdminChatAttachment", "AdminChatPresence", "DeliveryRecord", "PushSubscription"
 ]

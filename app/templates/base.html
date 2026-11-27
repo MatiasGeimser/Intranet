@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ project_name }} - {% block title %}Intranet{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#049DD9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Intranet">
+    <link rel="apple-touch-icon" href="/static/images/icon-192.png">
 
     <!-- Fuentes modernas Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -692,6 +698,45 @@
         }
     </script>
 
+    {% if user and user.role and user.role.name != 'Usuario' %}
+    <script src="/static/js/push.js"></script>
+    <div id="push-prompt" class="hidden fixed bottom-20 left-4 right-4 sm:left-auto sm:right-5 sm:w-[340px] z-[60] rounded-2xl border border-[#049DD9]/20 bg-white p-4 shadow-xl">
+        <div class="flex items-start gap-3">
+            <div class="h-9 w-9 shrink-0 rounded-xl bg-[#049DD9]/10 text-[#049DD9] flex items-center justify-center"><i class="fa-solid fa-bell"></i></div>
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-bold text-gray-800">Notificaciones del chat</p>
+                <p class="mt-0.5 text-[11px] leading-relaxed text-gray-500">Recibe un aviso en este dispositivo cuando alguien te escriba, aunque la intranet esté cerrada.</p>
+                <div class="mt-3 flex gap-2">
+                    <button id="push-prompt-enable" type="button" class="rounded-lg bg-[#049DD9] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-[#038bc2]">Activar</button>
+                    <button id="push-prompt-later" type="button" class="rounded-lg px-3 py-1.5 text-[11px] font-semibold text-gray-500 hover:bg-gray-100">Ahora no</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (() => {
+        const prompt = document.getElementById('push-prompt');
+        const push = window.intranetPush;
+        let dismissed = false;
+        try { dismissed = Number(localStorage.getItem('pushPromptDismissed') || 0) > Date.now(); } catch (e) {}
+        if (!push || !push.supported || dismissed || Notification.permission !== 'default') return;
+        prompt.classList.remove('hidden');
+        document.getElementById('push-prompt-later').addEventListener('click', () => {
+            prompt.classList.add('hidden');
+            try { localStorage.setItem('pushPromptDismissed', String(Date.now() + 3 * 24 * 3600 * 1000)); } catch (e) {}
+        });
+        document.getElementById('push-prompt-enable').addEventListener('click', async () => {
+            const result = await push.enable();
+            prompt.classList.add('hidden');
+            if (typeof showToast === 'function') {
+                if (result.ok) showToast('Notificaciones activadas en este dispositivo.', 'success');
+                else if (result.reason === 'denied') showToast('Las notificaciones fueron bloqueadas en el navegador.', 'error');
+                else showToast('No fue posible activar las notificaciones push.', 'error');
+            }
+        });
+    })();
+    </script>
+    {% endif %}
     {% if user and user.role and user.role.name != 'Usuario' and active_page != 'admin-chat' %}
     <aside id="global-chat" class="fixed bottom-5 right-5 z-50">
         <button id="global-chat-toggle" type="button" class="relative h-12 w-12 rounded-full bg-[#049DD9] text-white shadow-lg shadow-[#049DD9]/30 hover:bg-[#038bc2]" title="Chat institucional"><i class="fa-solid fa-comments"></i><span id="global-chat-unread" class="hidden absolute -right-1 -top-1 min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold">0</span></button>
@@ -742,6 +787,8 @@
         const triggerNotif=(senderName, text)=>{
             playChime();
             if(typeof showToast==='function') showToast(`Mensaje de ${senderName}: ${text}`, 'info');
+            // Con push activo, el aviso del sistema lo muestra el service worker (evita duplicados).
+            if(window.intranetPush && window.intranetPush.active) return;
             if('Notification' in window && Notification.permission==='granted') {
                 try {
                     const n=new Notification(`Mensaje de ${senderName}`, {

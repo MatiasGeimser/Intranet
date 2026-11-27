@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
     SUPABASE_STORAGE_BUCKET: str = "intranet-documents"
 
+    # Notificaciones push (Web Push / VAPID) del chat institucional.
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_SUBJECT: str = "mailto:no-reply@geimser.cl"
+
     # Integración servidor a servidor con el asistente ITSM.
     ASSISTANT_BRIDGE_SECRET: Optional[str] = None
 

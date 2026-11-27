@@ -198,6 +198,7 @@
     function notifyUser(title, body) {
         playNotificationSound();
         showToast(`${title}: ${body}`, 'info');
+        if (window.intranetPush && window.intranetPush.active) return;
         if ('Notification' in window && Notification.permission === 'granted') {
             try {
                 const notif = new Notification(title, {
@@ -216,6 +217,14 @@
             return;
         }
         playNotificationSound();
+        if (window.intranetPush && window.intranetPush.supported) {
+            const result = await window.intranetPush.enable();
+            updateNotificationButton();
+            if (result.ok) showToast('Notificaciones activadas en este dispositivo (también con la intranet cerrada).', 'success');
+            else if (result.reason === 'denied') showToast('Las notificaciones fueron bloqueadas en el navegador.', 'info');
+            else showToast('Alertas activadas solo mientras la intranet esté abierta.', 'info');
+            return;
+        }
         const permission = Notification.permission === 'default'
             ? await Notification.requestPermission()
             : Notification.permission;
@@ -772,6 +781,12 @@
         try {
             await reloadParticipants();
             messages.innerHTML = '<p class="text-xs text-gray-400 text-center py-12">Selecciona un integrante para iniciar una conversación privada.</p>';
+
+            // Abrir la conversación indicada al tocar una notificación push (?contact=ID).
+            const contactFromUrl = Number(new URLSearchParams(window.location.search).get('contact'));
+            if (contactFromUrl && contactFromUrl !== CURRENT_USER && allParticipants.some(p => p.id === contactFromUrl)) {
+                selectContact(contactFromUrl);
+            }
             
             // Inicializar cursor de mensajes entrantes
             const incomingInit = await fetchAPI('/api/admin-chat/incoming').then(r => r.ok ? r.json() : []).catch(() => []);

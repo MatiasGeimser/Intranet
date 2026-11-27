@@ -1,0 +1,13 @@
+{
+  "name": "Intranet GEIMSER",
+  "short_name": "Intranet",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F2F2F2",
+  "theme_color": "#049DD9",
+  "icons": [
+    { "src": "/static/images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

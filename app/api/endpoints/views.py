@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
@@ -81,6 +81,26 @@ def can_manage_delivery_records(user: User) -> bool:
 
 def can_view_delivery_records(user: User) -> bool:
     return is_delivery_records_only_user(user) or can_manage_delivery_records(user)
+
+
+@router.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """Service worker servido en la raíz para controlar todo el sitio (notificaciones push)."""
+    return FileResponse(
+        os.path.join("app", "static", "sw.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+    )
+
+
+@router.get("/manifest.webmanifest", include_in_schema=False)
+def web_manifest():
+    """Permite instalar la intranet como app en el teléfono (necesario para push en iPhone)."""
+    return FileResponse(
+        os.path.join("app", "static", "manifest.webmanifest"),
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)

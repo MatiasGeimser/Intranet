@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 import bleach
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from jose import JWTError, jwt
 from sqlalchemy import and_, or_
@@ -20,8 +20,10 @@ from app.core.config import settings
 from app.core.database import SessionLocal, get_db
 from app.models.admin_chat import AdminChatAttachment, AdminChatMessage
 from app.models.admin_chat_presence import AdminChatPresence
+from app.models.push_subscription import PushSubscription
 from app.models.role import Role
 from app.models.user import User
+from app.services.push_service import notify_chat_message, push_enabled
 from app.services.supabase_storage import SupabaseStorageError, supabase_storage
 
 router = APIRouter()
@@ -45,10 +47,67 @@ class ChatMessageCreate(BaseModel):
     attachment_ids: list[int] = Field(default_factory=list)
 
 
+class PushKeys(BaseModel):
+    p256dh: str = Field(..., min_length=1, max_length=255)
+    auth: str = Field(..., min_length=1, max_length=255)
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+    keys: PushKeys
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+
+
 def require_chat_member(current_user: User = Depends(get_current_active_user)) -> User:
     if current_user.role.name == "Usuario":
         raise HTTPException(status_code=403, detail="Este módulo no está disponible para usuarios estándar.")
     return current_user
+
+
+@router.get("/push/key")
+def get_push_public_key(_: User = Depends(require_chat_member)) -> dict[str, Any]:
+    """Clave pública VAPID para que el navegador cree la suscripción push."""
+    return {"enabled": push_enabled(), "public_key": settings.VAPID_PUBLIC_KEY if push_enabled() else None}
+
+
+@router.post("/push/subscribe", status_code=201)
+def subscribe_push(
+    payload: PushSubscriptionIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> dict[str, bool]:
+    """Registra (o reasigna) este dispositivo para recibir notificaciones del chat."""
+    if not payload.endpoint.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Suscripción push no válida.")
+    subscription = db.query(PushSubscription).filter(PushSubscription.endpoint == payload.endpoint).first()
+    if not subscription:
+        subscription = PushSubscription(endpoint=payload.endpoint)
+        db.add(subscription)
+    # Un mismo navegador solo notifica a la última cuenta que inició sesión en él.
+    subscription.user_id = current_user.id
+    subscription.p256dh = payload.keys.p256dh
+    subscription.auth = payload.keys.auth
+    subscription.user_agent = (request.headers.get("user-agent") or "")[:300]
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/push/unsubscribe")
+def unsubscribe_push(
+    payload: PushUnsubscribeIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_chat_member),
+) -> dict[str, bool]:
+    db.query(PushSubscription).filter(
+        PushSubscription.endpoint == payload.endpoint,
+        PushSubscription.user_id == current_user.id,
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/messages")
@@ -112,6 +171,7 @@ def list_incoming_messages(
 @router.post("/messages", status_code=201)
 async def send_chat_message(
     payload: ChatMessageCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_chat_member),
 ) -> dict[str, Any]:
@@ -164,6 +224,12 @@ async def send_chat_message(
     event = {"type": "chat_message", "message": response_payload}
     await manager.send_to(current_user.id, event)
     await manager.send_to(recipient.id, event)
+
+    # Notificación push al teléfono/PC del destinatario aunque no tenga la intranet abierta.
+    background_tasks.add_task(
+        notify_chat_message,
+        recipient.id, current_user.id, current_user.full_name, content, bool(attachments),
+    )
 
     return response_payload
 
@@ -518,6 +584,9 @@ async def _handle_chat_message(user: User, payload: dict[str, Any]) -> None:
         event = {"type": "chat_message", "message": _message_payload(message, user)}
         await manager.send_to(user.id, event)
         await manager.send_to(recipient.id, event)
+        asyncio.create_task(asyncio.to_thread(
+            notify_chat_message, recipient.id, user.id, user.full_name, content, bool(attachments),
+        ))
     finally:
         db.close()
 
